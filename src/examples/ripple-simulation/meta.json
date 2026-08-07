@@ -1,0 +1,16 @@
+{
+  "title": "Ripple Simulation",
+  "description": "ping-pong FBO で波動方程式を回す水面シミュレーション。前フレームの状態から波が実際に伝播・反射・減衰し、その高さフィールドでテクスチャを屈折させる。",
+  "emoji": "💧",
+  "category": "interaction",
+  "tags": ["fbo", "ping-pong", "simulation", "shader", "mouse"],
+  "variants": [
+    { "id": "water", "label": "Water Surface" },
+    { "id": "chrome", "label": "Liquid Chrome" },
+    { "id": "prism", "label": "Prism Ripple" },
+    { "id": "field", "label": "Height Field" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "波動方程式の離散化 + ping-pong FBO"
+}
