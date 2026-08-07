@@ -1,0 +1,16 @@
+{
+  "title": "Scene Transitions",
+  "description": "2つの3DシーンをFBOに焼き、全画面クアッドで合成して切り替える。ノイズワイプ・劇場カーテン・オーバーレイフェード・円形ワイプを同じ画面で試せる。",
+  "emoji": "🎬",
+  "category": "transitions",
+  "tags": ["transition", "fbo", "shader", "postprocess"],
+  "variants": [
+    { "id": "noise-wipe", "label": "Noise Wipe" },
+    { "id": "curtain", "label": "Theater Curtain" },
+    { "id": "fade", "label": "Overlay Fade" },
+    { "id": "circle", "label": "Circle Wipe" }
+  ],
+  "source": "ai-quest (Lusion) / bilal.show / gameboy-tawny",
+  "sourceUrl": "https://ai-quest.lusion.co/",
+  "note": "Obsidian: ノイズマスクによる画面トランジション / 劇場カーテンのDOMトランジション / 全画面オーバーレイクアッドによるローディング画面フェード"
+}
