@@ -1,44 +1,65 @@
 import { Link } from 'react-router-dom'
+import { groupByCategory } from '../categories'
 
 export default function Home({ examples }) {
+  const groups = groupByCategory(examples)
+
   return (
-    <main className="gallery">
-      <header className="gallery__header">
-        <h1 className="gallery__title">Examples</h1>
-        <p className="gallery__subtitle">
-          Web で見かけた印象的なエフェクトの再現コレクション
+    <div className="home">
+      <header className="home__header">
+        <h1 className="home__title">Web Effects Showcase</h1>
+        <p className="home__subtitle">
+          Three.js / WebGL による表現のコレクション。左のリストから選ぶか、
+          下のカードから飛んでください。各シーンは右上のパネルでパラメータを変えて試せます。
         </p>
       </header>
 
       {examples.length === 0 ? (
-        <div className="gallery__empty">
+        <div className="home__empty">
           <p>まだ example がありません。</p>
-          <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-            <code>src/examples/&lt;slug&gt;/</code> にフォルダを追加すると自動的にここに表示されます。
+          <p>
+            <code>src/examples/&lt;slug&gt;/</code> にフォルダを追加すると自動で登録されます。
           </p>
         </div>
       ) : (
-        <div className="gallery__grid">
-          {examples.map((ex) => (
-            <Link key={ex.slug} to={`/examples/${ex.slug}`} className="gallery__card">
-              <div className="gallery__card-thumb">
-                {ex.emoji || '✨'}
-              </div>
-              <div className="gallery__card-meta">
-                <div className="gallery__card-title">{ex.title}</div>
-                <div className="gallery__card-desc">{ex.description}</div>
-                {ex.tags && (
-                  <div className="gallery__card-tags">
-                    {ex.tags.map((t) => (
-                      <span key={t} className="gallery__card-tag">{t}</span>
-                    ))}
+        groups.map(({ category, items }) => (
+          <section key={category.id} className="home__section">
+            <h2 className="home__section-title">
+              {category.label}
+              {category.desc && <span>{category.desc}</span>}
+            </h2>
+            <div className="home__grid">
+              {items.map((ex) => (
+                <Link
+                  key={ex.slug}
+                  to={`/examples/${ex.slug}`}
+                  className="card"
+                >
+                  <div className="card__thumb">{ex.emoji || '✨'}</div>
+                  <div className="card__meta">
+                    <div className="card__title">
+                      {ex.title}
+                      {ex.variants?.length > 1 && (
+                        <span className="card__badge">
+                          {ex.variants.length} variants
+                        </span>
+                      )}
+                    </div>
+                    <div className="card__desc">{ex.description}</div>
+                    {ex.tags?.length > 0 && (
+                      <div className="card__tags">
+                        {ex.tags.map((t) => (
+                          <span key={t} className="tag">{t}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))
       )}
-    </main>
+    </div>
   )
 }

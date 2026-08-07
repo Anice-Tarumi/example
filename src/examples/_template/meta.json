@@ -2,8 +2,13 @@
   "title": "Example Template",
   "description": "雛形。コピーして slug 名のフォルダを作り、ここを書き換えてください。",
   "emoji": "✨",
+  "category": "interaction",
   "tags": ["template"],
+  "variants": [
+    { "id": "a", "label": "Variant A" },
+    { "id": "b", "label": "Variant B" }
+  ],
   "source": "",
   "sourceUrl": "",
-  "originalPrompt": ""
+  "note": ""
 }

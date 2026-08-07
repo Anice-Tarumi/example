@@ -1,6 +1,7 @@
-# example — Web Effects Showcase
+# showcase — Web Effects Showcase
 
-Three.js / WebGL を使ったエフェクトの再現コレクション。three.js examples 風のギャラリーサイト。
+Three.js / WebGL による表現のコレクション。three.js examples 風の、左固定リストから
+シーンを切り替えるギャラリーサイト。
 
 ## 開発
 
@@ -9,7 +10,17 @@ npm install
 npm run dev      # http://localhost:5173/
 npm run build    # 静的サイト出力
 npm run preview  # 出力結果のプレビュー
+npm run lint
 ```
+
+## 設計方針
+
+- **1 example = 1 機能。** バリエーションは別 example にせず、同じキャンバス内で
+  variant / パラメータを切り替えて見せる（例: 画面トランジションの演出違い）。
+- **分類は機能軸。** カテゴリは `src/categories.js` に定義。Obsidian Vault の
+  `Webテクニック/` の分類を「体験できる単位」で再編したもの。
+- **パラメータ UI は leva。** 各 example が `useControls` でパラメータを公開すると、
+  画面右上のパネルに自動で出る。
 
 ## 新しい example を追加する
 
@@ -17,13 +28,20 @@ npm run preview  # 出力結果のプレビュー
 cp -r src/examples/_template src/examples/your-effect-name
 ```
 
-その後、以下 3 つを編集:
+その後 `meta.json` / `presets.js` / `index.jsx` / `README.md` を編集。
+HMR で即反映され、サイドバーとホームに自動登録される。詳細は
+[`src/examples/_template/README.md`](src/examples/_template/README.md)。
 
-- `meta.json` — タイトル・説明・タグ・出典
-- `index.jsx` — エフェクト本体（default export）
-- `README.md` — 解説（funcCopy の出力 MD を流用すると楽）
+### meta.json
 
-HMR で自動反映され、ホーム (`/`) のギャラリーにも自動で追加されます。
+| キー | 用途 |
+| --- | --- |
+| `title` / `description` / `emoji` | 一覧・info パネル表示 |
+| `category` | `src/categories.js` の id。サイドバーのグループになる |
+| `tags` | サイドバーの絞り込みに使う |
+| `variants` | `[{ id, label }]`。`presets.js` のキーと揃える |
+| `source` / `sourceUrl` | 出典サイト |
+| `note` | 元プロンプトや Obsidian ノート名などのメモ |
 
 ## ディレクトリ構造
 
@@ -31,21 +49,30 @@ HMR で自動反映され、ホーム (`/`) のギャラリーにも自動で追
 showcase/
 ├── src/
 │   ├── main.jsx
-│   ├── App.jsx                  ← ルーター + 自動 example 登録
+│   ├── App.jsx                  ← ルーティングのみ
+│   ├── registry.js              ← examples の自動登録（import.meta.glob）
+│   ├── categories.js            ← 機能軸カテゴリ定義
 │   ├── pages/
-│   │   └── Home.jsx             ← ギャラリー
+│   │   └── Home.jsx             ← ウェルカム + カード一覧
 │   ├── shared/
-│   │   └── ExampleLayout.jsx    ← 各 example の共通レイアウト
+│   │   ├── Shell.jsx            ← サイドバー常時表示の外枠
+│   │   ├── Sidebar.jsx          ← 検索・タグ絞り込み・カテゴリ別リスト
+│   │   ├── ExampleLayout.jsx    ← キャンバス + leva パネル + info オーバーレイ
+│   │   └── levaTheme.js
 │   └── examples/
-│       ├── _template/           ← 雛形（無視される）
-│       └── <slug>/              ← 各エフェクト
+│       ├── _template/           ← 雛形（`_` 始まりは登録対象外）
+│       └── <slug>/
 │           ├── index.jsx
+│           ├── presets.js
+│           ├── shaders.js       ← 必要なら
 │           ├── meta.json
 │           └── README.md
-├── public/
 └── ...
 ```
 
-## 出典
+## lint について
 
-各 example の `meta.json` 内 `source` / `sourceUrl` 参照。
+`src/examples/**` では `react-hooks/immutability` / `refs` / `set-state-in-effect` を
+無効化している（[eslint.config.js](eslint.config.js)）。react-three-fiber では
+uniform や Object3D を `useFrame` 内で直接書き換えるのが公式パターンで、
+React Compiler 系のルールとは両立しないため。
