@@ -1,0 +1,16 @@
+{
+  "title": "Hover Pulse Ripple",
+  "description": "ホバー位置を中心にリング波が3D曲面に広がり、波の山だけがモザイク化されるエフェクト。周波数・鋭さ・モザイク粒度・色をパネルで変えられる。",
+  "emoji": "🎨",
+  "category": "interaction",
+  "tags": ["shader", "hover", "mouse", "3d"],
+  "variants": [
+    { "id": "gold", "label": "Gold Pulse" },
+    { "id": "ice", "label": "Ice Mosaic" },
+    { "id": "scanline", "label": "Dense Scanline" },
+    { "id": "magma", "label": "Magma Bloom" }
+  ],
+  "source": "buttermax.net",
+  "sourceUrl": "https://buttermax.net/",
+  "note": "buttermax/hover_gold_grid_v2_PROMPT.md"
+}
