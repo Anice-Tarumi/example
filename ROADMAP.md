@@ -33,6 +33,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `glass-refraction` | materials | igloo.inc カスタム透過ガラス + MouseFrost |
 | `depth-parallax` | dom-webgl | Lusion 深度マップ視差 + ai-quest 深度フラッシュライト |
 | `toon-outline` | postprocess | messenger.abeto.co MRT トゥーン輪郭線 |
+| `vertex-animation-texture` | geometry | Lusion VAT（破砕を Float テクスチャに焼く） |
 
 ---
 

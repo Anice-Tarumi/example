@@ -1,0 +1,16 @@
+{
+  "title": "Vertex Animation Texture",
+  "description": "破砕アニメを全フレームぶん事前計算して Float テクスチャに焼き、頂点シェーダーが (破片, フレーム) で引いて再生する。実行時の CPU は uniform を3つ書き換えるだけで、数百の破片が1ドローで動く。",
+  "emoji": "🧱",
+  "category": "geometry",
+  "tags": ["vat", "float-texture", "instancing", "vertex-shader", "bake"],
+  "variants": [
+    { "id": "explode", "label": "Shatter Burst" },
+    { "id": "collapse", "label": "Collapse" },
+    { "id": "swirl", "label": "Swirl Up" },
+    { "id": "dense", "label": "Dense Debris" }
+  ],
+  "source": "Lusion.co",
+  "sourceUrl": "https://lusion.co/",
+  "note": "Obsidian: テクスチャベース頂点アニメ（スケルタル・破砕をFloatテクスチャに焼く）"
+}
