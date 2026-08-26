@@ -1,0 +1,16 @@
+{
+  "title": "Paint Reveal",
+  "description": "脱色された絵の上をカーソルでなぞると絵の具が流れ、塗った跡が蓄積して重なった部分から彩度が戻る。速度場を ping-pong FBO で貯め、マスクに変換して彩度復元と UV ディスプレイスに使う。",
+  "emoji": "🖌️",
+  "category": "interaction",
+  "tags": ["fbo", "ping-pong", "mouse", "shader", "curl-noise"],
+  "variants": [
+    { "id": "paint", "label": "Paint Reveal" },
+    { "id": "flow", "label": "Curl Flow" },
+    { "id": "linger", "label": "Lingering Ink" },
+    { "id": "mask", "label": "Mask Debug" }
+  ],
+  "source": "ai-quest (Lusion)",
+  "sourceUrl": "https://ai-quest.lusion.co/",
+  "note": "ScreenPaint + ScreenPaintFill + cutscene getMaskColor の移植"
+}
