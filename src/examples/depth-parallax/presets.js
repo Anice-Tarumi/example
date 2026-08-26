@@ -7,7 +7,7 @@ export const PRESETS = {
       parallaxSamples: 12,
       blurSamples: 10,
       zMultiplier: 0.72,
-      shiftAmount: 0.2,
+      shiftAmount: 0.13,
       shiftEase: 0.06,
       focus: 0.9,
       blurStrength: 0.0,

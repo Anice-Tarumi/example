@@ -94,6 +94,10 @@ function conifer(ctx, x, y, h, fill) {
 /**
  * mode: 'color' | 'depth'
  * 同じ座標・同じ形状を、塗りだけ変えて 2 度描く。
+ *
+ * 前提として **両モードで rand() の消費数が完全に一致していること**。
+ * 片方の分岐だけで乱数を引くと以降の形がすべてずれ、
+ * 「木が無い場所に木の形の深度がある」状態になる。
  */
 function drawScene(ctx, mode) {
   const rand = makeRandom(0x5eed1234)
@@ -114,15 +118,17 @@ function drawScene(ctx, mode) {
 
   // 星。高周波のディテールが無いと、視差で動いてもぼんやりした絵にしか見えない
   for (let i = 0; i < 220; i++) {
+    // rand() の消費数は color と depth で必ず揃える。
+    // 片方だけ多く引くと以降の乱数列がずれ、深度マップの形が絵と一致しなくなる
     const x = rand() * W
     const y = rand() * H * 0.55
     const r = 0.6 + rand() * 1.3
-    if (mode === 'color') {
-      ctx.fillStyle = `rgba(255,247,224,${0.25 + rand() * 0.6})`
-    } else {
-      // 星は空と同じ距離。深度マップでは点を打たない
-      continue
-    }
+    const alpha = 0.25 + rand() * 0.6
+
+    // 星は空と同じ距離。深度マップには描かない
+    if (mode !== 'color') continue
+
+    ctx.fillStyle = `rgba(255,247,224,${alpha})`
     ctx.beginPath()
     ctx.arc(x, y, r, 0, Math.PI * 2)
     ctx.fill()
@@ -216,26 +222,43 @@ function drawScene(ctx, mode) {
   }
 }
 
-function render(mode) {
+/**
+ * 描画は論理座標（W×H）のまま、キャンバスだけ scale 倍で用意する。
+ *
+ * 元画が 1280px しかないと、Retina のフルスクリーンでは 2〜3 倍に引き伸ばされて
+ * ただのボケ画像になる。しかも視差の余白（uPad）で内側を切り出すぶん、
+ * 実際に使えるテクセル数はさらに減る。
+ *
+ * 深度マップは低周波なので等倍で足りる。色だけ上げてメモリを抑える。
+ */
+function render(mode, scale) {
   const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  drawScene(canvas.getContext('2d'), mode)
+  canvas.width = W * scale
+  canvas.height = H * scale
+  const ctx = canvas.getContext('2d')
+  ctx.scale(scale, scale)
+  drawScene(ctx, mode)
   return canvas
 }
+
+/** 色テクスチャの倍率。2 で 2560×1600 = 約 16MB */
+const COLOR_SCALE = 2
 
 let cached = null
 
 export function getSceneTextures() {
   if (cached) return cached
 
-  const color = new THREE.CanvasTexture(render('color'))
+  const color = new THREE.CanvasTexture(render('color', COLOR_SCALE))
   color.colorSpace = THREE.SRGBColorSpace
   color.wrapS = color.wrapT = THREE.ClampToEdgeWrapping
-  color.minFilter = THREE.LinearFilter
+  // 縮小表示でも破綻しないようミップを持たせる（拡大側は Linear のまま）
+  color.generateMipmaps = true
+  color.minFilter = THREE.LinearMipmapLinearFilter
   color.magFilter = THREE.LinearFilter
+  color.anisotropy = 4
 
-  const depth = new THREE.CanvasTexture(render('depth'))
+  const depth = new THREE.CanvasTexture(render('depth', 1))
   depth.colorSpace = THREE.NoColorSpace
   depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping
   depth.minFilter = THREE.LinearFilter

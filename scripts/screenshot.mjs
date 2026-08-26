@@ -4,6 +4,8 @@ const url = process.argv[2]
 const out = process.argv[3]
 const hover = process.argv[4] === 'hover'
 const waitMs = Number(process.argv[5] || 1500)
+// Retina 相当で撮る用。等倍だとテクスチャの解像度不足を見落とす
+const dpr = Number(process.argv[6] || 1)
 
 const browser = await chromium.launch({
   args: [
@@ -13,7 +15,7 @@ const browser = await chromium.launch({
     '--ignore-gpu-blocklist',
   ],
 })
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: dpr })
 
 page.on('console', (m) => console.log(`[console:${m.type()}]`, m.text().slice(0, 300)))
 page.on('pageerror', (e) => console.log('[pageerror]', e.message.slice(0, 300)))
