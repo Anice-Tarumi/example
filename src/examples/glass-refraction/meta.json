@@ -1,0 +1,16 @@
+{
+  "title": "Glass Refraction",
+  "description": "MeshPhysicalMaterial の transmission を onBeforeCompile で拡張し、RGB を別々の IOR で屈折させてプリズム分散を作る。背景は mip 付き bicubic で引くので、粗いガラスでもバンディングが出ない。",
+  "emoji": "💎",
+  "category": "materials",
+  "tags": ["transmission", "refraction", "dispersion", "shader", "3d"],
+  "variants": [
+    { "id": "ice", "label": "Frosted Ice" },
+    { "id": "crystal", "label": "Clear Crystal" },
+    { "id": "frosted", "label": "Ground Glass" },
+    { "id": "diamond", "label": "Diamond Dispersion" }
+  ],
+  "source": "igloo.inc",
+  "sourceUrl": "https://www.igloo.inc/",
+  "note": "Obsidian: カスタム透過ガラス（transmissionサンプラ＋色収差で分散）"
+}

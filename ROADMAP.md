@@ -18,6 +18,7 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 | `paint-reveal` | interaction | ai-quest ScreenPaint + cutscene getMaskColor |
 | `gpu-particles` | particles | igloo.inc ContainerParticles（SDF 表面吸着 GPGPU） |
 | `fluid-solver` | particles | igloo.inc Navier-Stokes GPU ソルバ |
+| `glass-refraction` | materials | igloo.inc カスタム透過ガラス（分散つき） |
 
 ---
 
@@ -29,11 +30,6 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 ポストエフェクトを重ねがけして、各段を on/off・パラメータ調整できるパネル。ショーケースとして分かりやすい。
 - ネタ元: `マルチスケール加算Bloom（4ミップ＋分離blur5）` / `色収差` / `ビネット` / `3D LUTカラーグレーディング（テトラヘドラル補間）` / `SMAA + Final color grading`
 - variant: bloom 単体 / LUT 単体 / フルスタック / 独自Bloom（FFT畳み込み＋レンズハロー）
-
-### `glass-refraction` — materials
-ガラス・透過表現。背景ブラーピラミッドの lodSample と分散を比較できると価値が高い。
-- ネタ元: `カスタム透過ガラス（transmissionサンプラ＋色収差で分散）` / `ガラス屈折（背景ブラーピラミッドを lodSample でサンプル）` / `屈折するダイヤ粒子`
-- variant: transmission / lodSample ブラー / 色分散強め / ダイヤ
 
 ---
 
