@@ -35,17 +35,16 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `toon-outline` | postprocess | messenger.abeto.co MRT トゥーン輪郭線 |
 | `vertex-animation-texture` | geometry | Lusion VAT（破砕を Float テクスチャに焼く） |
 | `flip-stage` | transitions | 忍者屋敷のどんでん返し（表裏 2 面で無限シーン送り・新規） |
+| `postprocess-stack` | postprocess | 自前ミップ Bloom + レンズゴースト + テトラヘドラル 3D LUT |
 
 ---
 
 ## 優先度 高
 
-今日組んだ ping-pong FBO / FullScreenQuad の骨格をそのまま拡張できるもの。着手コストが低く見栄えが大きい。
-
-### `postprocess-stack` — postprocess
-ポストエフェクトを重ねがけして、各段を on/off・パラメータ調整できるパネル。ショーケースとして分かりやすい。
-- ネタ元: `マルチスケール加算Bloom（4ミップ＋分離blur5）` / `色収差` / `ビネット` / `3D LUTカラーグレーディング（テトラヘドラル補間）` / `SMAA + Final color grading`
-- variant: bloom 単体 / LUT 単体 / フルスタック / 独自Bloom（FFT畳み込み＋レンズハロー）
+### `text-effects` — typography
+- ネタ元: `MSDFテキスト描画（median＋fwidth＋アウトライン）` / `テキスト分割アニメ`
+- variant: MSDF アウトライン / 文字分割リビール / 波打ち / グリッチ
+- 備考: MSDF アトラスの生成手段が要る。ライブラリ追加は要相談
 
 ---
 
@@ -55,10 +54,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 - ネタ元: `スクロール連動のシーン遷移（区間ratioで複数3Dシーンを駆動）` / `慣性つきスムーススクロール（target→lerp＋inertia減衰）`
 - variant: 区間 ratio 駆動 / 慣性スクロール / 円柱パス走行
 - 備考: サイドバー常時表示の中でスクロール領域をどう置くか要検討
-
-### `text-effects` — typography
-- ネタ元: `MSDFテキスト描画（median＋fwidth＋アウトライン）` / `テキスト分割アニメ`
-- variant: MSDF アウトライン / 文字分割リビール / 波打ち / グリッチ
 
 ### `day-night-cycle` — lighting
 - ネタ元: `手続き的な昼夜・天候サイクル（キーフレームプリセット＋ノイズ）` / `スクロール連動の昼夜・感情ライティング` / `二色グラデーションフォグ`
@@ -165,6 +160,22 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     円柱を `position=[0,-thickness/2,0]` のように片寄せすると、返ったとき蓋が
     地面より上に来て地面を隠す。同一平面に置いた面は z-fighting で縞になる。
 
-14. **黒い画面は lint も build も検出しない。**
+14. **GLSL3 の `ShaderMaterial` に `gl_FragColor` は無い。**
+    `layout(location = 0) out vec4` を自分で宣言する。GLSL1 では three が
+    用意してくれるので、後から GLSL3 へ切り替えたときに気付きにくい。
+    エラーは `VALIDATE_STATUS false` として出るので、console.error を必ず拾うこと。
+
+15. **RT は `ClampToEdge`。UV が 0..1 を出るサンプルは端の 1 列が引き伸ばされる。**
+    レンズゴーストのように画面外を参照する処理では、巨大な色面として現れる。
+    範囲外は重み 0 で捨てる。
+
+16. **中心基準のスケールサンプルで倍率 1 を跨ぐな。**
+    `(uv - 0.5) * k + 0.5` は k→0 で中心の数テクセルが全画面に拡大される。
+    ゴーストの段は 1 を跨がないよう離す。
+
+17. **段を足し込むブルームは重みの総和で正規化する。**
+    しないと段数や falloff を変えるたびに全体の明るさが跳ねる。
+
+18. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
