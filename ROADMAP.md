@@ -17,17 +17,13 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 | `hover-gold-grid-v2` | interaction | Buttermax |
 | `paint-reveal` | interaction | ai-quest ScreenPaint + cutscene getMaskColor |
 | `gpu-particles` | particles | BlueYard GPGPU 曲線ノイズパーティクル |
+| `fluid-solver` | particles | igloo.inc Navier-Stokes GPU ソルバ |
 
 ---
 
 ## 優先度 高
 
 今日組んだ ping-pong FBO / FullScreenQuad の骨格をそのまま拡張できるもの。着手コストが低く見栄えが大きい。
-
-### `fluid-solver` — particles
-Navier-Stokes の splat → pressure → advection。ripple より多段だが FBO の枚数が増えるだけ。
-- ネタ元: `GPU流体ソルバ（Navier-Stokes splat→pressure→advection）` / `マウス軌跡のフルイド風ペイント（GPU減衰蓄積）`
-- variant: インク拡散 / 炎 / ペイント蓄積 / 速度場の可視化
 
 ### `postprocess-stack` — postprocess
 ポストエフェクトを重ねがけして、各段を on/off・パラメータ調整できるパネル。ショーケースとして分かりやすい。

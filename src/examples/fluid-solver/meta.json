@@ -1,0 +1,16 @@
+{
+  "title": "Fluid Solver",
+  "description": "Navier-Stokes を GPU で解く流体シミュレーション。splat → curl → vorticity → divergence → pressure 反復 → 圧力勾配の除去 → 移流の順に、8枚の RenderTarget を ping-pong しながら毎フレーム更新する。",
+  "emoji": "🌊",
+  "category": "particles",
+  "tags": ["fbo", "ping-pong", "simulation", "navier-stokes", "mouse"],
+  "variants": [
+    { "id": "ink", "label": "Ink Bloom" },
+    { "id": "smoke", "label": "Monochrome Smoke" },
+    { "id": "vortex", "label": "Vortex Storm" },
+    { "id": "field", "label": "Velocity Field" }
+  ],
+  "source": "igloo.inc",
+  "sourceUrl": "https://www.igloo.inc/",
+  "note": "Obsidian: GPU流体ソルバ（Navier-Stokes splat→pressure→advection）"
+}
