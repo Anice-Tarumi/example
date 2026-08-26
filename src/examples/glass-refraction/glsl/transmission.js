@@ -11,6 +11,31 @@
  * という形に拡張したもの。igloo.inc の氷マテリアルの移植。
  */
 
+/**
+ * `#include <uv_pars_fragment>` の直後へ差し込む宣言。
+ *
+ * 曇りの主因は specular（環境反射）で、それは three のライティング計算で決まる。
+ * transmission_fragment はその後なので、そこで roughness を変えても遅い。
+ * roughnessmap_fragment の段階で melt を適用する必要がある。
+ *
+ * 挿入先が uv_pars_fragment なのは、common の時点ではまだ vUv が宣言されておらず
+ * コンパイルが通らないため。
+ */
+export const frostCommonGLSL = /* glsl */`
+  uniform sampler2D tFrost;
+  uniform float uMeltAmount;
+
+  float getMelt() {
+    return smoothstep(0.0, 0.22, texture2D(tFrost, vUv).r) * uMeltAmount;
+  }
+`
+
+/** `#include <roughnessmap_fragment>` の直後へ差し込む */
+export const frostRoughnessGLSL = /* glsl */`
+  // 撫でた跡は霜が溶けて滑らかになる。ここで下げると specular にも反映される
+  roughnessFactor *= 1.0 - getMelt() * 0.97;
+`
+
 /** `#include <transmission_pars_fragment>` を置き換える宣言部 */
 export const transmissionParsGLSL = /* glsl */`
   // three が transmission 用に用意する背景 RT。
@@ -25,6 +50,8 @@ export const transmissionParsGLSL = /* glsl */`
   uniform vec3  uFrostColor;
   uniform float uFrostAmount;
   uniform float uNoiseSeed;
+
+  uniform float uRimIntensity;
 
   uniform mat4 modelMatrix;
   uniform mat4 projectionMatrix;
@@ -92,16 +119,14 @@ export const transmissionParsGLSL = /* glsl */`
   }
 
   /**
-   * すりガラスの法線を散らす用。こちらは高周波だとピクセル単位でざらつくので
-   * 低周波の value noise を使う。元実装はブルーノイズテクスチャを引いている。
+   * すりガラスの法線を散らす用。
+   * 低周波にするとサンプル平均で均されずムラとして残るので、高周波にして
+   * サンプル数で潰す（元実装がブルーノイズを使うのも同じ理由）。
+   * 曇り自体は mip の LOD が作るので、ここは軽く効かせるだけでよい。
    */
-  vec3 surfaceJitter(vec2 p) {
-    vec2 q = p * 0.035;
-    return vec3(
-      valueNoise2(q),
-      valueNoise2(q + 41.7),
-      valueNoise2(q + 93.1)
-    ) - 0.5;
+  vec3 surfaceJitter(vec2 p, float seed) {
+    vec3 h = hashNoise(p + seed * 17.3, seed).xyz;
+    return h - 0.5;
   }
 
   vec3 volumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 model) {
@@ -172,16 +197,26 @@ export function transmissionFragmentGLSL(numSamples) {
       vec3 v = normalize(cameraPosition - pos);
       vec3 n = inverseTransformDirection(normal, viewMatrix);
 
+      // roughness は roughnessmap_fragment の段階で既に melt 済み。
+      // ここでは rim（波の先端）と厚みの変化にだけ使う。
+      float melt = getMelt();
+      float rim = max(texture2D(tFrost, vUv).g, 0.0);
+      float meltedRoughness = roughnessFactor;
+
       vec4 transmitted = vec4(0.0);
       float total = ${n}.0;
 
+      // 溶けた部分は氷が薄くなる。屈折が浅くなり背景がほぼそのまま見えるので、
+      // roughness の変化より視覚的な差が大きい
+      float meltedThickness = uThickness * (1.0 - melt * 0.92);
+
       // 厚みをサンプルごとにずらす量。粗いほど大きく散らす
-      float smear = uThickness * pow(max(roughnessFactor, 0.001), 0.33);
+      float smear = meltedThickness * pow(max(meltedRoughness, 0.001), 0.33);
 
       vec4 nz = hashNoise(gl_FragCoord.xy, uNoiseSeed);
 
       // 粗さに応じて法線を散らす＝すりガラス
-      vec3 distortion = roughnessFactor * roughnessFactor * 1.4 * normalize(surfaceJitter(gl_FragCoord.xy));
+      vec3 distortion = meltedRoughness * meltedRoughness * 0.35 * normalize(surfaceJitter(gl_FragCoord.xy, uNoiseSeed));
       vec3 sampleNorm = normalize(n + distortion);
 
       for (float i = 0.0; i < ${n}.0; i++) {
@@ -192,7 +227,7 @@ export function transmissionFragmentGLSL(numSamples) {
           material.specularColor, material.specularF90,
           pos, modelMatrix, viewMatrix, projectionMatrix,
           material.ior,
-          uThickness + smear * (i + nz.g) / total,
+          meltedThickness + smear * (i + nz.g) / total,
           uAttenuationColor, uAttenuationDistance
         ).r;
 
@@ -201,7 +236,7 @@ export function transmissionFragmentGLSL(numSamples) {
           material.specularColor, material.specularF90,
           pos, modelMatrix, viewMatrix, projectionMatrix,
           material.ior * (1.0 + uChromaticAberration * (i + nz.r) / total),
-          uThickness + smear * (i + nz.r) / total,
+          meltedThickness + smear * (i + nz.r) / total,
           uAttenuationColor, uAttenuationDistance
         ).g;
 
@@ -210,7 +245,7 @@ export function transmissionFragmentGLSL(numSamples) {
           material.specularColor, material.specularF90,
           pos, modelMatrix, viewMatrix, projectionMatrix,
           material.ior * (1.0 + 2.0 * uChromaticAberration * (i + nz.b) / total),
-          uThickness + smear * (i + nz.b) / total,
+          meltedThickness + smear * (i + nz.b) / total,
           uAttenuationColor, uAttenuationDistance
         ).b;
       }
@@ -218,9 +253,12 @@ export function transmissionFragmentGLSL(numSamples) {
       transmitted /= total;
       transmitted.a = 1.0;
 
-      // 表面の霜。フレネル的に縁ほど白く濁らせる
+      // 表面の霜。フレネル的に縁ほど白く濁らせる。溶けたところでは薄くなる
       float fres = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.0);
-      transmitted.rgb = mix(transmitted.rgb, uFrostColor, fres * uFrostAmount);
+      transmitted.rgb = mix(transmitted.rgb, uFrostColor, fres * uFrostAmount * (1.0 - melt));
+
+      // 波の先端だけを光らせる
+      totalEmissiveRadiance += uFrostColor * clamp(rim * 12.0, 0.0, 1.0) * uRimIntensity;
 
       totalDiffuse = clamp(transmitted.rgb, vec3(0.0), vec3(1.0));
     }

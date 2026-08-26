@@ -30,10 +30,13 @@ if (!canvas) {
   const cy = box.y + box.height / 2
   await page.mouse.move(cx, cy)
   await page.waitForTimeout(200)
-  // 微小に動かして pointermove を継続的に発火させる
-  for (let i = 0; i < 20; i++) {
-    await page.mouse.move(cx + Math.sin(i) * 6, cy + Math.cos(i) * 6)
-    await page.waitForTimeout(30)
+  // 大きめのストロークを描く。撫でた軌跡が要る演出の確認用
+  const rx = box.width * 0.22
+  const ry = box.height * 0.22
+  for (let i = 0; i < 90; i++) {
+    const t = (i / 90) * Math.PI * 4
+    await page.mouse.move(cx + Math.sin(t * 0.7) * rx, cy + Math.sin(t * 1.1 + 0.6) * ry)
+    await page.waitForTimeout(16)
   }
   await page.waitForTimeout(waitMs)
 } else {

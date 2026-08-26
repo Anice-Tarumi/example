@@ -42,6 +42,35 @@ float lod = log2(textureSize(transmissionSamplerMap, 0).x) * iorToRoughness(roug
 vec4 transmittedLight = textureBicubicLod(transmissionSamplerMap, coords, lod);
 ```
 
+## カーソルで霜が溶ける（MouseFrost）
+
+この example の主題は transmission そのものではなく、**それと組み合わせた表面演出**。
+
+カーソルがメッシュ上を通った UV に波を注入し、512×512 のバッファで伝播させる。
+伝播は拡散（平均）ではなく **4 近傍の最大値**を取るのが要点で、
+平均だとぼやけて消えるところが、max だと輪郭を保ったまま外へ広がる。
+
+```glsl
+float nextVal = max(max(l, r), max(t, b));
+nextVal += splat;          // カーソルの移動線分に沿って注入
+nextVal = min(nextVal * uDamping, 1.0);
+float rim = nextVal - texture2D(tBuffer, uv).r;   // 波の先端
+```
+
+出力の R が「撫でた跡」、G が「波の先端」。これをガラスに次のように効かせる。
+
+| 効果 | 実装 |
+| --- | --- |
+| 撫でた跡だけ霜が溶ける | `roughnessFactor *= 1 - melt * 0.97` |
+| そこだけ氷が薄くなる | `thickness *= 1 - melt * 0.92` → 屈折が浅くなり背景がそのまま見える |
+| 表面の白濁が消える | frost の混合率に `(1 - melt)` を掛ける |
+| 波の先端が光る | `totalEmissiveRadiance += frostColor * rim` |
+
+**roughness の変更は `roughnessmap_fragment` の段階で行う必要がある。**
+曇りの主因は specular（環境反射）で、それは three のライティング計算で決まる。
+`transmission_fragment` はその後なので、そこで `material.roughness` を変えても
+屈折にしか効かず、見た目がほとんど変わらない。
+
 ## variant
 
 | id | 内容 |
@@ -63,6 +92,9 @@ vec4 transmittedLight = textureBicubicLod(transmissionSamplerMap, coords, lod);
 - **環境マップは `Lightformer` で組んでいる。** 元は EXR を Worker でデコードして
   IBL にする。外部アセットを増やさないため。透過に映り込みが無いとのっぺりするので、
   環境そのものは必須。
+- **splat の閾値と減衰を下げた。** 元実装は cube の面ごとの小さな UV 空間が前提で、
+  `smoothstep(0.1, 1.0, velocity)` の下限も damping 0.985 もその想定。球の UV 全体だと
+  カーソルの移動量が閾値に届かず、届いた場合は逆に全面へ広がりきってしまう。
 
 ## 実装メモ
 
@@ -75,6 +107,8 @@ vec4 transmittedLight = textureBicubicLod(transmissionSamplerMap, coords, lod);
   透けても何も見えない。この example では全周を色面で囲っている
 - transmission は不透明描画のあとにシーンをもう一度描くので重い。実用では
   画面内のガラスを 1〜2 個に絞るのが現実的
+- **`scripts/screenshot.mjs`（SwiftShader）では frost テクスチャの読み出しが 0 になる。**
+  実機では正常に動く。ヘッドレスで見えないことを不具合と判断しないこと
 
 ## 出典
 

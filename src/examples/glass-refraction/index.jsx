@@ -6,8 +6,11 @@ import * as THREE from 'three'
 import {
   transmissionParsGLSL,
   transmissionFragmentGLSL,
+  frostCommonGLSL,
+  frostRoughnessGLSL,
 } from './glsl/transmission'
 import { Backdrop } from './backdrop'
+import { useMouseFrost } from './frost'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, SHAPES } from './presets'
 
 function makeGeometry(shape) {
@@ -27,6 +30,7 @@ function makeGeometry(shape) {
 
 function GlassObject({ params }) {
   const meshRef = useRef(null)
+  const frost = useMouseFrost(512)
 
   // samples はシェーダーへ定数として埋め込むので、変わったら作り直す
   const material = useMemo(() => {
@@ -39,6 +43,8 @@ function GlassObject({ params }) {
       thickness: DEFAULTS.thickness,
       transparent: true,
     })
+    // vUv を使うため。テクスチャを 1 枚も持たないと three が USE_UV を立てない
+    mat.defines = { ...(mat.defines || {}), USE_UV: '' }
 
     const uniforms = {
       uChromaticAberration: { value: DEFAULTS.chromaticAberration },
@@ -48,12 +54,20 @@ function GlassObject({ params }) {
       uFrostColor: { value: new THREE.Color(DEFAULTS.frostColor) },
       uFrostAmount: { value: DEFAULTS.frostAmount },
       uNoiseSeed: { value: 0 },
+      tFrost: { value: null },
+      uMeltAmount: { value: DEFAULTS.meltAmount },
+      uRimIntensity: { value: DEFAULTS.rimIntensity },
     }
     mat.userData.uniforms = uniforms
 
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms)
       shader.fragmentShader = shader.fragmentShader
+        .replace('#include <uv_pars_fragment>', `#include <uv_pars_fragment>\n${frostCommonGLSL}`)
+        .replace(
+          '#include <roughnessmap_fragment>',
+          `#include <roughnessmap_fragment>\n${frostRoughnessGLSL}`,
+        )
         .replace('#include <transmission_pars_fragment>', transmissionParsGLSL)
         .replace('#include <transmission_fragment>', transmissionFragmentGLSL(params.samples))
     }
@@ -76,6 +90,8 @@ function GlassObject({ params }) {
     u.uAttenuationColor.value.set(params.attenuationColor)
     u.uFrostColor.value.set(params.frostColor)
     u.uFrostAmount.value = params.frostAmount
+    u.uMeltAmount.value = params.meltAmount
+    u.uRimIntensity.value = params.rimIntensity
 
     material.roughness = params.roughness
     material.ior = params.ior
@@ -89,9 +105,23 @@ function GlassObject({ params }) {
     meshRef.current.rotation.y += delta * params.autoRotate
     meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.25) * 0.18
     material.userData.uniforms.uNoiseSeed.value = state.clock.elapsedTime
+
+    // 波を 1 ステップ進めてからマテリアルへ渡す
+    const tex = frost.step(state.gl, state.clock.elapsedTime, params)
+    material.userData.uniforms.tFrost.value = tex
   })
 
-  return <mesh ref={meshRef} geometry={geometry} material={material} />
+  return (
+    <mesh
+      ref={meshRef}
+      geometry={geometry}
+      material={material}
+      onPointerMove={(e) => {
+        // メッシュ表面の UV に直接注入する。撫でた軌跡がそのまま波になる
+        if (e.uv) frost.setPointer(e.uv)
+      }}
+    />
+  )
 }
 
 export default function GlassRefraction() {
@@ -116,6 +146,14 @@ export default function GlassRefraction() {
     Frost: folder({
       frostColor: { value: DEFAULTS.frostColor, label: 'color' },
       frostAmount: { value: DEFAULTS.frostAmount, min: 0, max: 1, step: 0.01, label: 'amount' },
+    }),
+    Melt: folder({
+      meltAmount: { value: DEFAULTS.meltAmount, min: 0, max: 1, step: 0.01, label: 'melt' },
+      rimIntensity: { value: DEFAULTS.rimIntensity, min: 0, max: 6, step: 0.05, label: 'rim glow' },
+      frostStrength: { value: DEFAULTS.frostStrength, min: 0, max: 3, step: 0.05, label: 'brush' },
+      frostDamping: { value: DEFAULTS.frostDamping, min: 0.9, max: 0.999, step: 0.001, label: 'hold' },
+      frostSpeed: { value: DEFAULTS.frostSpeed, min: 0, max: 4, step: 0.05, label: 'spread' },
+      frostAdvect: { value: DEFAULTS.frostAdvect, min: 0, max: 6, step: 0.1, label: 'noise' },
     }),
     Scene: folder({
       envIntensity: { value: DEFAULTS.envIntensity, min: 0, max: 3, step: 0.05, label: 'env' },
