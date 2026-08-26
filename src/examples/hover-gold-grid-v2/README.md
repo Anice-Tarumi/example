@@ -389,3 +389,49 @@ export default function HoverGoldGrid() {
   - [Three.js Position Buffer / G-Buffer](https://threejs.org/examples/?q=mrt)
   - [WebGL Pixelation Tutorial (UV quantization)](https://thebookofshaders.com/) — 一般論
   - [PavelDoGreat / WebGL Fluid Simulation](https://github.com/PavelDoGreat/WebGL-Fluid-Simulation) — Buttermax の流体ロゴ歪みに関連
+
+---
+
+## 10. この showcase 実装での差分（§6 の最小サンプルからの変更）
+
+§6 の最小サンプルをそのまま動かすと **モザイク化が視覚的に成立しない**。
+量子化するのは UV なので、その UV で引く「模様」が無いと、UV を階段状にしても
+色が変わらないため。§8 の表にあるとおり最小サンプルは `tDiffuse`（8×8 スプライト
+シートの写真）を単色グラデーションに落としており、そこが抜けている。
+
+この実装では以下を足している。
+
+### 下地の手続き模様（[`pattern.js`](pattern.js)）
+
+外部アセットを増やさずに「量子化される対象」を用意するため、GLSL で模様を生成する。
+`uPattern` で 4 種を切り替え、`uBaseColor` → `uAccentColor` の補間に使う。
+
+| mode | 内容 |
+| --- | --- |
+| `noise` | 5 オクターブの fBm。写真に近い情報量が出るので既定 |
+| `grid` | 細かいグリッド + セルごとの明度差 |
+| `voronoi` | F2 - F1 でセル境界を出す |
+| `stripes` | 斜めストライプ + 低周波ノイズ |
+
+### §8「完全再現したい場合の追加実装ヒント」の反映
+
+- **二重 pulse** — `pow(p, s) + pow(p, s * 3.0) * 0.5`。太い波の中に細い芯が入る
+- **色相シフト** — HSV に変換して波の強さで hue をずらす
+- **下地の明るさで発光量を変える** — 元コードの `pulse *= dot(color, vec3(1.)) * 0.5 + 0.5`
+
+### 元コードと意図的に変えた点
+
+- **色相シフトの固定オフセット `-0.08` を外した。**
+  元コードは sRGB 値に対して `rgb2hsv` しているが、three の color management 下では
+  uniform の `THREE.Color` はリニア値で入るため hue の位置が異なる。固定オフセットを
+  そのまま適用すると hue が負に回り込み、金色ではなくマゼンタになる。
+  波の強弱に対する相対シフトのみ残し、量は `uHueShift` で調整できるようにした。
+
+- **手動ガンマ（`pow(2.2)` / `pow(0.45)`）を削除した。**
+  同じくリニア前提のため二重変換になる。出力は `#include <colorspace_fragment>` に任せる。
+
+- **`pulseSharpness` を 10 から下げた。**
+  `pow(pulse, 10)` はリングが細くなりすぎて、量子化が効く範囲もほぼ消える。
+  pulse の裾は広く保ち、発光の締まりは `uPulseGamma`（元の `pow(pulse, 3.0)` 相当）で作る。
+
+- **`pixellation` を 400 から下げた。** 400 は量子化が細かすぎてモザイクとして視認できない。

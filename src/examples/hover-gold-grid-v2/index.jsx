@@ -3,7 +3,7 @@ import { OrbitControls } from '@react-three/drei'
 import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
+import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, PATTERNS } from './presets'
 import { vertexShader, fragmentShader } from './shaders'
 
 const GEOMETRIES = {
@@ -19,11 +19,16 @@ function createUniforms() {
     uTime: { value: 0 },
     uPulseFrequency: { value: DEFAULTS.pulseFrequency },
     uPulseSharpness: { value: DEFAULTS.pulseSharpness },
+    uPulseGamma: { value: DEFAULTS.pulseGamma },
     uPixellation: { value: DEFAULTS.pixellation },
     uUvMixMultiplier: { value: DEFAULTS.uvMixMultiplier },
     uPulseColor: { value: new THREE.Color(DEFAULTS.pulseColor) },
     uPulseIntensity: { value: DEFAULTS.pulseIntensity },
+    uHueShift: { value: DEFAULTS.hueShift },
     uBaseColor: { value: new THREE.Color(DEFAULTS.baseColor) },
+    uAccentColor: { value: new THREE.Color(DEFAULTS.accentColor) },
+    uPattern: { value: PATTERNS.indexOf(DEFAULTS.pattern) },
+    uPatternScale: { value: DEFAULTS.patternScale },
   }
 }
 
@@ -47,11 +52,16 @@ function PulseMesh({ params }) {
     const u = uniforms
     u.uPulseFrequency.value = params.pulseFrequency
     u.uPulseSharpness.value = params.pulseSharpness
+    u.uPulseGamma.value = params.pulseGamma
     u.uPixellation.value = params.pixellation
     u.uUvMixMultiplier.value = params.uvMixMultiplier
     u.uPulseIntensity.value = params.pulseIntensity
+    u.uHueShift.value = params.hueShift
     u.uPulseColor.value.set(params.pulseColor)
     u.uBaseColor.value.set(params.baseColor)
+    u.uAccentColor.value.set(params.accentColor)
+    u.uPattern.value = Math.max(0, PATTERNS.indexOf(params.pattern))
+    u.uPatternScale.value = params.patternScale
   }, [uniforms, params])
 
   useFrame((state, delta) => {
@@ -81,18 +91,25 @@ export default function HoverPulseRipple() {
   const [params, setParams] = useControls(() => ({
     geometry: { value: DEFAULTS.geometry, options: ['sphere', 'plane', 'torus'] },
     speed: { value: DEFAULTS.speed, min: 0, max: 4, step: 0.05 },
+    Surface: folder({
+      pattern: { value: DEFAULTS.pattern, options: PATTERNS },
+      patternScale: { value: DEFAULTS.patternScale, min: 1, max: 48, step: 0.5, label: 'scale' },
+      baseColor: { value: DEFAULTS.baseColor, label: 'base' },
+      accentColor: { value: DEFAULTS.accentColor, label: 'accent' },
+    }),
     Wave: folder({
       pulseFrequency: { value: DEFAULTS.pulseFrequency, min: 1, max: 60, step: 0.5, label: 'frequency' },
       pulseSharpness: { value: DEFAULTS.pulseSharpness, min: 0.5, max: 24, step: 0.1, label: 'sharpness' },
+      pulseGamma: { value: DEFAULTS.pulseGamma, min: 0.5, max: 4, step: 0.05, label: 'gamma' },
     }),
     Mosaic: folder({
-      pixellation: { value: DEFAULTS.pixellation, min: 8, max: 1000, step: 1 },
+      pixellation: { value: DEFAULTS.pixellation, min: 8, max: 600, step: 1 },
       uvMixMultiplier: { value: DEFAULTS.uvMixMultiplier, min: 0, max: 12, step: 0.1, label: 'mix' },
     }),
-    Color: folder({
+    Glow: folder({
       pulseColor: { value: DEFAULTS.pulseColor, label: 'pulse' },
       pulseIntensity: { value: DEFAULTS.pulseIntensity, min: 0, max: 4, step: 0.05, label: 'intensity' },
-      baseColor: { value: DEFAULTS.baseColor, label: 'base' },
+      hueShift: { value: DEFAULTS.hueShift, min: 0, max: 2, step: 0.05, label: 'hue shift' },
     }),
   }))
 
