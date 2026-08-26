@@ -37,7 +37,7 @@ function Stage({ params }) {
 
   // いま上を向いているのが top 側か。返るたびに入れ替わる
   const upIsTop = useRef(true)
-  const flip = useRef({ active: false, t: 0, from: 0, swapped: false })
+  const flip = useRef({ active: false, t: 0, from: 0 })
   const idle = useRef(0)
 
   const applyVisibility = () => {
@@ -53,7 +53,7 @@ function Stage({ params }) {
     slots.current = { top: 0, bottom: 1 }
     upIsTop.current = true
     nextScene.current = 2 % SCENE_COUNT
-    flip.current = { active: false, t: 0, from: 0, swapped: false }
+    flip.current = { active: false, t: 0, from: 0 }
     applyVisibility()
   }, [])
 
@@ -63,7 +63,6 @@ function Stage({ params }) {
       active: true,
       t: 0,
       from: pivot.current ? pivot.current.rotation[params.axis] : 0,
-      swapped: false,
     }
     idle.current = 0
   }
@@ -93,20 +92,19 @@ function Stage({ params }) {
     // 回転の山で少し持ち上げると、板が「返っている」感じが出る
     g.position.y = Math.sin(Math.PI * f.t) * params.lift
 
-    // 90 度を越えた＝いま下を向いた面はもう見えない。
-    // 差し替えるのは「これから隠れる側」だけ。上がってくる面は触らない。
-    if (!f.swapped && f.t > 0.5) {
-      f.swapped = true
+    if (f.t >= 1) {
+      f.active = false
+      g.position.y = 0
+
+      // 差し替えは回転が完全に終わってから。
+      // overshoot で行き過ぎて戻る間は裏面がまだ少し見えるので、
+      // 90 度通過時点で書き換えると切り替わりが目撃されてしまう。
       if (upIsTop.current) slots.current.top = nextScene.current
       else slots.current.bottom = nextScene.current
       nextScene.current = (nextScene.current + 1) % SCENE_COUNT
       upIsTop.current = !upIsTop.current
       applyVisibility()
-    }
 
-    if (f.t >= 1) {
-      f.active = false
-      g.position.y = 0
       // 回転を 0..2π に畳んでおく
       g.rotation[params.axis] = (f.from + Math.PI) % (Math.PI * 2)
     }
