@@ -1,5 +1,8 @@
 import { patternGLSL } from './pattern'
 
+/** 同時に走らせる波紋の数 */
+export const MAX_RIPPLES = 8
+
 export const vertexShader = /* glsl */`
   varying vec2 vUv;
   varying vec3 vPos;
@@ -11,16 +14,25 @@ export const vertexShader = /* glsl */`
 `
 
 export const fragmentShader = /* glsl */`
-  uniform vec3  uHitPos;
-  uniform float uInside;
-  uniform float uTime;
-  uniform float uPulseFrequency;
-  uniform float uPulseSharpness;
-  uniform float uPulseGamma;
+  #define MAX_RIPPLES ${MAX_RIPPLES}
+
+  uniform vec3  uOrigins[MAX_RIPPLES];
+  uniform float uAges[MAX_RIPPLES];   // 経過秒。負なら無効
+  uniform float uLifetime;
+  uniform float uMaxRadius;
+  uniform float uRingWidth;
+  uniform float uSharpness;
+  uniform float uEase;
+  uniform float uFrequency;
+  uniform float uTailFalloff;
+
   uniform float uPixellation;
   uniform float uUvMixMultiplier;
+  uniform float uMosaicFocus;
+
   uniform vec3  uPulseColor;
   uniform float uPulseIntensity;
+  uniform float uPulseGamma;
   uniform float uHueShift;
   uniform vec3  uBaseColor;
   uniform vec3  uAccentColor;
@@ -47,34 +59,70 @@ ${patternGLSL}
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
   }
 
+  /**
+   * 波の広がり方。等速だと機械的なので、飛び出しは速く、
+   * 遠ざかるほど失速させる。uEase を上げるほど緩急が強くなる。
+   */
+  float easeOutRipple(float t, float k) {
+    return 1.0 - pow(1.0 - clamp(t, 0.0, 1.0), k);
+  }
+
+  /**
+   * 波紋 1 本の寄与。
+   *
+   * リングを 1 本だけ出すと単調なので、波面の内側に同心円の列を並べる。
+   * 元実装（buttermax）の sin(distance * freq - time) と同じ質感だが、
+   * 波面より外には出さず、内側は指数で減衰させることで
+   * 「1 回の衝撃から広がって消える」挙動にしている。
+   */
+  float rippleAt(vec3 pos, vec3 origin, float age) {
+    if (age < 0.0) return 0.0;
+
+    float progress = age / uLifetime;
+    if (progress > 1.0) return 0.0;
+
+    float radius = easeOutRipple(progress, uEase) * uMaxRadius;
+    float d = length(pos - origin);
+
+    // 波面からの距離。正なら波面の内側
+    float behind = radius - d;
+
+    // 同心円の列
+    float wave = sin(behind * uFrequency) * 0.5 + 0.5;
+    wave = pow(wave, uSharpness);
+
+    // 波面の外へは出さない。境界は uRingWidth ぶんだけ滑らかに
+    float front = smoothstep(0.0, max(uRingWidth, 1e-4), behind);
+
+    // 内側の余韻。奥へ行くほど弱まる
+    float tail = exp(-max(behind, 0.0) * uTailFalloff);
+
+    // 寿命の終わりに向けて消える。前半は落とさない
+    float fade = 1.0 - smoothstep(0.4, 1.0, progress);
+
+    return wave * front * tail * fade;
+  }
+
   void main() {
     vec2 uv = vUv;
 
-    // ヒット点からの 3D 距離でリング波を作る。
-    // 山を pow で 2 層に重ねると、太い波の中に細い芯が入って締まる。
+    // 複数の波紋は加算ではなく max。重なっても飽和しない
     float pulse = 0.0;
-    if (uInside > 0.001) {
-      float gradient = length(vPos - uHitPos) * 0.35;
-      float p = sin(gradient * uPulseFrequency - uTime + 3.8) * 0.5 + 0.5;
-      pulse = pow(p, uPulseSharpness) + pow(p, uPulseSharpness * 3.0) * 0.5;
+    for (int i = 0; i < MAX_RIPPLES; i++) {
+      pulse = max(pulse, rippleAt(vPos, uOrigins[i], uAges[i]));
     }
-    pulse *= uInside;
 
-    // 波の山だけ UV を量子化してモザイク化する
-    float uvMix = clamp(pulse * uUvMixMultiplier, 0.0, 1.0);
+    // モザイクは帯の芯だけに掛ける。pulse をそのまま使うと裾まで潰れる
+    float mosaic = pow(pulse, uMosaicFocus);
+    float uvMix = clamp(mosaic * uUvMixMultiplier, 0.0, 1.0);
     uv = mix(uv, floor(uv * uPixellation) / uPixellation, uvMix);
 
-    // 下地。量子化された UV でサンプルするのでモザイクがそのまま出る
     float luma = patternLuma(uv, uPattern, uPatternScale);
     vec3 color = mix(uBaseColor, uAccentColor, luma);
 
-    // 下地の明るいところほど強く発光させる（元実装の dot(color,1)*0.5+0.5 相当）
+    // 下地の明るいところほど強く発光させる
     float lit = pulse * (dot(color, vec3(0.3333)) * 0.5 + 0.5);
 
-    // 加算色の色相を波の強さで少しずらす。
-    // 元実装は sRGB 値を前提に -0.08 の固定オフセットを持つが、ここでの
-    // uPulseColor はリニアで hue の位置が異なるため、固定分は外して
-    // 波の強弱に対する相対シフトだけ残す。
     vec3 hsv = rgb2hsv(uPulseColor);
     hsv.x = fract(hsv.x + (smoothstep(0.4, 1.0, lit) - 0.5) * 0.06 * uHueShift + 1.0);
     vec3 pulseCol = hsv2rgb(hsv);

@@ -1,14 +1,14 @@
 {
-  "title": "Hover Pulse Ripple",
-  "description": "ホバー位置を中心にリング波が3D曲面を伝わり、波の山だけが下地の模様をモザイク化して金色に発光する。下地の手続き模様・波の密度・モザイク粒度・発光色をパネルで変えられる。",
+  "title": "Pulse Ripple",
+  "description": "クリックした一点から同心円の波列が3D曲面を伝わる。波は緩急をつけて広がりながら後ろに余韻を残し、帯の芯だけが下地の模様をモザイク化して発光する。放置すると一定間隔でランダムな位置から波が立つ。",
   "emoji": "🎨",
   "category": "interaction",
   "tags": [
     "shader",
-    "hover",
     "mouse",
     "3d",
-    "pixelation"
+    "pixelation",
+    "ripple"
   ],
   "variants": [
     {
