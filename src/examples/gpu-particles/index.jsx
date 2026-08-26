@@ -18,6 +18,7 @@ import {
   createInitialData,
   createPointAttributes,
 } from './volume'
+import { useVelocityField } from './fluid'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, COUNTS } from './presets'
 
 const LIGHT_POS = new THREE.Vector3(-0.75, 1, -0.1)
@@ -26,10 +27,11 @@ const LIGHT_POS = new THREE.Vector3(-0.75, 1, -0.1)
 const HEIGHT_LIMIT = 0.5
 const RADIUS_LIMIT = 0.44
 const CUBE_SIZE = 0.65
-const ORIGIN = new THREE.Vector3(0, 0, 0)
 
 function ParticleSystem({ params }) {
-  const viewportHeight = useThree((s) => s.size.height)
+  const size = useThree((s) => s.size)
+  const viewportHeight = size.height
+  const aspect = size.width / size.height
   const camera = useThree((s) => s.camera)
   const side = useMemo(() => getTextureSize(params.count), [params.count])
 
@@ -70,11 +72,14 @@ function ParticleSystem({ params }) {
       uVolumeScale: { value: DEFAULTS.volumeScale },
       uCubeSize: { value: CUBE_SIZE },
       uLightPos: { value: LIGHT_POS.clone() },
-      uPointer: { value: new THREE.Vector3(99, 99, 99) },
-      uPointerForce: { value: DEFAULTS.pointerForce },
-      uPointerRadius: { value: DEFAULTS.pointerRadius },
       uHeightLimit: { value: HEIGHT_LIMIT },
       uRadiusLimit: { value: RADIUS_LIMIT },
+      tFluid: { value: null },
+      uViewMat: { value: new THREE.Matrix4() },
+      uProjMat: { value: new THREE.Matrix4() },
+      uPushForce: { value: DEFAULTS.pushForce },
+      uInteractForce: { value: DEFAULTS.interactForce },
+      uFluidScale: { value: DEFAULTS.fluidScale },
     }),
     [],
   )
@@ -116,6 +121,8 @@ function ParticleSystem({ params }) {
     }
   }, [shared, copyUniforms])
 
+  const stepFluid = useVelocityField(params.fluidRes, aspect)
+
   const points = useMemo(() => {
     const { count, texuv } = createPointAttributes(side)
     const geometry = new THREE.BufferGeometry()
@@ -146,8 +153,9 @@ function ParticleSystem({ params }) {
     shared.uReturnForce.value = params.returnForce
     shared.uFriction.value = params.friction
     shared.uVolumeScale.value = params.volumeScale
-    shared.uPointerForce.value = params.pointerForce
-    shared.uPointerRadius.value = params.pointerRadius
+    shared.uPushForce.value = params.pushForce
+    shared.uInteractForce.value = params.interactForce
+    shared.uFluidScale.value = params.fluidScale
 
     drawUniforms.uSize.value = params.size
     drawUniforms.uAlpha.value = params.alpha
@@ -162,31 +170,22 @@ function ParticleSystem({ params }) {
     drawUniforms.uViewportHeight.value = viewportHeight
   }, [drawUniforms, viewportHeight])
 
-  // ---- カーソル ----
-  const pointerNdc = useRef(new THREE.Vector2(10, 10))
+  // ---- カーソル。流体への入力なので画面 UV で持つ ----
+  const pointer = useRef({ x: 0.5, y: 0.5, px: 0.5, py: 0.5, moved: false, idle: 0 })
   const domElement = useThree((s) => s.gl.domElement)
 
   useEffect(() => {
     const onMove = (e) => {
       const rect = domElement.getBoundingClientRect()
-      pointerNdc.current.set(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1,
-      )
+      const p = pointer.current
+      p.x = (e.clientX - rect.left) / rect.width
+      p.y = 1 - (e.clientY - rect.top) / rect.height
+      p.moved = true
+      p.idle = 0
     }
-    const onLeave = () => pointerNdc.current.set(10, 10)
     domElement.addEventListener('pointermove', onMove)
-    domElement.addEventListener('pointerleave', onLeave)
-    return () => {
-      domElement.removeEventListener('pointermove', onMove)
-      domElement.removeEventListener('pointerleave', onLeave)
-    }
+    return () => domElement.removeEventListener('pointermove', onMove)
   }, [domElement])
-
-  const raycaster = useMemo(() => new THREE.Raycaster(), [])
-  const plane = useMemo(() => new THREE.Plane(), [])
-  const hit = useMemo(() => new THREE.Vector3(), [])
-  const camDir = useMemo(() => new THREE.Vector3(), [])
 
   // ---- ループ ----
   const buf = useRef({ posRead: posA, posWrite: posB, velRead: velA, velWrite: velB })
@@ -218,14 +217,25 @@ function ParticleSystem({ params }) {
       inited.current = true
     }
 
-    camera.getWorldDirection(camDir)
-    plane.setFromNormalAndCoplanarPoint(camDir, ORIGIN)
-    raycaster.setFromCamera(pointerNdc.current, camera)
-    if (raycaster.ray.intersectPlane(plane, hit)) {
-      shared.uPointer.value.copy(hit)
-    } else {
-      shared.uPointer.value.set(99, 99, 99)
+    // カーソルが止まっている間はリサージュ曲線で流体をかき混ぜる
+    const p = pointer.current
+    p.idle += delta
+    if (params.autoDemo && p.idle > 1.2) {
+      const t = state.clock.elapsedTime * params.demoSpeed
+      p.x = 0.5 + Math.sin(t * 0.53) * 0.3
+      p.y = 0.5 + Math.sin(t * 0.79 + 1.1) * 0.26
+      p.moved = true
     }
+
+    // 先に流体を 1 ステップ進め、その速度場をパーティクルへ渡す
+    const fluidTex = stepFluid(gl, Math.min(delta, 1 / 30), p, params)
+    p.px = p.x
+    p.py = p.y
+    p.moved = false
+
+    shared.tFluid.value = fluidTex
+    shared.uViewMat.value.copy(camera.matrixWorldInverse)
+    shared.uProjMat.value.copy(camera.projectionMatrix)
 
     rotation.current += params.rotationSpeed * delta
     shared.uTime.value = state.clock.elapsedTime
@@ -279,9 +289,18 @@ export default function GpuParticles() {
       noiseForce: { value: DEFAULTS.noiseForce, min: 0, max: 0.0012, step: 0.00002, label: 'force' },
       noiseScale: { value: DEFAULTS.noiseScale, min: 1, max: 20, step: 0.5, label: 'scale' },
     }),
-    Pointer: folder({
-      pointerForce: { value: DEFAULTS.pointerForce, min: -0.006, max: 0.006, step: 0.0001, label: 'force' },
-      pointerRadius: { value: DEFAULTS.pointerRadius, min: 0.05, max: 0.8, step: 0.01, label: 'radius' },
+    Fluid: folder({
+      pushForce: { value: DEFAULTS.pushForce, min: 0, max: 0.004, step: 0.0001, label: 'push' },
+      interactForce: { value: DEFAULTS.interactForce, min: 0, max: 4, step: 0.05, label: 'interact' },
+      fluidScale: { value: DEFAULTS.fluidScale, min: 0.001, max: 0.08, step: 0.001, label: 'field scale' },
+      fluidForce: { value: DEFAULTS.fluidForce, min: 500, max: 20000, step: 100, label: 'splat force' },
+      fluidRadius: { value: DEFAULTS.fluidRadius, min: 0.02, max: 1, step: 0.01, label: 'splat radius' },
+      fluidCurl: { value: DEFAULTS.fluidCurl, min: 0, max: 60, step: 1, label: 'vorticity' },
+      fluidDissipation: { value: DEFAULTS.fluidDissipation, min: 0, max: 4, step: 0.05, label: 'decay' },
+      fluidIterations: { value: DEFAULTS.fluidIterations, min: 1, max: 30, step: 1, label: 'iterations' },
+      fluidRes: { value: DEFAULTS.fluidRes, options: { low: 64, mid: 128 }, label: 'res' },
+      autoDemo: { value: DEFAULTS.autoDemo, label: 'auto demo' },
+      demoSpeed: { value: DEFAULTS.demoSpeed, min: 0.1, max: 3, step: 0.05, label: 'demo speed' },
     }),
     Look: folder({
       size: { value: DEFAULTS.size, min: 1, max: 40, step: 0.5 },

@@ -1,6 +1,6 @@
 {
   "title": "Volume Particles",
-  "description": "GPGPU パーティクルを SDF ボリュームの表面へ吸着させる。位置と速度を MRT で同時に更新し、bitangent noise の揺らぎ・元位置への復帰・表面への吸着を合成する。陰影は wrap diffuse で点ごとに計算する。",
+  "description": "GPGPU パーティクルを SDF ボリュームの表面へ吸着させる。カーソルは画面空間の流体場を経由してパーティクルを押すので、手を離しても渦と慣性が残る。陰影は wrap diffuse を位置テクスチャに焼いて点ごとに読む。",
   "emoji": "✳️",
   "category": "particles",
   "tags": [
@@ -8,6 +8,7 @@
     "fbo",
     "ping-pong",
     "sdf",
+    "fluid",
     "points"
   ],
   "variants": [

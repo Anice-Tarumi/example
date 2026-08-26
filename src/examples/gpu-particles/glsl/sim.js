@@ -35,11 +35,16 @@ const sharedGLSL = /* glsl */`
   uniform float uVolumeScale;
   uniform float uCubeSize;
   uniform vec3  uLightPos;
-  uniform vec3  uPointer;
-  uniform float uPointerForce;
-  uniform float uPointerRadius;
   uniform float uHeightLimit;
   uniform float uRadiusLimit;
+
+  // 画面空間の流体場。カーソルの力はここを経由してパーティクルへ伝わる
+  uniform sampler2D tFluid;
+  uniform mat4  uViewMat;
+  uniform mat4  uProjMat;
+  uniform float uPushForce;
+  uniform float uInteractForce;
+  uniform float uFluidScale;
 
   varying vec2 vUv;
 
@@ -89,12 +94,23 @@ ${sharedGLSL}
     float force1 = uNoiseForce * (0.7 + 0.3 * rnd.z);
     vel.xyz += BitangentNoise4D(vec4(pos * uNoiseScale, uTime * (1.0 + 0.7 * rnd.y))) * force1 * uDtRatio;
 
-    // カーソルの力場。元実装ではここに流体場の速度が入る
-    vec3 toPointer = pos - uPointer;
-    float pd = length(toPointer);
-    float influence = exp(-(pd * pd) / max(uPointerRadius * uPointerRadius, 1e-4));
-    vel.xyz += normalize(toPointer + vec3(1e-5)) * influence * uPointerForce * uDtRatio;
-    float invPointer = 1.0 - influence * 0.65;
+    // パーティクルをカメラ投影し、その画面位置の流体速度で押しのける。
+    // 押す向きはビューの right / up、つまり画面平面に沿った方向になる。
+    vec4 viewPos = uViewMat * vec4(pos, 1.0);
+    vec4 proj = uProjMat * viewPos;
+    vec2 uvScreen = (proj.xy / proj.w + 1.0) * 0.5;
+    // 流体場の値域はソルバの splat 強度に依存する。パーティクル空間（±0.5 程度）へ
+    // 揃えるための係数を掛けてから使う
+    vec3 fluidVel = texture2D(tFluid, uvScreen).xyz * uFluidScale;
+    vec3 right = vec3(uViewMat[0][0], uViewMat[1][0], uViewMat[2][0]);
+    vec3 up    = vec3(uViewMat[0][1], uViewMat[1][1], uViewMat[2][1]);
+    vec3 disp = right * fluidVel.x + up * fluidVel.y;
+    vel.xyz += disp * uPushForce * uDtRatio * uInteractForce;
+
+    // 流れが速いところでは形へ戻る力を弱め、流体に持っていかれるようにする。
+    // 元実装に clamp は無いが、流体が強いと負に振れて復帰力と吸着力が反転し、
+    // パーティクルが発散するので 0 で止める。
+    float invPointer = clamp(1.0 - length(fluidVel) * 0.65 * uInteractForce, 0.0, 1.0);
 
     // 元位置へ戻る力
     vec3 origPos = texture2D(tOriginal, vUv).xyz;

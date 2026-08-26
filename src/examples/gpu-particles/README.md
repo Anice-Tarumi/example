@@ -6,9 +6,11 @@ GPGPU パーティクルを SDF ボリュームの表面へ吸着させる。igl
 ## 仕組み
 
 ```
-tOriginal (初期位置) ─┐
-tVolume (3D SDF) ─────┤
-                      ▼
+pointer ─▶ [0] 流体ソルバ ──▶ 画面空間の速度場
+                                  │
+tOriginal (初期位置) ─┐           │
+tVolume (3D SDF) ─────┤           │
+                      ▼           ▼
         [1] velocity パス ─ ping-pong ─▶ 速度テクスチャ (xyz + 速度の大きさ)
                       │
                       ▼
@@ -17,6 +19,26 @@ tVolume (3D SDF) ─────┤
                       ▼
         THREE.Points ── 頂点シェーダーが texuv から自分の位置を引く
 ```
+
+### カーソルは流体を経由する
+
+カーソルの力を直接パーティクルへ与えるのではなく、**カーソル → 流体 → パーティクル**
+の二段構えにしているのが元実装の要点。パーティクルをカメラ投影して画面 UV を求め、
+その位置の流体速度をビューの right / up 方向に変換して押す。
+
+```glsl
+vec2 uvScreen = (proj.xy / proj.w + 1.0) * 0.5;
+vec3 fluidVel = texture2D(tFluid, uvScreen).xyz * uFluidScale;
+vec3 disp = right * fluidVel.x + up * fluidVel.y;
+vel += disp * uPushForce * uDtRatio * uInteractForce;
+```
+
+流体には慣性と渦があるので、**カーソルを離したあとも流れが残り、渦を巻きながら
+パーティクルを運ぶ**。単純な距離減衰の斥力では放射状に押すだけで、この挙動にはならない。
+
+流体は速度場だけを解く軽量版（[`fluid.js`](fluid.js)）で、ソルバのパスは
+[`fluid-solver`](../fluid-solver/) と共有している（[`src/shared/glsl/fluid.js`](../../shared/glsl/fluid.js)）。
+染料を運ばないぶんパスが少ない。
 
 ### ボリュームへの吸着
 
@@ -39,7 +61,7 @@ vel += grad * force * signForce;
 | bitangent noise | 2 つの勾配場の外積。divergence が 0 なので湧き出しが起きない |
 | 表面吸着 | SDF 勾配。符号で内外を判定 |
 | 元位置への復帰 | 形が崩れきらないように引き戻す |
-| pointer | ガウス減衰の力場。元実装ではここに流体場の速度が入る |
+| 流体 | 画面空間の速度場。カーソルの力はここを経由して伝わる |
 | 摩擦 | `exp2(log2(t) * dt)` でフレームレート非依存 |
 
 ### 陰影
@@ -68,9 +90,11 @@ vel += grad * force * signForce;
   計算内容は同じ。
 - **VDB の代わりに手続き SDF を焼いている。** 元は `peachesbody_64` などの
   キャラクター形状。ここでは球・トーラス・箱・十字・ねじれトーラス。
-- **流体結合をカーソルの力場に置き換えた。** 元実装はパーティクルをカメラ投影して
-  画面空間の流体場をサンプルする。その流体ソルバ自体は
-  [`fluid-solver`](../fluid-solver/) が持っているので、繋げば元の構成になる。
+- **流体場のスケール係数（`uFluidScale`）を足した。** 速度場の値域はソルバの splat
+  強度に依存し、こちらの実装では 50 前後になる。元実装の `pushForce = 0.0005` は
+  もっと小さい値域を前提にしているので、そのまま掛けるとパーティクルが吹き飛ぶ。
+- **`invFluidStrength` を 0 で clamp した。** 元実装に clamp は無いが、流体が強いと
+  この値が負に振れ、復帰力と吸着力の符号が反転して発散する。
 - **円柱クランプの範囲を広げた。** 元の `±0.35 / 0.275` は VDB が円柱容器に
   収まる前提の値で、任意の SDF を入れると形が切れる。
 
