@@ -16,7 +16,7 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 | `ripple-simulation` | interaction | 波動方程式 + ping-pong FBO（Obsidian 外・新規） |
 | `hover-gold-grid-v2` | interaction | Buttermax |
 | `paint-reveal` | interaction | ai-quest ScreenPaint + cutscene getMaskColor |
-| `gpu-particles` | particles | BlueYard GPGPU 曲線ノイズパーティクル |
+| `gpu-particles` | particles | igloo.inc ContainerParticles（SDF 表面吸着 GPGPU） |
 | `fluid-solver` | particles | igloo.inc Navier-Stokes GPU ソルバ |
 
 ---
@@ -124,6 +124,15 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
    `readRenderTargetPixels` は `Uint16Array` を要求する。高さフィールドのように負値を扱うなら HalfFloat のまま、
    単に色を焼くだけなら `UnsignedByteType` を明示した方が扱いやすい。
 
-6. **黒い画面は lint も build も検出しない。**
+6. **Float の MRT（`WebGLRenderTarget` の `count: 2`）は環境によって通らない。**
+   SwiftShader では描画呼び出しから戻ってこなくなり、例外もエラーも出ないまま
+   ループだけが止まる。位置と速度を分けた 2 パスにすれば同じ計算ができる。
+
+7. **点のサイズはカメラ距離とセットで決めること。**
+   `gl_PointSize = uSize / length(viewPos)` 形式の式を、元実装と違うカメラ距離で
+   使うと桁が変わる。65k 点 × 150px で 1.4G ピクセルに達し、1 フレームが返らなくなる。
+   これも例外は出ないので「描画されない」ようにしか見えない。
+
+8. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。

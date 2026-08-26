@@ -1,86 +1,89 @@
-# GPU Particles
+# Volume Particles
 
-6 万個以上のパーティクルの位置を Float テクスチャに持ち、ping-pong FBO で更新する GPGPU 方式。
-CPU は一切位置を触らない。
+GPGPU パーティクルを SDF ボリュームの表面へ吸着させる。igloo.inc の
+`ContainerParticles`（150k パーティクルが VDB のボリューム形状を作る）の移植。
 
 ## 仕組み
 
 ```
-tOriginal (DataTexture: 目標形状)
-        │
-        ▼
-   [sim] ─ ping-pong ─▶ 位置テクスチャ (RGB = xyz, FloatType)
-                              │
-                              ▼
-   InstancedMesh ── 頂点シェーダーで aFboUv から自分の位置を引く
+tOriginal (初期位置) ─┐
+tVolume (3D SDF) ─────┤
+                      ▼
+        [1] velocity パス ─ ping-pong ─▶ 速度テクスチャ (xyz + 速度の大きさ)
+                      │
+                      ▼
+        [2] position パス ─ ping-pong ─▶ 位置テクスチャ (xyz + 陰影)
+                      │
+                      ▼
+        THREE.Points ── 頂点シェーダーが texuv から自分の位置を引く
 ```
 
-- **位置をテクスチャに持つ**のが GPGPU の核。描画は `InstancedBufferGeometry` に
-  `aFboUv`（自分のテクセル座標）を持たせ、頂点シェーダーで `texture2D(tPosition, aFboUv)` するだけ
-- RT は 2 枚 ping-pong、`type: FloatType`、フィルタは `NearestFilter`（テクセルを正確に引くため）
-- 描画側は `tPosition` と `tPrevPosition` の両方を受け取り、その差から速度を求めて
-  進行方向への引き伸ばしと色に使う
+### ボリュームへの吸着
 
-## curl noise
-
-4D simplex noise（Ashima / Gustavson）のポテンシャル場の回転を取る。
+3D テクスチャに **RGB = 表面への勾配、A = 符号付き距離**を持たせ、
 
 ```glsl
-curl F = (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
+float signForce = mix(0.0, -0.3, sign(dist) + 1.0);
+vel += grad * force * signForce;
 ```
 
-回転は定義上 divergence が 0 になるため、**湧き出しも吸い込みも起きず渦だけが残る**。
-単なるノイズをそのまま速度に使うと粒子が一点に吸い込まれたり湧いたりする。
+で符号によって内外を判定し、どちら側からでも表面へ引き寄せる。
+元実装は VDB を焼いた 3D テクスチャを使うが、ここでは同じ形式を
+手続き SDF から生成している（[`volume.js`](volume.js)）。中身の形式が同じなので
+仕組みはそのまま動く。
 
-`persistence` を UV で変調しているのは、一様な curl だと全体が同じリズムで揺れて
-機械的に見えるため。オクターブ数は leva で 1〜3 に変えられる（コストは線形に増える）。
-
-## 力の合成
-
-各粒子の目標位置は次を足し合わせて作る。慣性追従はフレームレート非依存にするため
-正規化デルタを掛ける。
+### 力の合成
 
 | 要素 | 内容 |
 | --- | --- |
-| 形状 | `tOriginal` を Y 回転させたもの。`shape hold` が 0 だと形を捨てて自由に漂う |
-| curl | 発散ゼロの渦 |
-| swirl | Y 軸まわりの旋回。中心ほど速くして差動回転にする |
-| pointer | カメラ正面の平面とレイの交点を中心にしたガウス減衰。負値で斥力 |
+| bitangent noise | 2 つの勾配場の外積。divergence が 0 なので湧き出しが起きない |
+| 表面吸着 | SDF 勾配。符号で内外を判定 |
+| 元位置への復帰 | 形が崩れきらないように引き戻す |
+| pointer | ガウス減衰の力場。元実装ではここに流体場の速度が入る |
+| 摩擦 | `exp2(log2(t) * dt)` でフレームレート非依存 |
+
+### 陰影
+
+位置テクスチャの `w` に **wrap diffuse**（GPU Gems の subsurface 近似）を焼いておき、
+描画側はそれを読むだけにしている。速度の大きさは速度テクスチャの `w` に均して入れ、
+速い粒子を発光させる。点は `gl_PointCoord` から法線を近似して球に見せる。
 
 ## variant
 
 | id | 内容 |
 | --- | --- |
-| `orb` | 球殻に貼り付いたまま砂粒が漂う。BlueYard の crypto orb 相当 |
-| `nebula` | 形への引力をほぼ切り、curl だけで漂わせる |
-| `galaxy` | 円盤 + 差動回転。中心にバルジができる |
-| `helix` | 二重らせんを固く保持。カーソルで崩して戻る様子を見る |
+| `volume` | 球の表面へ吸着。元実装の力の値をそのまま使う |
+| `twist` | ねじれたトーラス。吸着を強めて表面を保つ |
+| `lattice` | 3 軸の十字。細い形なので吸着をさらに強く |
+| `drift` | 吸着を切って漂わせる |
 
-## shape と variant の関係
+`volume`（形状）は variant と独立に切り替えられる。運動パラメータは
+選択中の variant のままなので、細い形を弱い吸着で動かすと形を保てない。
 
-`shape` は variant とは独立に切り替えられるが、**curl や follow などの運動パラメータは
-そのとき選んでいる variant の値のまま**になる。細い形（helix）を、拡散寄りの variant
-（nebula など）の curl で動かすと形を保てず散らばる。
+## 元実装との差分
 
-形をきれいに見せたい場合は variant 側を選ぶ。逆に「形が崩れていく様子」を見たい場合は
-shape だけ差し替えて `curl strength` を上げるとよい。
+- **MRT をやめて 2 パスに分けた。** 元実装は `layout(location = 1)` で位置と速度を
+  1 パスで書き出すが、Float の MRT は環境によって通らない（実際、検証に使っている
+  SwiftShader では描画が返ってこなくなった）。速度 → 位置の 2 パスに分けても
+  計算内容は同じ。
+- **VDB の代わりに手続き SDF を焼いている。** 元は `peachesbody_64` などの
+  キャラクター形状。ここでは球・トーラス・箱・十字・ねじれトーラス。
+- **流体結合をカーソルの力場に置き換えた。** 元実装はパーティクルをカメラ投影して
+  画面空間の流体場をサンプルする。その流体ソルバ自体は
+  [`fluid-solver`](../fluid-solver/) が持っているので、繋げば元の構成になる。
+- **円柱クランプの範囲を広げた。** 元の `±0.35 / 0.275` は VDB が円柱容器に
+  収まる前提の値で、任意の SDF を入れると形が切れる。
 
 ## 実装メモ
 
-- **`geometry.boundingSphere` を手で与えている。** 位置は頂点シェーダーで決まるので
-  three 側は正しい境界を計算できず、放っておくとフレーム外と判定されて消える
-  （`frustumCulled = false` も併用）
-- **初期フレームは目標位置へ即スナップさせる**（`uSetup`）。これをしないと
-  全粒子が原点から飛んでくる
-- **加算ブレンドは飽和しやすい。** 6 万個が重なると容易に白飛びするので、
-  `intensity` は 1 前後に抑え、明るさは粒子の密度で作る
-- パーティクル数は leva で 4k〜147k に変更できる。curl のコストが支配的なので、
-  重い場合は octaves を下げるのが最も効く
+- **点のサイズは `uSize / length(viewPos)` で決まる。** 元実装の `uSize = 260` は
+  カメラが 10 以上離れている前提の値で、そのまま近距離のカメラで使うと
+  1 点が 150px になり、65k 点で 1.4G ピクセルに達して 1 フレームが返らなくなる
+- **`geometry.boundingSphere` を手で与える。** 位置が頂点シェーダー由来だと
+  three は境界を計算できない（`frustumCulled = false` も併用）
+- パーティクル数は leva で 16k〜260k に変更できる
 
 ## 出典
 
-[BlueYard](https://blueyard.com/) — CryptoOrbParticleSpheres
-（Obsidian: `GPGPU曲線ノイズ＋流体結合パーティクル（FBO位置シム）`）
-
-元実装は画面の流体シミュレーションの速度場をパーティクルに結合しているが、
-その流体ソルバ自体は別 example の題材なので、ここではカーソルの力場に置き換えている。
+[igloo.inc](https://www.igloo.inc/) — `ContainerParticles`
+（Obsidian: `GPU流体ソルバ（Navier-Stokes splat→pressure→advection）` と同じサイト）

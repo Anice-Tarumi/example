@@ -1,40 +1,31 @@
 /**
- * 4D simplex noise (Ashima Arts / Stefan Gustavson, MIT) と、
- * そのポテンシャル場の回転から作る curl noise。
+ * Bitangent noise（Atyuwen 系）。
  *
- * curl は定義上 divergence が 0 になるため、パーティクルに湧き出しや
- * 吸い込みが生じず、渦だけが残る。GPGPU パーティクルの定番。
+ * 2 つの独立した勾配場の外積を取ることで、divergence が 0 のベクトル場を得る。
+ * curl noise と同じく湧き出し・吸い込みが生じないが、ポテンシャル場の
+ * 有限差分を取る必要がないぶん安い（simplex の評価が 1 回で済む）。
+ *
+ * ハッシュは pcg。GLSL3（uint 演算）が前提。
  */
-export const noiseGLSL = /* glsl */`
-  vec4 mod289v4(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  float mod289f(float x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  vec4 permutev4(vec4 x) { return mod289v4(((x * 34.0) + 1.0) * x); }
-  float permutef(float x) { return mod289f(((x * 34.0) + 1.0) * x); }
-  vec4 taylorInvSqrtv4(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-  float taylorInvSqrtf(float r) { return 1.79284291400159 - 0.85373472095314 * r; }
-
-  vec4 grad4(float j, vec4 ip) {
-    const vec4 ones = vec4(1.0, 1.0, 1.0, -1.0);
-    vec4 p, s;
-    p.xyz = floor(fract(vec3(j) * ip.xyz) * 7.0) * ip.z - 1.0;
-    p.w = 1.5 - dot(abs(p.xyz), ones.xyz);
-    s = vec4(lessThan(p, vec4(0.0)));
-    p.xyz = p.xyz + (s.xyz * 2.0 - 1.0) * s.www;
-    return p;
+export const bitangentNoiseGLSL = /* glsl */`
+  uvec2 _pcg4d16(uvec4 p) {
+    uvec4 v = p * 1664525u + 1013904223u;
+    v.x += v.y * v.w; v.y += v.z * v.x; v.z += v.x * v.y; v.w += v.y * v.z;
+    v.x += v.y * v.w; v.y += v.z * v.x;
+    return v.xy;
   }
 
-  #define F4 0.309016994374947451
+  vec4 _gradient4d(uint hash) {
+    vec4 g = vec4(uvec4(hash) & uvec4(0x80000u, 0x40000u, 0x20000u, 0x10000u));
+    return g * (1.0 / vec4(0x40000u, 0x20000u, 0x10000u, 0x8000u)) - 1.0;
+  }
 
-  float snoise4(vec4 v) {
-    const vec4 C = vec4(
-      0.138196601125011,   // (5 - sqrt(5)) / 20 = G4
-      0.276393202250021,   // 2 * G4
-      0.414589803375032,   // 3 * G4
-      -0.447213595499958   // -1 + 4 * G4
-    );
+  vec3 BitangentNoise4D(vec4 p) {
+    const vec4 F4 = vec4(0.309016994374947451);
+    const vec4 C = vec4(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
 
-    vec4 i  = floor(v + dot(v, vec4(F4)));
-    vec4 x0 = v - i + dot(i, C.xxxx);
+    vec4 i = floor(p + dot(p, F4));
+    vec4 x0 = p - i + dot(i, C.xxxx);
 
     vec4 i0;
     vec3 isX = step(x0.yzw, x0.xxx);
@@ -55,87 +46,34 @@ export const noiseGLSL = /* glsl */`
     vec4 x3 = x0 - i3 + C.zzzz;
     vec4 x4 = x0 + C.wwww;
 
-    i = mod289v4(i);
-    float j0 = permutef(permutef(permutef(permutef(i.w) + i.z) + i.y) + i.x);
-    vec4 j1 = permutev4(permutev4(permutev4(permutev4(
-                i.w + vec4(i1.w, i2.w, i3.w, 1.0))
-              + i.z + vec4(i1.z, i2.z, i3.z, 1.0))
-              + i.y + vec4(i1.y, i2.y, i3.y, 1.0))
-              + i.x + vec4(i1.x, i2.x, i3.x, 1.0));
+    i = i + 32768.5;
+    uvec2 hash0 = _pcg4d16(uvec4(i));
+    uvec2 hash1 = _pcg4d16(uvec4(i + i1));
+    uvec2 hash2 = _pcg4d16(uvec4(i + i2));
+    uvec2 hash3 = _pcg4d16(uvec4(i + i3));
+    uvec2 hash4 = _pcg4d16(uvec4(i + 1.0));
 
-    vec4 ip = vec4(1.0 / 294.0, 1.0 / 49.0, 1.0 / 7.0, 0.0);
+    vec4 p00 = _gradient4d(hash0.x); vec4 p01 = _gradient4d(hash0.y);
+    vec4 p10 = _gradient4d(hash1.x); vec4 p11 = _gradient4d(hash1.y);
+    vec4 p20 = _gradient4d(hash2.x); vec4 p21 = _gradient4d(hash2.y);
+    vec4 p30 = _gradient4d(hash3.x); vec4 p31 = _gradient4d(hash3.y);
+    vec4 p40 = _gradient4d(hash4.x); vec4 p41 = _gradient4d(hash4.y);
 
-    vec4 p0 = grad4(j0,   ip);
-    vec4 p1 = grad4(j1.x, ip);
-    vec4 p2 = grad4(j1.y, ip);
-    vec4 p3 = grad4(j1.z, ip);
-    vec4 p4 = grad4(j1.w, ip);
+    vec3 m0 = clamp(0.6 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2)), 0.0, 1.0);
+    vec2 m1 = clamp(0.6 - vec2(dot(x3, x3), dot(x4, x4)), 0.0, 1.0);
+    vec3 m02 = m0 * m0; vec3 m03 = m02 * m0;
+    vec2 m12 = m1 * m1; vec2 m13 = m12 * m1;
 
-    vec4 norm = taylorInvSqrtv4(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
-    p0 *= norm.x;
-    p1 *= norm.y;
-    p2 *= norm.z;
-    p3 *= norm.w;
-    p4 *= taylorInvSqrtf(dot(p4, p4));
+    vec3 temp0 = m02 * vec3(dot(p00, x0), dot(p10, x1), dot(p20, x2));
+    vec2 temp1 = m12 * vec2(dot(p30, x3), dot(p40, x4));
+    vec4 grad0 = -6.0 * (temp0.x * x0 + temp0.y * x1 + temp0.z * x2 + temp1.x * x3 + temp1.y * x4);
+    grad0 += m03.x * p00 + m03.y * p10 + m03.z * p20 + m13.x * p30 + m13.y * p40;
 
-    vec3 m0 = max(0.6 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2)), 0.0);
-    vec2 m1 = max(0.6 - vec2(dot(x3, x3), dot(x4, x4)), 0.0);
-    m0 = m0 * m0;
-    m1 = m1 * m1;
+    temp0 = m02 * vec3(dot(p01, x0), dot(p11, x1), dot(p21, x2));
+    temp1 = m12 * vec2(dot(p31, x3), dot(p41, x4));
+    vec4 grad1 = -6.0 * (temp0.x * x0 + temp0.y * x1 + temp0.z * x2 + temp1.x * x3 + temp1.y * x4);
+    grad1 += m03.x * p01 + m03.y * p11 + m03.z * p21 + m13.x * p31 + m13.y * p41;
 
-    return 49.0 * (
-      dot(m0 * m0, vec3(dot(p0, x0), dot(p1, x1), dot(p2, x2))) +
-      dot(m1 * m1, vec2(dot(p3, x3), dot(p4, x4)))
-    );
-  }
-
-  /** ポテンシャル場。成分ごとに座標をずらして相関を切る */
-  vec3 potential(vec3 p, float t) {
-    return vec3(
-      snoise4(vec4(p, t)),
-      snoise4(vec4(p + vec3(123.4, 234.5, 345.6), t)),
-      snoise4(vec4(p + vec3(456.7, 567.8, 678.9), t))
-    );
-  }
-
-  /**
-   * fBm 版 curl noise。
-   * オクターブごとに周波数を 2 倍、振幅を persistence 倍していく。
-   * 回転は中心差分で取る（解析勾配より安いうえ十分滑らか）。
-   */
-  vec3 curlNoise(vec3 p, float t, float persistence, int octaves) {
-    const float e = 0.08;
-    vec3 result = vec3(0.0);
-    float freq = 1.0;
-    float amp = 1.0;
-
-    for (int i = 0; i < 3; i++) {
-      if (i >= octaves) break;
-
-      vec3 q = p * freq;
-
-      vec3 dx = vec3(e, 0.0, 0.0);
-      vec3 dy = vec3(0.0, e, 0.0);
-      vec3 dz = vec3(0.0, 0.0, e);
-
-      vec3 px0 = potential(q - dx, t);
-      vec3 px1 = potential(q + dx, t);
-      vec3 py0 = potential(q - dy, t);
-      vec3 py1 = potential(q + dy, t);
-      vec3 pz0 = potential(q - dz, t);
-      vec3 pz1 = potential(q + dz, t);
-
-      // curl F = (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
-      float x = (py1.z - py0.z) - (pz1.y - pz0.y);
-      float y = (pz1.x - pz0.x) - (px1.z - px0.z);
-      float z = (px1.y - px0.y) - (py1.x - py0.x);
-
-      result += vec3(x, y, z) / (2.0 * e) * amp;
-
-      freq *= 2.0;
-      amp *= persistence;
-    }
-
-    return result;
+    return cross(grad0.xyz, grad1.xyz) * 81.0;
   }
 `

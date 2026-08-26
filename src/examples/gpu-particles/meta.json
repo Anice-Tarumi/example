@@ -1,16 +1,34 @@
 {
-  "title": "GPU Particles",
-  "description": "6万個以上のパーティクルの位置を Float テクスチャに持ち、ping-pong FBO で更新する GPGPU 方式。4D simplex ノイズのポテンシャル場の回転（curl）で発散のない渦を作り、形状への追従とカーソルの力場を重ねる。",
+  "title": "Volume Particles",
+  "description": "GPGPU パーティクルを SDF ボリュームの表面へ吸着させる。位置と速度を MRT で同時に更新し、bitangent noise の揺らぎ・元位置への復帰・表面への吸着を合成する。陰影は wrap diffuse で点ごとに計算する。",
   "emoji": "✳️",
   "category": "particles",
-  "tags": ["gpgpu", "fbo", "ping-pong", "curl-noise", "instancing"],
-  "variants": [
-    { "id": "orb", "label": "Curl Orb" },
-    { "id": "nebula", "label": "Free Nebula" },
-    { "id": "galaxy", "label": "Galaxy Disc" },
-    { "id": "helix", "label": "Helix Lock" }
+  "tags": [
+    "gpgpu",
+    "fbo",
+    "ping-pong",
+    "sdf",
+    "points"
   ],
-  "source": "BlueYard",
-  "sourceUrl": "https://blueyard.com/",
-  "note": "Obsidian: GPGPU曲線ノイズ＋流体結合パーティクル（FBO位置シム）"
+  "variants": [
+    {
+      "id": "volume",
+      "label": "Volume Attract"
+    },
+    {
+      "id": "twist",
+      "label": "Twisted Shell"
+    },
+    {
+      "id": "lattice",
+      "label": "Lattice Core"
+    },
+    {
+      "id": "drift",
+      "label": "Free Drift"
+    }
+  ],
+  "source": "igloo.inc",
+  "sourceUrl": "https://www.igloo.inc/",
+  "note": "igloo ContainerParticles（150k GPGPU + VDB 表面吸着）の移植。MRT は 2 パスに分割"
 }
