@@ -1,6 +1,6 @@
 {
   "title": "Postprocess Stack",
-  "description": "自前のミップチェーンで組んだマルチスケール Bloom に、レンズゴースト／ハローと 3D LUT カラーグレーディングを重ねたポストプロセス一式。LUT はテトラヘドラル補間で引く。",
+  "description": "夜の街を素材に、自前ミップチェーンのマルチスケール Bloom・レンズゴースト・3D LUT カラーグレーディングを 1 本のパイプラインで重ねる。画面左が素の絵、右が適用後。LUT はテトラヘドラル補間で引く。",
   "emoji": "🎞️",
   "category": "postprocess",
   "tags": ["postprocess", "fbo", "bloom", "lut", "shader"],
@@ -12,5 +12,5 @@
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "UnrealBloomPass も EffectComposer も使わず、パスを 1 本ずつ FullScreenQuad で組んでいる"
+  "note": "compare スライダーで境界を動かせる。UnrealBloomPass も EffectComposer も使わず、パスを 1 本ずつ FullScreenQuad で組んでいる"
 }

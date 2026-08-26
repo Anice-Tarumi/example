@@ -98,6 +98,7 @@ function Pipeline({ params }) {
       uGrain: { value: DEFAULTS.grain },
       uLutMix: { value: DEFAULTS.lutMix },
       uLutSize: { value: LUT_SIZE },
+      uSplit: { value: DEFAULTS.compare },
       uTime: { value: 0 },
       uAspect: { value: new THREE.Vector2(1, 1) },
     },
@@ -160,6 +161,7 @@ function Pipeline({ params }) {
     c.uVignette.value = params.vignette
     c.uGrain.value = params.grain
     c.uLutMix.value = params.lutMix
+    c.uSplit.value = params.compare
   }, [uniforms, params, lut])
 
   const blurTo = (gl, src, dst, dirX, dirY, texelW, texelH) => {
@@ -252,12 +254,13 @@ export default function PostprocessStack() {
       exposure: { value: DEFAULTS.exposure, min: 0.2, max: 2.5, step: 0.01 },
       vignette: { value: DEFAULTS.vignette, min: 0, max: 1, step: 0.01 },
       grain: { value: DEFAULTS.grain, min: 0, max: 0.15, step: 0.005 },
+      compare: { value: DEFAULTS.compare, min: 0, max: 1, step: 0.01, label: 'compare' },
     }),
     Subject: folder({
-      coreColor: { value: DEFAULTS.coreColor, label: 'core' },
-      coreIntensity: { value: DEFAULTS.coreIntensity, min: 0.5, max: 14, step: 0.1, label: 'core int' },
-      ringColor: { value: DEFAULTS.ringColor, label: 'ring' },
-      ringIntensity: { value: DEFAULTS.ringIntensity, min: 0.5, max: 14, step: 0.1, label: 'ring int' },
+      lampColor: { value: DEFAULTS.lampColor, label: 'lamp' },
+      lampIntensity: { value: DEFAULTS.lampIntensity, min: 0.5, max: 16, step: 0.1, label: 'lamp int' },
+      signColor: { value: DEFAULTS.signColor, label: 'neon' },
+      signIntensity: { value: DEFAULTS.signIntensity, min: 0.5, max: 16, step: 0.1, label: 'neon int' },
     }),
   }))
 
@@ -267,16 +270,16 @@ export default function PostprocessStack() {
   }, [variant, setParams])
 
   return (
-    <Canvas camera={{ position: [0, 1.1, 4.6], fov: 45 }} dpr={[1, 2]}>
+    <Canvas camera={{ position: [0, 1.25, 7.6], fov: 48 }} dpr={[1, 2]}>
       <color attach="background" args={['#05070b']} />
       <Subject
-        coreColor={params.coreColor}
-        coreIntensity={params.coreIntensity}
-        ringColor={params.ringColor}
-        ringIntensity={params.ringIntensity}
+        lampColor={params.lampColor}
+        lampIntensity={params.lampIntensity}
+        signColor={params.signColor}
+        signIntensity={params.signIntensity}
       />
       <Pipeline params={params} />
-      <OrbitControls enablePan={false} minDistance={2.2} maxDistance={12} target={[0, 0, 0]} />
+      <OrbitControls enablePan={false} minDistance={2.2} maxDistance={12} target={[0, 1.05, -7]} />
     </Canvas>
   )
 }

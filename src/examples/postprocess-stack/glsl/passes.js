@@ -125,6 +125,7 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float uGrain;
   uniform float uLutMix;
   uniform float uLutSize;
+  uniform float uSplit;
   uniform float uTime;
   uniform vec2  uAspect;
 
@@ -143,7 +144,8 @@ export const compositeFragmentShader = /* glsl */ `
   /** 中心からの距離に比例して RGB をずらす。レンズの倍率色収差 */
   vec3 sampleChroma(vec2 uv) {
     vec2 d = uv - 0.5;
-    float amount = uChroma * dot(d, d);
+    // 0.02 倍しておかないと uChroma = 1 で数十 px ずれる。レンズの収差は数 px の話
+    float amount = uChroma * dot(d, d) * 0.02;
     return vec3(
       texture2D(tScene, uv - d * amount).r,
       texture2D(tScene, uv).g,
@@ -259,6 +261,9 @@ export const compositeFragmentShader = /* glsl */ `
   }
 
   void main() {
+    // 素の絵。露出とトーンマップ・sRGB だけ通した「何もしていない」状態
+    vec3 raw = linearToSrgb(acesFilmic(texture2D(tScene, vUv).rgb * uExposure));
+
     vec3 color = sampleChroma(vUv);
     color += bloomAt(vUv) * uBloomStrength;
     color += lensGhosts(vUv);
@@ -277,6 +282,10 @@ export const compositeFragmentShader = /* glsl */ `
     // グレインは最後。表示値に乗せないとフィルム粒子に見えない
     float g = hash(vUv * 1024.0 + fract(uTime) * 91.7) - 0.5;
     color += g * uGrain;
+
+    // 左に素の絵、右にスタック適用後。uSplit = 0 なら全面が適用後
+    color = mix(raw, color, step(uSplit, vUv.x));
+    color = mix(color, vec3(0.85), smoothstep(0.0018, 0.0, abs(vUv.x - uSplit)) * step(0.002, uSplit));
 
     fragColor = vec4(color, 1.0);
   }
