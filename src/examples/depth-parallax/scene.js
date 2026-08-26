@@ -89,6 +89,22 @@ function drawScene(ctx, mode) {
   }
   ctx.fillRect(0, 0, W, H)
 
+  // 星。高周波のディテールが無いと、視差で動いてもぼんやりした絵にしか見えない
+  for (let i = 0; i < 220; i++) {
+    const x = rand() * W
+    const y = rand() * H * 0.55
+    const r = 0.6 + rand() * 1.3
+    if (mode === 'color') {
+      ctx.fillStyle = `rgba(255,247,224,${0.25 + rand() * 0.6})`
+    } else {
+      // 星は空と同じ距離。深度マップでは点を打たない
+      continue
+    }
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
   // 月
   const moonX = W * 0.74
   const moonY = H * 0.2
@@ -120,7 +136,7 @@ function drawScene(ctx, mode) {
   for (let i = 0; i < 26; i++) {
     const x = rand() * W
     const h = 90 + rand() * 50
-    conifer(ctx, x, H * 0.84, h, c('#13322e', 0.55))
+    conifer(ctx, x, H * 0.84, h, c('#173a34', 0.55))
   }
 
   // 岸
@@ -137,11 +153,11 @@ function drawScene(ctx, mode) {
   for (let i = 0; i < 12; i++) {
     const x = (i / 11) * W + (rand() - 0.5) * 60
     const h = 240 + rand() * 170
-    conifer(ctx, x, H * 1.02, h, c('#07160f', 0.88))
+    conifer(ctx, x, H * 1.02, h, c('#0c2419', 0.88))
   }
 
   // 手前の草
-  ctx.strokeStyle = c('#050f09', 0.96)
+  ctx.strokeStyle = c('#0b1c12', 0.96)
   ctx.lineWidth = 3
   for (let i = 0; i < 160; i++) {
     const x = rand() * W
