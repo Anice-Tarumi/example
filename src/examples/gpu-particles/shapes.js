@@ -34,7 +34,7 @@ function disc(rand, radius) {
 
 /** 立方体の表面 */
 function box(rand, radius) {
-  const a = radius * 1.15
+  const a = radius * 0.82
   const face = (rand() * 6) | 0
   const u = (rand() * 2 - 1) * a
   const v = (rand() * 2 - 1) * a
@@ -46,17 +46,18 @@ function box(rand, radius) {
   return [u, v, -a]
 }
 
-/** 二重らせん */
+/** 二重らせん。他の形と見かけの大きさを揃えるため半径と高さを抑える */
 function helix(rand, radius) {
   const strand = rand() < 0.5 ? 0 : Math.PI
   const t = rand()
-  const turns = 3.2
+  const turns = 4.2
   const a = t * turns * Math.PI * 2 + strand
-  const jitter = 0.055
+  const r = radius * 0.78
+  const jitter = 0.04
   return [
-    Math.cos(a) * radius + (rand() - 0.5) * jitter,
-    (t - 0.5) * radius * 2.6 + (rand() - 0.5) * jitter,
-    Math.sin(a) * radius + (rand() - 0.5) * jitter,
+    Math.cos(a) * r + (rand() - 0.5) * jitter,
+    (t - 0.5) * radius * 1.45 + (rand() - 0.5) * jitter,
+    Math.sin(a) * r + (rand() - 0.5) * jitter,
   ]
 }
 

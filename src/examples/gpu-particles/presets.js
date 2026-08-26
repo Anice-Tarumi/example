@@ -102,7 +102,9 @@ export const PRESETS = {
   },
 }
 
-export const RESOLUTIONS = { '64² (4k)': 64, '128² (16k)': 128, '256² (65k)': 256, '384² (147k)': 384 }
+// ラベルは leva の狭い列に収まる長さにする。
+// 上付き文字はフォントによって欠けるので使わない。
+export const RESOLUTIONS = { '4k': 64, '16k': 128, '65k': 256, '147k': 384 }
 
 export const DEFAULT_PRESET = 'orb'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params

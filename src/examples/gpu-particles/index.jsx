@@ -230,7 +230,7 @@ export default function GpuParticles() {
 
   const [params, setParams] = useControls(() => ({
     shape: { value: DEFAULTS.shape, options: SHAPES },
-    resolution: { value: DEFAULTS.resolution, options: RESOLUTIONS },
+    resolution: { value: DEFAULTS.resolution, options: RESOLUTIONS, label: 'count' },
     Motion: folder({
       shapeStrength: { value: DEFAULTS.shapeStrength, min: 0, max: 1, step: 0.01, label: 'shape hold' },
       lerpSpeed: { value: DEFAULTS.lerpSpeed, min: 0.005, max: 0.3, step: 0.005, label: 'follow' },

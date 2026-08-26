@@ -56,6 +56,15 @@ curl F = (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/�
 | `galaxy` | 円盤 + 差動回転。中心にバルジができる |
 | `helix` | 二重らせんを固く保持。カーソルで崩して戻る様子を見る |
 
+## shape と variant の関係
+
+`shape` は variant とは独立に切り替えられるが、**curl や follow などの運動パラメータは
+そのとき選んでいる variant の値のまま**になる。細い形（helix）を、拡散寄りの variant
+（nebula など）の curl で動かすと形を保てず散らばる。
+
+形をきれいに見せたい場合は variant 側を選ぶ。逆に「形が崩れていく様子」を見たい場合は
+shape だけ差し替えて `curl strength` を上げるとよい。
+
 ## 実装メモ
 
 - **`geometry.boundingSphere` を手で与えている。** 位置は頂点シェーダーで決まるので
