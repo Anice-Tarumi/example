@@ -1,0 +1,16 @@
+{
+  "title": "Postprocess Stack",
+  "description": "自前のミップチェーンで組んだマルチスケール Bloom に、レンズゴースト／ハローと 3D LUT カラーグレーディングを重ねたポストプロセス一式。LUT はテトラヘドラル補間で引く。",
+  "emoji": "🎞️",
+  "category": "postprocess",
+  "tags": ["postprocess", "fbo", "bloom", "lut", "shader"],
+  "variants": [
+    { "id": "full", "label": "Full Stack" },
+    { "id": "bloomOnly", "label": "Bloom Only" },
+    { "id": "gradeOnly", "label": "Grade Only" },
+    { "id": "anamorphic", "label": "Anamorphic" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "UnrealBloomPass も EffectComposer も使わず、パスを 1 本ずつ FullScreenQuad で組んでいる"
+}
