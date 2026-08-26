@@ -1,0 +1,16 @@
+{
+  "title": "Depth Parallax",
+  "description": "1枚の絵と深度マップだけで奥行きを作る。視線を深度サーフェスへレイマーチして視差を出し、焦点面から外れた深度をぼかし、カーソルの光を深度込みで減衰させて手前だけ照らす。",
+  "emoji": "🪟",
+  "category": "dom-webgl",
+  "tags": ["depth-map", "raymarch", "parallax", "dof", "mouse"],
+  "variants": [
+    { "id": "parallax", "label": "Depth Parallax" },
+    { "id": "dof", "label": "Rack Focus" },
+    { "id": "flashlight", "label": "Depth Flashlight" },
+    { "id": "depth", "label": "Depth Map" }
+  ],
+  "source": "Lusion.co / ai-quest",
+  "sourceUrl": "https://lusion.co/",
+  "note": "Obsidian: 深度マップ視差（depthをレイマーチして2.5D化＋DOF） / レイヤー分解＋深度フラッシュライト"
+}

@@ -6,6 +6,18 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 粒度の原則は **1 example = 1 機能、バリエーションは同じキャンバス内で variant 切替**。
 「◯◯ + ◯◯ + ◯◯」と並んでいるものは、それらを 1 example に集約するという意味。
 
+## 選定基準
+
+**他のショーケースに頻出する機能を単体で載せても意味がない。**
+bloom・色収差・ビネット・matcap のような基礎は、それ単体なら drei や three の公式
+example で足りる。載せるなら次のどちらかを満たすこと。
+
+1. **他でまず見ない技術であること**（MRT トゥーン輪郭線、VAT、解析的近接ライティング、
+   OffscreenCanvas ワーカー描画、UV 空間の波伝播 など）
+2. **基礎技術どうしを組み合わせて、単体より明らかに上質な体験になっていること**
+   （例: `glass-refraction` は transmission 単体では drei の 1 行と変わらないが、
+   分散 + 氷の質感 + カーソルで霜が溶ける演出まで揃うと別物になる）
+
 ---
 
 ## 実装済み
@@ -18,7 +30,8 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 | `paint-reveal` | interaction | ai-quest ScreenPaint + cutscene getMaskColor |
 | `gpu-particles` | particles | igloo.inc ContainerParticles（SDF 表面吸着 GPGPU） |
 | `fluid-solver` | particles | igloo.inc Navier-Stokes GPU ソルバ |
-| `glass-refraction` | materials | igloo.inc カスタム透過ガラス（分散つき） |
+| `glass-refraction` | materials | igloo.inc カスタム透過ガラス + MouseFrost |
+| `depth-parallax` | dom-webgl | Lusion 深度マップ視差 + ai-quest 深度フラッシュライト |
 
 ---
 
@@ -48,11 +61,6 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 - ネタ元: `MRTバッファによるトゥーン輪郭線（ID・深度・法線の十字エッジ検出）`
 - variant: 深度エッジ / 法線エッジ / ID エッジ / 合成
 - 備考: MRT。`R3F独自ループMRT合成レンダリングパイプライン` も参照
-
-### `depth-parallax` — dom-webgl
-- ネタ元: `深度マップ視差（depthをレイマーチして2.5D化＋DOF）` / `レイヤー分解＋深度フラッシュライトの2.5Dシーン`
-- variant: レイマーチ視差 / レイヤー分解 / フラッシュライト
-- 備考: 深度マップ画像が要る。手続き生成できるか要検討
 
 ### `day-night-cycle` — lighting
 - ネタ元: `手続き的な昼夜・天候サイクル（キーフレームプリセット＋ノイズ）` / `スクロール連動の昼夜・感情ライティング` / `二色グラデーションフォグ`
