@@ -32,6 +32,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `fluid-solver` | particles | igloo.inc Navier-Stokes GPU ソルバ |
 | `glass-refraction` | materials | igloo.inc カスタム透過ガラス + MouseFrost |
 | `depth-parallax` | dom-webgl | Lusion 深度マップ視差 + ai-quest 深度フラッシュライト |
+| `toon-outline` | postprocess | messenger.abeto.co MRT トゥーン輪郭線 |
 
 ---
 
@@ -56,11 +57,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 ### `text-effects` — typography
 - ネタ元: `MSDFテキスト描画（median＋fwidth＋アウトライン）` / `テキスト分割アニメ`
 - variant: MSDF アウトライン / 文字分割リビール / 波打ち / グリッチ
-
-### `toon-outline` — postprocess
-- ネタ元: `MRTバッファによるトゥーン輪郭線（ID・深度・法線の十字エッジ検出）`
-- variant: 深度エッジ / 法線エッジ / ID エッジ / 合成
-- 備考: MRT。`R3F独自ループMRT合成レンダリングパイプライン` も参照
 
 ### `day-night-cycle` — lighting
 - ネタ元: `手続き的な昼夜・天候サイクル（キーフレームプリセット＋ノイズ）` / `スクロール連動の昼夜・感情ライティング` / `二色グラデーションフォグ`
@@ -137,6 +133,19 @@ example で足りる。載せるなら次のどちらかを満たすこと。
    使うと桁が変わる。65k 点 × 150px で 1.4G ピクセルに達し、1 フレームが返らなくなる。
    これも例外は出ないので「描画されない」ようにしか見えない。
 
-8. **黒い画面は lint も build も検出しない。**
+8. **GLSL3 で MRT を使うなら `RawShaderMaterial`。**
+   `ShaderMaterial` + GLSL3 だと three が `layout(location = 0) out vec4 pc_fragColor`
+   を prefix で入れるため、自前の `layout(location = 1)` と衝突する。
+   エラーも警告も出ないまま描画だけが消える。
+
+9. **leva の folder キーに空白を入れない。`setParams` に未登録のキーを渡さない。**
+   どちらも `Cannot read properties of undefined (reading 'path')` でアプリ全体が落ちる。
+   preset に leva へ出していない値を混ぜたときに踏みやすい。
+
+10. **useFrame でマテリアルの `uniforms` を触るならガードする。**
+    切り分けのために標準マテリアルへ差し替えた瞬間に例外でループが止まり、
+    「差し替えても直らない」という誤った結論に繋がる。
+
+11. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。

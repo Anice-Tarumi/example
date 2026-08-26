@@ -1,0 +1,16 @@
+{
+  "title": "Toon Outline",
+  "description": "MRT で色・面ID・深度・法線を同時に書き出し、十字5タップで輪郭を検出する。面IDを1枚目のアルファに潜ませることで、深度も法線も連続な素材の切り替わりにも線が引ける。",
+  "emoji": "🖊️",
+  "category": "postprocess",
+  "tags": ["mrt", "gbuffer", "outline", "edge-detection", "toon"],
+  "variants": [
+    { "id": "ink", "label": "Ink Outline" },
+    { "id": "bold", "label": "Bold Marker" },
+    { "id": "sketch", "label": "Sketch" },
+    { "id": "buffers", "label": "ID Buffer" }
+  ],
+  "source": "messenger.abeto.co",
+  "sourceUrl": "https://messenger.abeto.co/",
+  "note": "Obsidian: MRTバッファによるトゥーン輪郭線（ID・深度・法線の十字エッジ検出）"
+}
