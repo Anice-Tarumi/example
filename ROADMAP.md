@@ -34,6 +34,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `depth-parallax` | dom-webgl | Lusion 深度マップ視差 + ai-quest 深度フラッシュライト |
 | `toon-outline` | postprocess | messenger.abeto.co MRT トゥーン輪郭線 |
 | `vertex-animation-texture` | geometry | Lusion VAT（破砕を Float テクスチャに焼く） |
+| `flip-stage` | transitions | 忍者屋敷のどんでん返し（表裏 2 面で無限シーン送り・新規） |
 
 ---
 
@@ -77,6 +78,11 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 ### `physics-playground` — physics
 - ネタ元: `カスタム物理（中心引力＋ペア衝突＋マウス押しのけ）` / `Rapierレイキャストビークル（物理カー）`
 - 備考: Rapier は新規ライブラリ。自前物理の variant だけなら依存ゼロで作れる
+- 備考: junni (`next.junni.co.jp`) 冒頭のブロック壁は CANNON.js のリアルタイム物理。
+  `Section1/Wall/index.ts` が Mesh + CANNON.Body を 1 対 1 で持ち、毎フレーム
+  `mesh.position.copy(body.position)`、静止したら `boxBody.sleep()`。
+  キャラの衝突位置で崩れ方が毎回変わるため事前ベイクできない。
+  **`vertex-animation-texture`（焼く）の対になる例**として並べると対比が効く。
 
 ---
 
@@ -147,6 +153,18 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     切り分けのために標準マテリアルへ差し替えた瞬間に例外でループが止まり、
     「差し替えても直らない」という誤った結論に繋がる。
 
-11. **黒い画面は lint も build も検出しない。**
+11. **表裏を入れ替える演出で「片面を隠す」で解決しようとするな。**
+    一度返ると裏だった面が表に来るので、初期の裏面を非表示にする実装は破綻する。
+    覗き込みは形で塞ぐ（`flip-stage` は外周に `ringGeometry` の地面板 + `fogExp2`）。
+    差し替えるのは常に「これから隠れる側」だけ。上がってくる面に触ると即バレる。
+
+12. **overshoot するイージングでは「90 度通過」は隠れた判定にならない。**
+    行き過ぎて戻る間に裏面がまた見える。状態の差し替えは回転が完全に終わってから。
+
+13. **裏返る板は y=0 対称に組むこと。**
+    円柱を `position=[0,-thickness/2,0]` のように片寄せすると、返ったとき蓋が
+    地面より上に来て地面を隠す。同一平面に置いた面は z-fighting で縞になる。
+
+14. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
