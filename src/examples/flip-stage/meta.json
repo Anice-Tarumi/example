@@ -1,0 +1,16 @@
+{
+  "title": "Flip Stage",
+  "description": "床がどんでん返しのように反転し、裏に隠れていた別のシーンが現れる。盤面は表裏の2面しかないが、90度を過ぎて見えなくなった側を次のシーンへ差し替えるので、返すたびに新しい景色が出てくる。",
+  "emoji": "🔄",
+  "category": "transitions",
+  "tags": ["transition", "3d", "trick", "mouse"],
+  "variants": [
+    { "id": "trapdoor", "label": "Trapdoor" },
+    { "id": "swing", "label": "Slow Swing" },
+    { "id": "snap", "label": "Snap Flip" },
+    { "id": "manual", "label": "Manual" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "忍者屋敷のどんでん返し。隠れている間に差し替える点は scene-transitions の劇場カーテンと同じ思想"
+}

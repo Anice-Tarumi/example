@@ -27,6 +27,9 @@ export default defineConfig([
       'react-hooks/immutability': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
+      // example は 1 ファイルにシーン定義とコンポーネントが同居することがある。
+      // HMR の粒度より読みやすさを優先する
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])
