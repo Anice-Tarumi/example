@@ -43,6 +43,18 @@ Navier-Stokes の splat → pressure → advection。ripple より多段だが F
 - ネタ元: `カスタム透過ガラス（transmissionサンプラ＋色収差で分散）` / `ガラス屈折（背景ブラーピラミッドを lodSample でサンプル）` / `屈折するダイヤ粒子`
 - variant: transmission / lodSample ブラー / 色分散強め / ダイヤ
 
+### `paint-reveal` — transitions（★ 要確認）
+
+ai-quest のカットシーン演出。マスクテクスチャを `textureBicubic` でサンプルし、
+`mask.gb` で UV をディスプレイスしながら `mask.r`(paint) / `mask.a`(overlay) で
+部分的に脱色・発光させ、絵筆で塗り広げるように色を乗せていく。
+- ネタ元: `ノイズマスクによる画面トランジション` のカットシーン版（frag$2）
+- variant: paint 塗り広げ / overlay 発光 / ディスプレイス量ちがい / bicubic vs bilinear 比較
+- 備考: マスクを拡大して使うので bicubic 必須（bilinear だと境界が階段状になる）。
+  マスクは手続き生成できるか要検討
+- **要確認**: 依頼にあった「ai-quest の波紋＋テクスチャ色付け」がこれを指すのか未確定。
+  Vault に「波紋」に該当する ai-quest のノートが無いため、対象を特定してから着手する
+
 ---
 
 ## 優先度 中
