@@ -39,6 +39,7 @@ export function parallaxFragmentShader(parallaxSamples, blurSamples) {
     uniform float uVignette;
     uniform vec3  uFogColor;
     uniform float uFogAmount;
+    uniform float uPad;          // 視差でずれても画像の外を引かないための余白
     uniform float uAspect;
     uniform int   uMode;
 
@@ -68,9 +69,9 @@ export function parallaxFragmentShader(parallaxSamples, blurSamples) {
     /** 焦点面から外れた深度ほどぼかす。ディスク状にサンプルして平均 */
     vec3 sampleWithDof(vec2 uv, float depth) {
       float coc = abs(depth - uFocus) * uBlurStrength;
-      if (coc < 0.0008) return texture2D(uTexture, uv).rgb;
+      if (coc < 0.0008) return texture2D(uTexture, clamp(uv, 0.0, 1.0)).rgb;
 
-      vec3 sum = texture2D(uTexture, uv).rgb;
+      vec3 sum = texture2D(uTexture, clamp(uv, 0.0, 1.0)).rgb;
       float golden = 2.39996323;
       for (int i = 0; i < ${B}; i++) {
         float a = golden * float(i);
@@ -88,7 +89,9 @@ export function parallaxFragmentShader(parallaxSamples, blurSamples) {
     }
 
     void main() {
-      vec2 uv = vUv;
+      // 表示するのは画像の内側だけ。視差でレイが外へ出ると ClampToEdge で
+      // 端の 1 列が引き伸ばされ、画面の縁に縦線や色のくさびが出る
+      vec2 uv = vUv * (1.0 - 2.0 * uPad) + uPad;
 
       // カーソルで視差をずらす。深度が大きい（手前）ほど大きく動く
       vec2 shift = uShift;

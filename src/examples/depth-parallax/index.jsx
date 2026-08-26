@@ -33,6 +33,7 @@ function ParallaxCard({ params }) {
         uVignette: { value: DEFAULTS.vignette },
         uFogColor: { value: new THREE.Color(DEFAULTS.fogColor) },
         uFogAmount: { value: DEFAULTS.fogAmount },
+        uPad: { value: 0.1 },
         uAspect: { value: scene.aspect },
         uMode: { value: 0 },
       },
@@ -55,6 +56,8 @@ function ParallaxCard({ params }) {
     u.uVignette.value = params.vignette
     u.uFogColor.value.set(params.fogColor)
     u.uFogAmount.value = params.fogAmount
+    // 視差の最大ずれ幅ぶん内側を表示する
+    u.uPad.value = Math.min(0.22, params.shiftAmount * 0.75 + 0.02)
     u.uMode.value = Math.max(0, MODES.indexOf(params.mode))
   }, [material, params])
 

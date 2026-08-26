@@ -28,25 +28,48 @@ function depthColor(d) {
   return `rgb(${v},${v},${v})`
 }
 
-/** 山の稜線 */
-function ridge(ctx, rand, baseY, amp, steps, fill) {
+/**
+ * 山の稜線。rim を渡すと稜線に沿って明るい線を引く。
+ *
+ * 塗り用のパスは左右の辺と底辺を含むので、それをそのまま stroke すると
+ * 画面の縁に縦線が出る。稜線だけの別パスを作って描く。
+ */
+function ridge(ctx, rand, baseY, amp, steps, fill, rim) {
+  // 先に稜線の点列を決めてしまう。塗りと線で同じ形を使うため
+  const pts = [[0, baseY]]
+  for (let i = 1; i <= steps; i++) {
+    const x = (W / steps) * i
+    const y = baseY - Math.sin((i / steps) * Math.PI) * amp * (0.55 + rand() * 0.7)
+    pts.push([x, y])
+  }
+
+  const trace = () => {
+    ctx.moveTo(pts[0][0], pts[0][1])
+    for (let i = 1; i < pts.length; i++) {
+      const [px, py] = pts[i - 1]
+      const [x, y] = pts[i]
+      ctx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2)
+    }
+    ctx.lineTo(W, baseY)
+  }
+
   ctx.fillStyle = fill
   ctx.beginPath()
   ctx.moveTo(0, H)
   ctx.lineTo(0, baseY)
-  let prevX = 0
-  let prevY = baseY
-  for (let i = 1; i <= steps; i++) {
-    const x = (W / steps) * i
-    const y = baseY - Math.sin((i / steps) * Math.PI) * amp * (0.55 + rand() * 0.7)
-    ctx.quadraticCurveTo(prevX, prevY, (prevX + x) / 2, (prevY + y) / 2)
-    prevX = x
-    prevY = y
-  }
-  ctx.lineTo(W, baseY)
+  trace()
   ctx.lineTo(W, H)
   ctx.closePath()
   ctx.fill()
+
+  // 硬いエッジが 1 本あるだけで、その層が動いているのが分かる
+  if (rim) {
+    ctx.strokeStyle = rim
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    trace()
+    ctx.stroke()
+  }
 }
 
 /** 針葉樹 */
@@ -124,13 +147,36 @@ function drawScene(ctx, mode) {
   ctx.fill()
 
   // 山を 3 層。奥から手前へ深度を上げる
-  ridge(ctx, rand, H * 0.6, 120, 12, c('#2a2f52', 0.16))
-  ridge(ctx, rand, H * 0.68, 100, 10, c('#28405f', 0.26))
-  ridge(ctx, rand, H * 0.78, 80, 9, c('#1e4a55', 0.36))
+  ridge(ctx, rand, H * 0.6, 120, 12, c('#2a2f52', 0.16), c('#6f6a9a', 0.16))
+  ridge(ctx, rand, H * 0.68, 100, 10, c('#28405f', 0.26), c('#5f86ad', 0.26))
+  ridge(ctx, rand, H * 0.78, 80, 9, c('#1e4a55', 0.36), c('#4e9aa0', 0.36))
+
+  // 遠景の並木。小さくても輪郭が立っていれば視差の目印になる
+  for (let i = 0; i < 70; i++) {
+    const x = rand() * W
+    conifer(ctx, x, H * 0.795, 26 + rand() * 20, c('#17323f', 0.4))
+  }
+
+  // 対岸の灯り。点光源が並ぶと、層ごとのズレが一目で分かる
+  for (let i = 0; i < 34; i++) {
+    const x = rand() * W
+    const y = H * (0.745 + rand() * 0.03)
+    ctx.fillStyle = c(`rgba(255,206,140,${0.5 + rand() * 0.5})`, 0.42)
+    ctx.fillRect(x, y, 3.5, 3)
+  }
 
   // 湖面
   ctx.fillStyle = c('#132b3a', 0.44)
   ctx.fillRect(0, H * 0.78, W, H * 0.1)
+
+  // 水面の反射。横に走る硬い線が並ぶと、この層の動きが読める
+  for (let i = 0; i < 90; i++) {
+    const y = H * (0.782 + rand() * 0.094)
+    const x = rand() * W
+    const len = 14 + rand() * 90
+    ctx.fillStyle = c(`rgba(150,205,225,${0.08 + rand() * 0.22})`, 0.46)
+    ctx.fillRect(x, y, len, 1.5)
+  }
 
   // 中景の森
   for (let i = 0; i < 26; i++) {
