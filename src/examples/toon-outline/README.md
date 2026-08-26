@@ -1,7 +1,8 @@
 # Toon Outline
 
 MRT で G-Buffer を書き出し、十字 5 タップで輪郭を検出する線画ルック。
-messenger.abeto.co の低ポリ惑星ワールドの手法。
+messenger.abeto.co の低ポリ惑星ワールドの手法を、同じくタイトル画面の
+小惑星に寄せたシーンで再現している。
 
 ## G-Buffer の詰め方
 
@@ -25,7 +26,7 @@ MRT 2 枚に、輪郭検出に必要な情報を全部詰める。
 | 法線差 | 折れ目。同じ深度でも面が曲がっているところ |
 | **ID 差** | **深度も法線も連続な、素材の切り替わり** |
 
-この example の池は草地と同一平面上にあり、深度も法線も完全に連続している。
+この example の水辺と岩肌は惑星の球面に貼り付いていて、地面と深度も法線もほぼ連続。
 深度 + 法線の Sobel だけでは線が出ないが、ID が違うので縁が描かれる。
 服の継ぎ目や地形の草と岩の境も同じ理屈。
 
@@ -57,6 +58,17 @@ outline *= centerInfo.a;   // マスクが 0 のところには引かない
 | `buffers` | 面 ID を色相に散らして可視化 |
 
 `mode` で深度バッファ・法線バッファも個別に見られる。
+
+## シーン
+
+球面へ要素を撒くのにフィボナッチ球を使い、各要素は法線方向を上にした姿勢で置く。
+
+```js
+const dir = fibonacciPoint(i, total)           // 球面上に偏りなく撒く
+const q = new THREE.Quaternion()
+  .setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)   // 法線を上に向ける
+position = dir.clone().multiplyScalar(R + height * 0.5)
+```
 
 ## 実装メモ
 

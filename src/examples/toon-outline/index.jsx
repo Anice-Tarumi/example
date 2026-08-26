@@ -144,10 +144,10 @@ export default function ToonOutline() {
   }, [variant, setParams])
 
   return (
-    <Canvas camera={{ position: [5.2, 3.6, 6.0], fov: 40 }} dpr={[1, 2]}>
+    <Canvas camera={{ position: [0, 1.6, 9.2], fov: 38 }} dpr={[1, 2]}>
       <Island params={params} />
       <OutlineRenderer params={params} />
-      <OrbitControls enablePan={false} minDistance={3} maxDistance={12} target={[0, 0.2, 0]} />
+      <OrbitControls enablePan={false} minDistance={4.5} maxDistance={18} target={[0, 0, 0]} />
     </Canvas>
   )
 }

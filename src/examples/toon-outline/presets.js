@@ -4,8 +4,8 @@ export const PRESETS = {
     label: 'Ink Outline',
     params: {
       mode: 'scene',
-      thickness: 1,
-      outlineColor: '#ae2118',
+      thickness: 1.6,
+      outlineColor: '#2a2320',
       idMax: 0.35,
       idThreshold: 0.12,
       depthMax: 0.02,
@@ -16,14 +16,14 @@ export const PRESETS = {
       toonSteps: 3,
       sketch: 0,
       spin: 0.18,
-      background: '#f3ead6',
+      background: '#59b6b4',
     },
   },
   bold: {
     label: 'Bold Marker',
     params: {
       mode: 'scene',
-      thickness: 2.2,
+      thickness: 2.6,
       outlineColor: '#141414',
       idMax: 0.3,
       idThreshold: 0.08,
@@ -35,14 +35,14 @@ export const PRESETS = {
       toonSteps: 2,
       sketch: 0,
       spin: 0.14,
-      background: '#ffffff',
+      background: '#6cc3bf',
     },
   },
   sketch: {
     label: 'Sketch',
     params: {
       mode: 'scene',
-      thickness: 1.4,
+      thickness: 1.8,
       outlineColor: '#3a2f26',
       idMax: 0.35,
       idThreshold: 0.1,
@@ -54,7 +54,7 @@ export const PRESETS = {
       toonSteps: 4,
       sketch: 0.9,
       spin: 0.1,
-      background: '#efe6d2',
+      background: '#7fcac4',
     },
   },
   buffers: {
