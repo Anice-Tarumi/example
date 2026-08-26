@@ -16,18 +16,13 @@ showcase に実装する example の候補リスト。ネタ元は Obsidian Vaul
 | `ripple-simulation` | interaction | 波動方程式 + ping-pong FBO（Obsidian 外・新規） |
 | `hover-gold-grid-v2` | interaction | Buttermax |
 | `paint-reveal` | interaction | ai-quest ScreenPaint + cutscene getMaskColor |
+| `gpu-particles` | particles | BlueYard GPGPU 曲線ノイズパーティクル |
 
 ---
 
 ## 優先度 高
 
 今日組んだ ping-pong FBO / FullScreenQuad の骨格をそのまま拡張できるもの。着手コストが低く見栄えが大きい。
-
-### `gpu-particles` — particles
-GPGPU パーティクル。位置と速度を FBO に持たせて ping-pong するのは ripple と同じ構造。
-- ネタ元: `GPGPU曲線ノイズ＋流体結合パーティクル（FBO位置シム）` / `TSL GPUパーティクル（instancedArray＋SpriteNodeMaterial）`
-- variant: curl noise / 引力・斥力 / マウス追従 / 軌跡フェード
-- 備考: 位置テクスチャを `InstancedBufferGeometry` の頂点シェーダーから読む
 
 ### `fluid-solver` — particles
 Navier-Stokes の splat → pressure → advection。ripple より多段だが FBO の枚数が増えるだけ。

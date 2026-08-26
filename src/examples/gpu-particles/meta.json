@@ -1,0 +1,16 @@
+{
+  "title": "GPU Particles",
+  "description": "6万個以上のパーティクルの位置を Float テクスチャに持ち、ping-pong FBO で更新する GPGPU 方式。4D simplex ノイズのポテンシャル場の回転（curl）で発散のない渦を作り、形状への追従とカーソルの力場を重ねる。",
+  "emoji": "✳️",
+  "category": "particles",
+  "tags": ["gpgpu", "fbo", "ping-pong", "curl-noise", "instancing"],
+  "variants": [
+    { "id": "orb", "label": "Curl Orb" },
+    { "id": "nebula", "label": "Free Nebula" },
+    { "id": "galaxy", "label": "Galaxy Disc" },
+    { "id": "helix", "label": "Helix Lock" }
+  ],
+  "source": "BlueYard",
+  "sourceUrl": "https://blueyard.com/",
+  "note": "Obsidian: GPGPU曲線ノイズ＋流体結合パーティクル（FBO位置シム）"
+}
