@@ -18,7 +18,7 @@ import {
   createInitialData,
   createPointAttributes,
 } from './volume'
-import { useVelocityField } from './fluid'
+import { useVelocityField } from '../../shared/useVelocityField'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, COUNTS } from './presets'
 
 const LIGHT_POS = new THREE.Vector3(-0.75, 1, -0.1)

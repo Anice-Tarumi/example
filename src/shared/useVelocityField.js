@@ -12,12 +12,12 @@ import {
   pressureShader,
   gradientSubtractShader,
   advectionShader,
-} from '../../shared/glsl/fluid'
+} from './glsl/fluid'
 
 /**
  * 画面空間の速度場だけを解く軽量な流体。
  *
- * igloo はパーティクルをカメラ投影してこの速度場をサンプルし、
+ * 複数の example から使う。igloo はパーティクルをカメラ投影してこの速度場をサンプルし、
  * 画面平面に沿って押しのける。カーソルの力を直接パーティクルへ与えるのではなく
  * 「カーソル → 流体 → パーティクル」の二段構えにすることで、
  * カーソルを離したあとも渦と慣性が残る。

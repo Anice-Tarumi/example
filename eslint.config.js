@@ -22,7 +22,7 @@ export default defineConfig([
     // react-three-fiber では uniform / Object3D を useFrame 内で直接書き換えるのが
     // 公式パターン。React Compiler 系の immutability・refs ルールとは両立しないため
     // example 配下に限って無効化する。
-    files: ['src/examples/**/*.{js,jsx}'],
+    files: ['src/examples/**/*.{js,jsx}', 'src/shared/**/*.{js,jsx}'],
     rules: {
       'react-hooks/immutability': 'off',
       'react-hooks/refs': 'off',
