@@ -1,0 +1,16 @@
+{
+  "title": "Vertex Deformation",
+  "description": "真っ直ぐな円筒 1 本だけを持ち、曲がり・捻り・断面の歪みをすべて頂点シェーダーで作るトンネル。断面には単位円板を保つメビウス変換を掛けるので、輪郭は円のまま模様だけが偏って流れる。",
+  "emoji": "🌀",
+  "category": "geometry",
+  "tags": ["shader", "geometry", "3d", "mouse", "mobius"],
+  "variants": [
+    { "id": "tunnel", "label": "Tunnel" },
+    { "id": "mobius", "label": "Mobius" },
+    { "id": "twist", "label": "Twist" },
+    { "id": "wire", "label": "Wireframe" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "法線は (u,v) を微小にずらした 2 本の接ベクトルから作り直す。元の法線のままだとライティングが破綻する"
+}

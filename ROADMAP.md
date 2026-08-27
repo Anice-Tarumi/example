@@ -37,6 +37,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `flip-stage` | transitions | 忍者屋敷のどんでん返し（表裏 2 面で無限シーン送り・新規） |
 | `postprocess-stack` | postprocess | 自前ミップ Bloom + レンズゴースト + テトラヘドラル 3D LUT |
 | `physics-playground` | physics | 自前剛体球ソルバ + 一様グリッドのブロードフェーズ |
+| `vertex-deformation` | geometry | 頂点シェーダーのトンネル空間変形（メビウス変換） |
 
 ---
 
@@ -66,10 +67,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 ### `matcap-material` — materials
 - ネタ元: `matcap マテリアルの多チャンネル活用（diffuse・rough spec・smooth spec）` / `ベイクテクスチャ1枚＋MeshBasicMaterialでライト不要表現`
 - variant: matcap 単体 / 多チャンネル / ベイク
-
-### `vertex-deformation` — geometry
-- ネタ元: `頂点シェーダーによるトンネル空間変形（Möbius変換・捻り）` / `テクスチャベース頂点アニメ`
-- variant: トンネル / Möbius / 捻り / VAT
 
 ---
 
