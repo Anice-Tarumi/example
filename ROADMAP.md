@@ -43,6 +43,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `analytic-lighting` | lighting | 面光源（球・管・矩形）と近接遮蔽を閉じた式だけで解く |
 | `stroke-growth` | interaction | ドラッグ軌跡 → Catmull-Rom 係数 → 筒 1 本の頂点変形（makemepulse 2019） |
 | `strand-orb` | materials | per-strand 属性 + ループ閾値 + discard リビール + 流体結合（BlueYard） |
+| `custom-cursor` | interaction | 状態スタック + canvas 2D 手描き輪郭 + SVG パスモーフ（makemepulse 2019） |
 
 ---
 

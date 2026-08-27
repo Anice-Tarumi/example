@@ -1,0 +1,16 @@
+{
+  "title": "Custom Cursor",
+  "description": "canvas 2D で描くカスタムカーソル。状態をスタックで持つので、ドラッグ領域の上にリンクが重なっても外した順に戻る。輪郭は決定論的なノイズで手描き風にし、SVG パスの等間隔サンプルへモーフする。",
+  "emoji": "🖱️",
+  "category": "interaction",
+  "tags": ["interaction", "mouse", "canvas2d", "dom"],
+  "variants": [
+    { "id": "ink", "label": "Paper Ink" },
+    { "id": "neon", "label": "Neon" },
+    { "id": "mono", "label": "Mono" },
+    { "id": "sketch", "label": "Sketch" }
+  ],
+  "source": "makemepulse 2019 (Nomadic Tribe)",
+  "sourceUrl": "https://2019.makemepulse.com/",
+  "note": "WebGL を使わない唯一の example。cursor: none はデモ領域の中だけに閉じる"
+}
