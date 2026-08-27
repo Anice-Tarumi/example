@@ -1,0 +1,102 @@
+/** variant プリセット。キーは meta.json の variants[].id と対応する。 */
+const BASE = {
+  bundles: 14,
+  perBundle: 18,
+  samples: 72,
+  spread: 0.22,
+  wobble: 0.12,
+  thickness: 1.6,
+  speed: 0.12,
+  repeat: 3,
+  fillLength: 0.35,
+  startFade: 0.25,
+  endFade: 0.3,
+  bundleOffset: 0.35,
+  strandOffset: 0.6,
+  spin: 0.1,
+  autoReveal: true,
+  reveal: 1,
+  revealSpeed: 0.22,
+  color: '#2a3d6b',
+  highlight: '#8fd9ff',
+  highlightPower: 2.2,
+  contrast: 1,
+  opacity: 0.65,
+  backFade: 2.5,
+  additive: true,
+  background: '#05070d',
+  fluidPush: 0.35,
+  fluidGain: 4,
+  fluidGamma: 0.8,
+  fluidForce: 5000,
+  fluidRadius: 0.22,
+  fluidCurl: 26,
+  fluidDissipation: 0.35,
+  fluidIterations: 12,
+  fluidRes: 128,
+}
+
+export const PRESETS = {
+  orb: { label: 'Orb', params: { ...BASE } },
+  dense: {
+    label: 'Dense',
+    params: {
+      ...BASE,
+      bundles: 22,
+      perBundle: 26,
+      thickness: 1.0,
+      spread: 0.34,
+      wobble: 0.08,
+      repeat: 5,
+      fillLength: 0.22,
+      opacity: 0.4,
+      color: '#1d2a4d',
+      highlight: '#b8ecff',
+      highlightPower: 2.8,
+    },
+  },
+  ember: {
+    label: 'Ember',
+    params: {
+      ...BASE,
+      bundles: 10,
+      perBundle: 22,
+      spread: 0.4,
+      wobble: 0.2,
+      thickness: 2.2,
+      speed: 0.2,
+      repeat: 2,
+      fillLength: 0.5,
+      color: '#4a1d10',
+      highlight: '#ffb463',
+      highlightPower: 3.2,
+      opacity: 0.7,
+      background: '#0a0503',
+      fluidPush: 0.5,
+    },
+  },
+  draw: {
+    label: 'Draw In',
+    params: {
+      ...BASE,
+      autoReveal: true,
+      revealSpeed: 0.5,
+      speed: 0.06,
+      repeat: 1.5,
+      fillLength: 0.6,
+      thickness: 2,
+      opacity: 0.8,
+      color: '#22305a',
+      highlight: '#ffffff',
+      highlightPower: 2.6,
+    },
+  },
+}
+
+export const DEFAULT_PRESET = 'orb'
+export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
+
+/** leva の options 用 { ラベル: id } テーブル */
+export const PRESET_OPTIONS = Object.fromEntries(
+  Object.entries(PRESETS).map(([id, p]) => [p.label, id]),
+)

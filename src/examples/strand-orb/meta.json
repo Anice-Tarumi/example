@@ -1,0 +1,16 @@
+{
+  "title": "Strand Orb",
+  "description": "無数の糸が束になって球を作り、糸に沿って光の帯が流れる。糸ごとの属性だけで位相・色・出現順を散らすので、CPU 側のループは無い。カーソルは流体を経由して糸をざわめかせる。",
+  "emoji": "🧶",
+  "category": "materials",
+  "tags": ["shader", "3d", "mouse", "fluid", "reveal"],
+  "variants": [
+    { "id": "orb", "label": "Orb" },
+    { "id": "dense", "label": "Dense" },
+    { "id": "ember", "label": "Ember" },
+    { "id": "draw", "label": "Draw In" }
+  ],
+  "source": "BlueYard",
+  "sourceUrl": "https://blueyard.com/",
+  "note": "本家は per-strand 属性を GLB に焼く。ここは手続き生成だが属性の設計は同じ"
+}

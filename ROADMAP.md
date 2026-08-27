@@ -42,6 +42,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `offscreen-worker` | performance | Worker + OffscreenCanvas 描画。メインを固めて左右比較 |
 | `analytic-lighting` | lighting | 面光源（球・管・矩形）と近接遮蔽を閉じた式だけで解く |
 | `stroke-growth` | interaction | ドラッグ軌跡 → Catmull-Rom 係数 → 筒 1 本の頂点変形（makemepulse 2019） |
+| `strand-orb` | materials | per-strand 属性 + ループ閾値 + discard リビール + 流体結合（BlueYard） |
 
 ---
 
@@ -185,6 +186,14 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     `if (size.w < 2) return` としつつ size を依存に入れないと、初回で弾かれたきり
     二度と実行されない。エラーは出ず「何も起きない」だけになる。
 
-25. **黒い画面は lint も build も検出しない。**
+25. **`useFrame` の priority を上げると R3F の自動描画が止まる。**
+    render target を触るパスを回すだけのつもりで priority を付けると、
+    自分でシーンを描かない限り画面が真っ黒になる。
+
+26. **画面内の位置で何かをフェードするなら、どの座標系の z かを確認する。**
+    視空間 z はカメラ距離ぶん常に大きな負の値。ワールド z のつもりの
+    しきい値を当てると全画素で外れて何も出なくなる。
+
+27. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
