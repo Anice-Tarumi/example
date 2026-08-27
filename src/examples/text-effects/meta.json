@@ -1,0 +1,16 @@
+{
+  "title": "Text Effects",
+  "description": "SDF フォントアトラスを実行時に焼いて、テキストをシェーダーで描く。距離変換は自前（Felzenszwalb）。fwidth で閾値の幅を決めるので、どれだけ拡大しても縁が同じ太さで滑らかに出る。",
+  "emoji": "🔤",
+  "category": "typography",
+  "tags": ["typography", "sdf", "shader", "bake", "mouse"],
+  "variants": [
+    { "id": "outline", "label": "SDF Outline" },
+    { "id": "reveal", "label": "Reveal" },
+    { "id": "wave", "label": "Wave" },
+    { "id": "glitch", "label": "Glitch" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "MSDF ではなく SDF。MSDF はベクタ輪郭が要るのでラスタからは作れない"
+}

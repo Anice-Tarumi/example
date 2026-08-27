@@ -38,24 +38,11 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `postprocess-stack` | postprocess | 自前ミップ Bloom + レンズゴースト + テトラヘドラル 3D LUT |
 | `physics-playground` | physics | 自前剛体球ソルバ + 一様グリッドのブロードフェーズ |
 | `vertex-deformation` | geometry | 頂点シェーダーのトンネル空間変形（メビウス変換） |
+| `text-effects` | typography | SDF アトラスを実行時に焼く（自前の距離変換）+ 文字単位の変形 |
 
 ---
 
 ## 優先度 高
-
-### `text-effects` — typography
-- ネタ元: `MSDFテキスト描画（median＋fwidth＋アウトライン）` / `テキスト分割アニメ`
-- variant: MSDF アウトライン / 文字分割リビール / 波打ち / グリッチ
-- 備考: MSDF アトラスの生成手段が要る。ライブラリ追加は要相談
-
----
-
-## 優先度 中
-
-### `scroll-driven-scenes` — scroll
-- ネタ元: `スクロール連動のシーン遷移（区間ratioで複数3Dシーンを駆動）` / `慣性つきスムーススクロール（target→lerp＋inertia減衰）`
-- variant: 区間 ratio 駆動 / 慣性スクロール / 円柱パス走行
-- 備考: サイドバー常時表示の中でスクロール領域をどう置くか要検討
 
 ### `day-night-cycle` — lighting
 - ネタ元: `手続き的な昼夜・天候サイクル（キーフレームプリセット＋ノイズ）` / `スクロール連動の昼夜・感情ライティング` / `二色グラデーションフォグ`
@@ -188,6 +175,10 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     `instancedMesh` の `instanceColor` だけを使いたいときに付けると、
     存在しない属性の既定値 (0,0,0) が乗って真っ黒になる。`instanceColor` は単独で効く。
 
-23. **黒い画面は lint も build も検出しない。**
+23. **距離変換の「無限遠」に `Infinity` を使わない。**
+    未確定の行で `Infinity - Infinity = NaN` になり、以降が全部 NaN になる。
+    テクスチャは真っ黒、画面には何も出ない。`1e20` のような大きい有限値を使う。
+
+24. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
