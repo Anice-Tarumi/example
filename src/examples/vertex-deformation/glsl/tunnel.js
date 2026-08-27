@@ -66,7 +66,9 @@ export const tunnelVertexShader = /* glsl */ `
   /** (u, v) から歪めた後の位置を作る。法線もこの関数を使って差分で求める */
   vec3 surface(float u, float v) {
     float z = (v - 0.5) * uLength;
-    float travel = z + uTime * uSpeed;
+    // 符号に注意。travel が一定の特徴は z = C - t*speed へ動く。
+    // + にすると特徴がカメラから遠ざかり、後ろ向きに飛んでいるように見える
+    float travel = z - uTime * uSpeed;
 
     float ang = u * 6.2831853;
     vec2 w = vec2(cos(ang), sin(ang));
@@ -100,7 +102,7 @@ export const tunnelVertexShader = /* glsl */ `
     vWorld = world.xyz;
     vNormal = normalize(mat3(modelMatrix) * n);
     vUvOut = uv;
-    vTravel = (uv.y - 0.5) * uLength + uTime * uSpeed;
+    vTravel = (uv.y - 0.5) * uLength - uTime * uSpeed;
 
     gl_Position = projectionMatrix * viewMatrix * world;
   }
