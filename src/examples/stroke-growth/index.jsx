@@ -6,8 +6,24 @@ import { Stroke, SEGS, buildSplineUniforms, resample } from './stroke'
 import { stemVertexShader, stemFragmentShader } from './glsl/catmull'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
-/** ピック平面。真正面（0,0,1）だと茎が板に見えるので、手前に倒しておく */
+/** ドラッグ面。真正面（0,0,1）だと茎が板に見えるので、手前に倒しておく */
 const PICK_NORMAL = new THREE.Vector3(0, -0.5, 1).normalize()
+
+/** 根元の落ち影。放射グラデーションを 1 枚だけ焼いて使い回す */
+function makeShadowTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+  grd.addColorStop(0, 'rgba(0,0,0,0.55)')
+  grd.addColorStop(0.55, 'rgba(0,0,0,0.22)')
+  grd.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 128, 128)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
 
 let nextId = 1
 
@@ -171,13 +187,16 @@ function Garden({ params }) {
   }, [])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  const plane = useMemo(() => new THREE.Plane(PICK_NORMAL.clone(), 0), [])
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const ndc = useMemo(() => new THREE.Vector2(), [])
   const hit = useMemo(() => new THREE.Vector3(), [])
+  const ground = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
+  const shadowTex = useMemo(() => makeShadowTexture(), [])
+  useEffect(() => () => shadowTex.dispose(), [shadowTex])
 
-  const pick = useCallback(
-    (clientX, clientY) => {
+  /** 任意の平面へレイを落とす */
+  const pickOn = useCallback(
+    (plane, clientX, clientY) => {
       const rect = gl.domElement.getBoundingClientRect()
       ndc.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -186,7 +205,7 @@ function Garden({ params }) {
       raycaster.setFromCamera(ndc, camera)
       return raycaster.ray.intersectPlane(plane, hit) ? hit : null
     },
-    [camera, gl, ndc, raycaster, plane, hit],
+    [camera, gl, ndc, raycaster, hit],
   )
 
   const finish = useCallback((plant) => {
@@ -204,10 +223,17 @@ function Garden({ params }) {
     const el = gl.domElement
 
     const down = (e) => {
-      const p = pick(e.clientX, e.clientY)
-      if (!p) return
+      // 根元は必ず地面の上。押した場所を地面へ落として決める
+      ground.constant = -params.groundY
+      const root = pickOn(ground, e.clientX, e.clientY)
+      if (!root) return
       idle.current = 0
-      const plant = createPlant(p, params)
+
+      const origin = root.clone()
+      origin.y = params.groundY
+      const plant = createPlant(origin, params)
+      // ドラッグ面は根元を通す。そうしないと茎が地面から離れて生える
+      plant.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(PICK_NORMAL, origin)
       active.current = plant
       setPlants((prev) => [...prev.slice(-(params.maxPlants - 1)), plant])
     }
@@ -216,8 +242,12 @@ function Garden({ params }) {
       idle.current = 0
       const plant = active.current
       if (!plant) return
-      const p = pick(e.clientX, e.clientY)
-      if (p) plant.target = p.clone()
+      const p = pickOn(plant.plane, e.clientX, e.clientY)
+      if (!p) return
+      const t = p.clone()
+      // 地面より下へは描かせない
+      t.y = Math.max(t.y, params.groundY)
+      plant.target = t
     }
 
     const up = () => {
@@ -237,7 +267,7 @@ function Garden({ params }) {
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointerleave', up)
     }
-  }, [gl, pick, finish, params])
+  }, [gl, pickOn, ground, finish, params])
 
   // 放置していると自分で描く。触っていない状態で空の画面を見せない
   const demo = useRef({ t: 0, plant: null })
@@ -249,9 +279,11 @@ function Garden({ params }) {
     if (params.autoDemo && !active.current) {
       const d = demo.current
       if (!d.plant && idle.current > params.idleDelay) {
-        const x = (Math.random() - 0.5) * 3.2
-        const origin = new THREE.Vector3(x, -1.6, x * 0.5)
+        const x = (Math.random() - 0.5) * 3.6
+        const z = (Math.random() - 0.5) * 1.6
+        const origin = new THREE.Vector3(x, params.groundY, z)
         d.plant = createPlant(origin, params)
+        d.plant.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(PICK_NORMAL, origin)
         d.t = 0
         setPlants((prev) => [...prev.slice(-(params.maxPlants - 1)), d.plant])
       }
@@ -261,10 +293,12 @@ function Garden({ params }) {
         const o = p.stroke.points[0]
         // 上へ伸びつつ左右に揺れる。手で描いた軌跡に近い形にする
         const s = d.t * params.demoSpeed
+        // 横揺れは立ち上がりで 0 にする。根元でいきなり横へ飛ぶのを防ぐ
+        const ramp = Math.min(1, s * 1.4)
         p.target = new THREE.Vector3(
-          o.x + Math.sin(s * 1.7 + p.phase) * 0.5,
+          o.x + Math.sin(s * 1.7 + p.phase) * 0.5 * ramp,
           o.y + s,
-          o.z + Math.sin(s * 1.1 + p.phase * 2.0) * 0.35,
+          o.z + Math.sin(s * 1.1 + p.phase * 2.0) * 0.35 * ramp,
         )
         if (s > params.demoLength) {
           finish(p)
@@ -300,8 +334,22 @@ function Garden({ params }) {
 
   return (
     <>
+      {/* 地面。ここから生える */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, params.groundY, 0]} receiveShadow={false}>
+        <planeGeometry args={[60, 60]} />
+        <meshStandardMaterial color={params.groundColor} roughness={0.95} metalness={0} />
+      </mesh>
+
       {plants.map((p) => (
         <group key={p.id}>
+          {/* 根元の落ち影。接地しているように見せる */}
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[p.stroke.points[0].x, params.groundY + 0.004, p.stroke.points[0].z]}
+          >
+            <planeGeometry args={[0.9, 0.9]} />
+            <meshBasicMaterial map={shadowTex} transparent depthWrite={false} />
+          </mesh>
           <Stem plant={p} params={params} geometry={geometry} />
           <Flower plant={p} params={params} />
         </group>
@@ -330,6 +378,7 @@ export default function StrokeGrowth() {
       bloomAt: { value: DEFAULTS.bloomAt, min: 0.5, max: 6, step: 0.1, label: 'bloom at' },
       bloomTime: { value: DEFAULTS.bloomTime, min: 0.3, max: 6, step: 0.1, label: 'bloom sec' },
       maxPlants: { value: DEFAULTS.maxPlants, min: 1, max: 24, step: 1, label: 'max' },
+      groundY: { value: DEFAULTS.groundY, min: -3, max: 0, step: 0.05, label: 'ground y' },
     }),
     Look: folder({
       colorBase: { value: DEFAULTS.colorBase, label: 'stem base' },
@@ -337,6 +386,7 @@ export default function StrokeGrowth() {
       hueBase: { value: DEFAULTS.hueBase, min: 0, max: 1, step: 0.01, label: 'hue' },
       hueSpread: { value: DEFAULTS.hueSpread, min: 0, max: 1, step: 0.01, label: 'hue var' },
       coreColor: { value: DEFAULTS.coreColor, label: 'core' },
+      groundColor: { value: DEFAULTS.groundColor, label: 'ground' },
       background: { value: DEFAULTS.background, label: 'bg' },
     }),
     Demo: folder({
@@ -354,11 +404,19 @@ export default function StrokeGrowth() {
   }, [variant, setParams])
 
   return (
-    <Canvas camera={{ position: [0, 0.6, 6.2], fov: 42 }} dpr={[1, 2]}>
+    <Canvas
+      camera={{ position: [0, 1.55, 7.4], fov: 42 }}
+      dpr={[1, 2]}
+      onCreated={({ camera }) => camera.lookAt(0, -0.15, 0)}
+    >
       <color attach="background" args={[params.background]} />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[2, 5, 3]} intensity={1.8} />
-      <directionalLight position={[-3, 1, -2]} intensity={0.5} color="#9fd0ff" />
+      {/* 地面の奥を背景に溶かす */}
+      <fogExp2 attach="fog" args={[params.background, 0.055]} />
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[2, 5, 3]} intensity={2.0} />
+      <directionalLight position={[-3, 1, -2]} intensity={0.6} color="#9fd0ff" />
+      {/* 地面が沈まないよう下からも少し当てる */}
+      <hemisphereLight args={['#9fd0ff', '#3a5a44', 0.5]} />
       <Garden params={params} />
     </Canvas>
   )
