@@ -36,6 +36,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `vertex-animation-texture` | geometry | Lusion VAT（破砕を Float テクスチャに焼く） |
 | `flip-stage` | transitions | 忍者屋敷のどんでん返し（表裏 2 面で無限シーン送り・新規） |
 | `postprocess-stack` | postprocess | 自前ミップ Bloom + レンズゴースト + テトラヘドラル 3D LUT |
+| `physics-playground` | physics | 自前剛体球ソルバ + 一様グリッドのブロードフェーズ |
 
 ---
 
@@ -69,15 +70,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 ### `vertex-deformation` — geometry
 - ネタ元: `頂点シェーダーによるトンネル空間変形（Möbius変換・捻り）` / `テクスチャベース頂点アニメ`
 - variant: トンネル / Möbius / 捻り / VAT
-
-### `physics-playground` — physics
-- ネタ元: `カスタム物理（中心引力＋ペア衝突＋マウス押しのけ）` / `Rapierレイキャストビークル（物理カー）`
-- 備考: Rapier は新規ライブラリ。自前物理の variant だけなら依存ゼロで作れる
-- 備考: junni (`next.junni.co.jp`) 冒頭のブロック壁は CANNON.js のリアルタイム物理。
-  `Section1/Wall/index.ts` が Mesh + CANNON.Body を 1 対 1 で持ち、毎フレーム
-  `mesh.position.copy(body.position)`、静止したら `boxBody.sleep()`。
-  キャラの衝突位置で崩れ方が毎回変わるため事前ベイクできない。
-  **`vertex-animation-texture`（焼く）の対になる例**として並べると対比が効く。
 
 ---
 
@@ -195,6 +187,10 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     Retina のフルスクリーンでは元画が 2〜3 倍に拡大される。
     `screenshot.mjs` の第 6 引数に 2 を渡して確認する。
 
-22. **黒い画面は lint も build も検出しない。**
+22. **`meshStandardMaterial` に `vertexColors` を付けるなら geometry に `color` 属性が要る。**
+    `instancedMesh` の `instanceColor` だけを使いたいときに付けると、
+    存在しない属性の既定値 (0,0,0) が乗って真っ黒になる。`instanceColor` は単独で効く。
+
+23. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。

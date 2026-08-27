@@ -1,0 +1,16 @@
+{
+  "title": "Physics Playground",
+  "description": "外部の物理エンジンを使わない剛体球ソルバ。一様グリッドのブロードフェーズで 1500 体のペア衝突をリアルタイムに解き、中心引力とカーソルの押しのけを重ねる。ブロードフェーズの占有セルも可視化できる。",
+  "emoji": "🪐",
+  "category": "physics",
+  "tags": ["physics", "simulation", "mouse", "3d", "broadphase"],
+  "variants": [
+    { "id": "orbit", "label": "Orbit" },
+    { "id": "pit", "label": "Drop Pit" },
+    { "id": "cursor", "label": "Cursor Push" },
+    { "id": "grid", "label": "Broadphase" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "焼く側の対になる例。vertex-animation-texture は事前計算、こちらは毎フレーム解く"
+}
