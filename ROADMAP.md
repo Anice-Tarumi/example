@@ -41,6 +41,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `text-effects` | typography | SDF アトラスを実行時に焼く（自前の距離変換）+ 文字単位の変形 |
 | `offscreen-worker` | performance | Worker + OffscreenCanvas 描画。メインを固めて左右比較 |
 | `analytic-lighting` | lighting | 面光源（球・管・矩形）と近接遮蔽を閉じた式だけで解く |
+| `stroke-growth` | interaction | ドラッグ軌跡 → Catmull-Rom 係数 → 筒 1 本の頂点変形（makemepulse 2019） |
 
 ---
 

@@ -1,0 +1,16 @@
+{
+  "title": "Stroke Growth",
+  "description": "画面をドラッグすると、その軌跡に沿って茎が伸び、離すと花が開く。まっすぐな筒メッシュ 1 本を Catmull-Rom スプラインの係数で頂点シェーダーから曲げるので、ジオメトリの再生成もモーフターゲットも要らない。",
+  "emoji": "🌱",
+  "category": "interaction",
+  "tags": ["interaction", "mouse", "geometry", "shader", "spline", "3d"],
+  "variants": [
+    { "id": "flower", "label": "Flower" },
+    { "id": "vine", "label": "Vine" },
+    { "id": "neon", "label": "Neon" },
+    { "id": "thicket", "label": "Thicket" }
+  ],
+  "source": "makemepulse 2019 (Nomadic Tribe)",
+  "sourceUrl": "https://2019.makemepulse.com/",
+  "note": "入力 → スプライン → 頂点変形 の 3 段。見た目だけ差し替えれば蔓・ロープ・電撃にも使える"
+}
