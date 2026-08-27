@@ -39,6 +39,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `physics-playground` | physics | 自前剛体球ソルバ + 一様グリッドのブロードフェーズ |
 | `vertex-deformation` | geometry | 頂点シェーダーのトンネル空間変形（メビウス変換） |
 | `text-effects` | typography | SDF アトラスを実行時に焼く（自前の距離変換）+ 文字単位の変形 |
+| `offscreen-worker` | performance | Worker + OffscreenCanvas 描画。メインを固めて左右比較 |
 
 ---
 
@@ -65,7 +66,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 - `instancing-scale` — geometry: `InstancedGroup` / `エリア単位フラスタムカリング` / `detect-gpuによる品質ティア分岐`（パフォーマンス系は「見せる」のが難しい。FPS 表示と併せる形なら成立）
 - `spatial-audio` — audio: `Web空間オーディオ設計` / `操作・スクロール連動の音トリガー`（音が出る example の扱いを決める必要あり。ミュート既定必須）
 - `dom-webgl-sync` — dom-webgl: `DOM と WebGL の座標同期` / `3D点に追従するHTMLラベル`
-- `offscreen-worker` — architecture: `OffscreenCanvasワーカー描画＋DOMイベントshim`（カテゴリ未定義。必要なら categories.js に追加）
 
 ---
 
@@ -179,6 +179,10 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     未確定の行で `Infinity - Infinity = NaN` になり、以降が全部 NaN になる。
     テクスチャは真っ黒、画面には何も出ない。`1e20` のような大きい有限値を使う。
 
-24. **黒い画面は lint も build も検出しない。**
+24. **早期 return の条件は依存配列にも入れる。**
+    `if (size.w < 2) return` としつつ size を依存に入れないと、初回で弾かれたきり
+    二度と実行されない。エラーは出ず「何も起きない」だけになる。
+
+25. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
