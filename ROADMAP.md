@@ -40,6 +40,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `vertex-deformation` | geometry | 頂点シェーダーのトンネル空間変形（メビウス変換） |
 | `text-effects` | typography | SDF アトラスを実行時に焼く（自前の距離変換）+ 文字単位の変形 |
 | `offscreen-worker` | performance | Worker + OffscreenCanvas 描画。メインを固めて左右比較 |
+| `analytic-lighting` | lighting | 面光源（球・管・矩形）と近接遮蔽を閉じた式だけで解く |
 
 ---
 

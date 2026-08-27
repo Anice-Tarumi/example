@@ -1,0 +1,16 @@
+{
+  "title": "Analytic Lighting",
+  "description": "面積を持つ光源（球・管・矩形）を閉じた式だけで解く。環境マップも LTC のルックアップテーブルもシャドウマップも使わない。近接遮蔽も立体角の式で出すので、テクスチャは 1 枚も要らない。",
+  "emoji": "💡",
+  "category": "lighting",
+  "tags": ["lighting", "shader", "3d", "pbr", "mouse"],
+  "variants": [
+    { "id": "sphere", "label": "Sphere Light" },
+    { "id": "tube", "label": "Tube Light" },
+    { "id": "rect", "label": "Rect Light" },
+    { "id": "contact", "label": "Proximity AO" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "拡散は球光源の解析解、鏡面は MRP 近似、遮蔽は立体角。全部式で閉じている"
+}
