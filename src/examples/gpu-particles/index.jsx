@@ -1,8 +1,10 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, useFBO } from '@react-three/drei'
+import { OrbitControls, useFBO, useGLTF } from '@react-three/drei'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { bakeMeshSdf } from '../../shared/meshToSdf'
+import sculptureUrl from './assets/sculpture.glb?url'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import {
   quadVertexShader,
@@ -13,6 +15,7 @@ import {
 import { particleVertexShader, particleFragmentShader } from './glsl/render'
 import {
   getVolumeTexture,
+  registerMeshVolume,
   VOLUMES,
   getTextureSize,
   createInitialData,
@@ -52,7 +55,22 @@ function ParticleSystem({ params }) {
   const velB = useFBO(side, side, fboOpts)
 
   const initial = useMemo(() => createInitialData(side), [side])
-  const volumeTex = useMemo(() => getVolumeTexture(params.volume), [params.volume])
+  // 彫刻はメッシュから距離場を焼く。手続き SDF と同じ形式に詰めるので扱いは同じ
+  const sculpture = useGLTF(sculptureUrl)
+  const volumeTex = useMemo(() => {
+    if (params.volume !== 'sculpture') return getVolumeTexture(params.volume)
+
+    let positions = null
+    sculpture.scene.traverse((o) => {
+      if (positions || !o.isMesh) return
+      const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry
+      positions = geo.attributes.position.array
+    })
+    if (!positions) return getVolumeTexture('sphere')
+
+    const { distance, size } = bakeMeshSdf(positions, 48)
+    return registerMeshVolume('sculpture', distance, size)
+  }, [params.volume, sculpture])
 
   // 位置パスと速度パスで同じ uniform オブジェクトを共有する
   const shared = useMemo(
@@ -321,7 +339,10 @@ export default function GpuParticles() {
   return (
     <Canvas camera={{ position: [0, 0.22, 1.05], fov: 45 }} dpr={[1, 2]} gl={{ antialias: false }}>
       <color attach="background" args={['#05070c']} />
-      <ParticleSystem params={params} />
+      {/* GLB は読み込み中に suspend するので境界の中に置く */}
+      <Suspense fallback={null}>
+        <ParticleSystem params={params} />
+      </Suspense>
       <OrbitControls enablePan={false} minDistance={0.5} maxDistance={3} />
     </Canvas>
   )

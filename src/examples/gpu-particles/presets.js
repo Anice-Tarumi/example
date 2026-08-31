@@ -6,7 +6,7 @@ export const PRESETS = {
   volume: {
     label: 'Volume Attract',
     params: {
-      volume: 'sphere',
+      volume: 'sculpture',
       count: 65536,
       rotationSpeed: 0.08,
       noiseForce: 0.0002,

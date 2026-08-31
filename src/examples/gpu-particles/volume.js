@@ -59,7 +59,7 @@ const FIELDS = {
   twist: (x, y, z) => sdTwist(x, y, z, 0.48, 0.16),
 }
 
-export const VOLUMES = Object.keys(FIELDS)
+export const VOLUMES = [...Object.keys(FIELDS), 'sculpture']
 
 const cache = new Map()
 
@@ -67,6 +67,73 @@ const cache = new Map()
  * SDF を 3D テクスチャに焼く。勾配は中心差分。
  * texel の中心が [-1, 1] の立方体に収まるようにサンプルする。
  */
+/**
+ * 焼いた距離場を 3D テクスチャに詰める。
+ *   RGB = 表面への勾配（中心差分を 0..1 へ）
+ *   A   = 符号付き距離（0.5 が表面）
+ * 手続き SDF もメッシュ由来の SDF も、この形式に揃えれば同じシェーダーで動く。
+ */
+function pack(sample, size) {
+  const data = new Uint8Array(size * size * size * 4)
+  const h = 1.5 / size
+  let i = 0
+  for (let z = 0; z < size; z++) {
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const px = (x / (size - 1)) * 2 - 1
+        const py = (y / (size - 1)) * 2 - 1
+        const pz = (z / (size - 1)) * 2 - 1
+        const d = sample(px, py, pz)
+
+        let gx = sample(px + h, py, pz) - sample(px - h, py, pz)
+        let gy = sample(px, py + h, pz) - sample(px, py - h, pz)
+        let gz = sample(px, py, pz + h) - sample(px, py, pz - h)
+        const len = Math.hypot(gx, gy, gz) || 1
+        gx /= len
+        gy /= len
+        gz /= len
+
+        data[i++] = Math.round((gx * 0.5 + 0.5) * 255)
+        data[i++] = Math.round((gy * 0.5 + 0.5) * 255)
+        data[i++] = Math.round((gz * 0.5 + 0.5) * 255)
+        data[i++] = Math.round(THREE.MathUtils.clamp(d + 0.5, 0, 1) * 255)
+      }
+    }
+  }
+  return data
+}
+
+function makeTexture(data, size) {
+  const tex = new THREE.Data3DTexture(data, size, size, size)
+  tex.format = THREE.RGBAFormat
+  tex.type = THREE.UnsignedByteType
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.wrapS = THREE.ClampToEdgeWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.wrapR = THREE.ClampToEdgeWrapping
+  tex.needsUpdate = true
+  return tex
+}
+
+/**
+ * メッシュから焼いた距離場を登録する。
+ * 焼き自体は `src/shared/meshToSdf.js`。ここは 3D テクスチャへの詰め替えだけ。
+ */
+export function registerMeshVolume(name, distance, size) {
+  if (cache.has(name)) return cache.get(name)
+  const at = (x, y, z) => {
+    const ix = Math.min(size - 1, Math.max(0, Math.round((x * 0.5 + 0.5) * (size - 1))))
+    const iy = Math.min(size - 1, Math.max(0, Math.round((y * 0.5 + 0.5) * (size - 1))))
+    const iz = Math.min(size - 1, Math.max(0, Math.round((z * 0.5 + 0.5) * (size - 1))))
+    // 焼いた値は内側が正。手続き SDF は外側が正なので符号を合わせる
+    return -distance[(iz * size + iy) * size + ix]
+  }
+  const tex = makeTexture(pack(at, size), size)
+  cache.set(name, tex)
+  return tex
+}
+
 export function getVolumeTexture(name) {
   if (cache.has(name)) return cache.get(name)
 
