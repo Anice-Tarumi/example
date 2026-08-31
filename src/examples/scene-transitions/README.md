@@ -155,6 +155,15 @@ float edgeActive  = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump;             
 float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5; // 予告の外形
 ```
 
+**立ち上がりと終わりでは輪を出さない。**
+セルは中心から外へ塗り広がるので、`local` がごく小さい間は等高線が点に潰れる。
+掃引の始まり側は往復の戻りで最後にこの段階を通るため、
+**他が終わったあとに画面の端だけ光点が残る**。
+
+```glsl
+float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
+```
+
 **進行中の等高線をそのまま通過前にも使ってはいけない。**
 `local = 0` ではしきい値が 0 なので、等高線がセルの中心に潰れて**光点が並ぶ**。
 予告はセルの外形（`d = 0.5`）を薄く描く。
