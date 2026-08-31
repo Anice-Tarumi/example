@@ -91,7 +91,29 @@ export const SHATTER_MODES = Object.keys(MODES)
  * 全フレームぶんを回して DataTexture 2 枚に焼く。
  * frames は「焼くフレーム数」で、実行時のフレームレートとは無関係。
  */
-export function bakeShatter({ pieces, frames, fps = 30, mode = 'explode', floorY = -1.4, hold = 0.16 }) {
+/**
+ * 全フレームぶんを回して DataTexture 2 枚に焼く。
+ * frames は「焼くフレーム数」で、実行時のフレームレートとは無関係。
+ *
+ * **破片同士の衝突もここで解く。** 独立に積分するだけだと互いにすり抜けて
+ * 均等に散り、積み重ならないので崩落に見えない。
+ *
+ * 実行時にやるなら 1000 体の総当たりは重すぎるが、**焼く時なら一度で済む**。
+ * 一様グリッドのブロードフェーズを挟んで、破片を包む球として解く。
+ * これが「焼く」方式の利点そのもの。実行時のコストは 1 ミリ秒も増えない。
+ */
+export function bakeShatter({
+  pieces,
+  frames,
+  fps = 30,
+  mode = 'explode',
+  floorY = -1.4,
+  hold = 0.16,
+  collide = true,
+  restitution = 0.16,
+  friction = 0.86,
+  substeps = 2,
+}) {
   const build = MODES[mode] || MODES.explode
   const count = pieces.length
   // 最初の数フレームは壁のまま止めておく。いきなり散ると「何が砕けたか」が見えない
@@ -99,72 +121,194 @@ export function bakeShatter({ pieces, frames, fps = 30, mode = 'explode', floorY
 
   const posData = new Float32Array(count * frames * 4)
   const oriData = new Float32Array(count * frames * 4)
-
-  // 着地した状態。アナモルフォーシスの UV をここから作る
   const restPos = new Float32Array(count * 3)
   const restQuat = new Float32Array(count * 4)
 
-  const pos = new THREE.Vector3()
-  const vel = new THREE.Vector3()
-  const quat = new THREE.Quaternion()
-  const spinQuat = new THREE.Quaternion()
-  const axis = new THREE.Vector3()
+  // --- 状態。破片ごとではなくフレームごとに回すので、全部まとめて持つ ---
+  const px = new Float64Array(count)
+  const py = new Float64Array(count)
+  const pz = new Float64Array(count)
+  const vx = new Float64Array(count)
+  const vy = new Float64Array(count)
+  const vz = new Float64Array(count)
+  const radius = new Float64Array(count)
+  const invMass = new Float64Array(count)
+  const gravity = new Float64Array(count)
+  const quats = []
+  const spins = []
 
+  let maxR = 0
   for (let i = 0; i < count; i++) {
     const piece = pieces[i]
-    const { velocity, spin, gravity } = build(piece, piece.rand)
+    const built = build(piece, piece.rand)
+    // 世界座標で持つ。衝突は origin 込みで見る必要がある
+    px[i] = piece.origin.x
+    py[i] = piece.origin.y
+    pz[i] = piece.origin.z
+    vx[i] = built.velocity.x
+    vy[i] = built.velocity.y
+    vz[i] = built.velocity.z
+    gravity[i] = built.gravity
+    // 破片を包む球。角は多少めり込むが、積み上がり方は十分それらしくなる
+    const r = 0.5 * Math.hypot(piece.size.x, piece.size.y, piece.size.z) * 0.78
+    radius[i] = r
+    invMass[i] = 1 / (r * r * r)
+    if (r > maxR) maxR = r
+    quats.push(new THREE.Quaternion())
+    spins.push(built.spin.clone())
+  }
 
-    pos.set(0, 0, 0)
-    vel.copy(velocity)
-    quat.identity()
+  // --- 一様グリッド。実行時ではないが、総当たりだと 1000 体で 50 万ペアになる ---
+  const cell = Math.max(maxR * 2, 1e-3)
+  const cellOf = new Int32Array(count)
+  const buckets = new Map()
 
-    const dt = 1 / fps
+  function collideAll(rest) {
+    buckets.clear()
+    for (let i = 0; i < count; i++) {
+      const key =
+        (Math.floor(px[i] / cell) * 73856093) ^
+        (Math.floor(py[i] / cell) * 19349663) ^
+        (Math.floor(pz[i] / cell) * 83492791)
+      cellOf[i] = key
+      let list = buckets.get(key)
+      if (!list) buckets.set(key, (list = []))
+      list.push(i)
+    }
 
-    for (let f = 0; f < frames; f++) {
+    for (let i = 0; i < count; i++) {
+      const cx = Math.floor(px[i] / cell)
+      const cy = Math.floor(py[i] / cell)
+      const cz = Math.floor(pz[i] / cell)
+
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const key =
+              ((cx + dx) * 73856093) ^ ((cy + dy) * 19349663) ^ ((cz + dz) * 83492791)
+            const list = buckets.get(key)
+            if (!list) continue
+
+            for (let k = 0; k < list.length; k++) {
+              const j = list[k]
+              if (j <= i) continue
+
+              let nx = px[j] - px[i]
+              let ny = py[j] - py[i]
+              let nz = pz[j] - pz[i]
+              const d2 = nx * nx + ny * ny + nz * nz
+              const rr = radius[i] + radius[j]
+              if (d2 >= rr * rr || d2 < 1e-12) continue
+
+              const d = Math.sqrt(d2)
+              nx /= d
+              ny /= d
+              nz /= d
+
+              const wi = invMass[i]
+              const wj = invMass[j]
+              const ws = wi + wj
+
+              // めり込み解消
+              const pen = (rr - d) / ws
+              px[i] -= nx * pen * wi
+              py[i] -= ny * pen * wi
+              pz[i] -= nz * pen * wi
+              px[j] += nx * pen * wj
+              py[j] += ny * pen * wj
+              pz[j] += nz * pen * wj
+
+              const rvn = (vx[j] - vx[i]) * nx + (vy[j] - vy[i]) * ny + (vz[j] - vz[i]) * nz
+              if (rvn > 0) continue
+
+              const jm = (-(1 + rest) * rvn) / ws
+              vx[i] -= nx * jm * wi
+              vy[i] -= ny * jm * wi
+              vz[i] -= nz * jm * wi
+              vx[j] += nx * jm * wj
+              vy[j] += ny * jm * wj
+              vz[j] += nz * jm * wj
+
+              // ぶつかったら回転も鈍る。ぶつかっても回り続けると氷の上に見える
+              spins[i].multiplyScalar(0.92)
+              spins[j].multiplyScalar(0.92)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const spinQuat = new THREE.Quaternion()
+  const axis = new THREE.Vector3()
+  const dtFrame = 1 / fps
+
+  for (let f = 0; f < frames; f++) {
+    // 書き出しは常にフレーム頭の状態
+    for (let i = 0; i < count; i++) {
       const idx = (f * count + i) * 4
-
-      posData[idx + 0] = pos.x
-      posData[idx + 1] = pos.y
-      posData[idx + 2] = pos.z
+      const o = pieces[i].origin
+      posData[idx + 0] = px[i] - o.x
+      posData[idx + 1] = py[i] - o.y
+      posData[idx + 2] = pz[i] - o.z
       posData[idx + 3] = 1
 
-      oriData[idx + 0] = quat.x
-      oriData[idx + 1] = quat.y
-      oriData[idx + 2] = quat.z
-      oriData[idx + 3] = quat.w
+      const q = quats[i]
+      oriData[idx + 0] = q.x
+      oriData[idx + 1] = q.y
+      oriData[idx + 2] = q.z
+      oriData[idx + 3] = q.w
+    }
 
-      // 静止フェーズの間は動かさない
-      if (f < holdFrames) continue
+    if (f < holdFrames) continue
 
-      // 積分。破片ごとに独立なので順序依存はない
-      vel.y += gravity * dt
-      pos.addScaledVector(vel, dt)
+    const sub = Math.max(1, substeps)
+    const dt = dtFrame / sub
 
-      // 床で跳ねる。減衰させて転がりを止める
-      const worldY = piece.origin.y + pos.y
-      if (worldY < floorY && vel.y < 0) {
-        pos.y = floorY - piece.origin.y
-        vel.y *= -0.32
-        vel.x *= 0.72
-        vel.z *= 0.72
-        spin.multiplyScalar(0.6)
+    for (let s = 0; s < sub; s++) {
+      for (let i = 0; i < count; i++) {
+        vy[i] += gravity[i] * dt
+        px[i] += vx[i] * dt
+        py[i] += vy[i] * dt
+        pz[i] += vz[i] * dt
       }
 
-      const spinLen = spin.length()
-      if (spinLen > 1e-5) {
-        axis.copy(spin).divideScalar(spinLen)
-        spinQuat.setFromAxisAngle(axis, spinLen * dt)
-        quat.premultiply(spinQuat)
+      if (collide) collideAll(restitution)
+
+      // 床。位置を直接丸める。力でやると振動する
+      for (let i = 0; i < count; i++) {
+        const limit = floorY + radius[i]
+        if (py[i] < limit) {
+          py[i] = limit
+          if (vy[i] < 0) vy[i] *= -restitution
+          vx[i] *= friction
+          vz[i] *= friction
+          spins[i].multiplyScalar(0.7)
+        }
       }
     }
 
-    restPos[i * 3] = pos.x
-    restPos[i * 3 + 1] = pos.y
-    restPos[i * 3 + 2] = pos.z
-    restQuat[i * 4] = quat.x
-    restQuat[i * 4 + 1] = quat.y
-    restQuat[i * 4 + 2] = quat.z
-    restQuat[i * 4 + 3] = quat.w
+    for (let i = 0; i < count; i++) {
+      const spin = spins[i]
+      const len = spin.length()
+      if (len > 1e-5) {
+        axis.copy(spin).divideScalar(len)
+        spinQuat.setFromAxisAngle(axis, len * dtFrame)
+        quats[i].premultiply(spinQuat)
+      }
+    }
+  }
+
+  for (let i = 0; i < count; i++) {
+    const o = pieces[i].origin
+    restPos[i * 3] = px[i] - o.x
+    restPos[i * 3 + 1] = py[i] - o.y
+    restPos[i * 3 + 2] = pz[i] - o.z
+    const q = quats[i]
+    restQuat[i * 4] = q.x
+    restQuat[i * 4 + 1] = q.y
+    restQuat[i * 4 + 2] = q.z
+    restQuat[i * 4 + 3] = q.w
   }
 
   const makeTex = (data) => {
