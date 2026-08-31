@@ -1,5 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { Environment, OrbitControls } from '@react-three/drei'
+import { Suspense } from 'react'
+import { ENV_MAPS } from '../../shared/env'
 import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -223,10 +225,10 @@ export default function PhysicsPlayground() {
       <directionalLight position={[4, 7, 5]} intensity={1.6} />
       <directionalLight position={[-5, -3, -4]} intensity={0.5} color="#7fa6ff" />
 
-      <Environment resolution={128}>
-        <Lightformer intensity={1.4} position={[0, 6, 3]} scale={[10, 4, 1]} color="#cfe0ff" />
-        <Lightformer intensity={0.8} position={[-5, -1, -3]} scale={[5, 5, 1]} color="#ffb48a" />
-      </Environment>
+      {/* 金属の映り込みは実写の環境が要る。板で代用すると板が映る */}
+      <Suspense fallback={null}>
+        <Environment files={ENV_MAPS.studio.url} />
+      </Suspense>
 
       <Bodies params={params} />
 

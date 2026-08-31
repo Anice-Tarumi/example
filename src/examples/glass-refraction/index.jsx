@@ -1,5 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { Suspense } from 'react'
+import { ENV_MAPS, ENV_OPTIONS } from '../../shared/env'
 import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -156,6 +158,7 @@ export default function GlassRefraction() {
       frostAdvect: { value: DEFAULTS.frostAdvect, min: 0, max: 6, step: 0.1, label: 'noise' },
     }),
     Scene: folder({
+      envMap: { value: DEFAULTS.envMap, options: ENV_OPTIONS, label: 'env map' },
       envIntensity: { value: DEFAULTS.envIntensity, min: 0, max: 3, step: 0.05, label: 'env' },
       autoRotate: { value: DEFAULTS.autoRotate, min: 0, max: 1.5, step: 0.02, label: 'spin glass' },
       spin: { value: DEFAULTS.spin, min: 0, max: 0.5, step: 0.01, label: 'spin backdrop' },
@@ -178,12 +181,19 @@ export default function GlassRefraction() {
       <GlassObject params={params} />
 
       {/* HDR を読み込まずに環境光を作る。透過に映り込みが無いとのっぺりする */}
-      <Environment resolution={256}>
-        <Lightformer intensity={2.4} position={[0, 4, 2]} scale={[8, 3, 1]} color="#dceaff" />
-        <Lightformer intensity={1.2} position={[-4, 1, -2]} scale={[4, 6, 1]} color="#ff9bd0" />
-        <Lightformer intensity={1.4} position={[4, -1, -1]} scale={[4, 6, 1]} color="#7fd9ff" />
-        <Lightformer intensity={0.8} position={[0, -4, 1]} scale={[8, 3, 1]} color="#ffd9a0" />
-      </Environment>
+      {/* 実写の環境マップ。板で代用すると映り込みが板に見える */}
+      <Suspense fallback={null}>
+        {params.envMap === 'lightformer' ? (
+          <Environment resolution={256}>
+            <Lightformer intensity={2.4} position={[0, 4, 2]} scale={[8, 3, 1]} color="#dceaff" />
+            <Lightformer intensity={1.2} position={[-4, 1, -2]} scale={[4, 6, 1]} color="#ff9bd0" />
+            <Lightformer intensity={1.4} position={[4, -1, -1]} scale={[4, 6, 1]} color="#7fd9ff" />
+            <Lightformer intensity={0.8} position={[0, -4, 1]} scale={[8, 3, 1]} color="#ffd9a0" />
+          </Environment>
+        ) : (
+          <Environment files={ENV_MAPS[params.envMap]?.url ?? ENV_MAPS.studio.url} />
+        )}
+      </Suspense>
 
       <OrbitControls enablePan={false} minDistance={2.4} maxDistance={9} />
     </Canvas>

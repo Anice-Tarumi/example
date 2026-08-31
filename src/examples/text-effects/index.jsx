@@ -1,23 +1,40 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { buildSdfAtlas, buildTextGeometry } from './sdf'
 import { textVertexShader, textFragmentShader } from './glsl/text'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES } from './presets'
-
-const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif'
+import { FONT_OPTIONS, loadFont } from './fonts'
 
 function SdfText({ params }) {
   const viewport = useThree((s) => s.viewport)
 
-  // アトラスは文字集合が変わったときだけ焼き直す
-  const atlas = useMemo(() => buildSdfAtlas(params.text, FONT), [params.text])
-  useEffect(() => () => atlas.texture.dispose(), [atlas])
+  // 読み込みが終わったフォント。終わるまで焼かない
+  const [ready, setReady] = useState(null)
+  useEffect(() => {
+    let alive = true
+    loadFont(params.font).then((f) => {
+      if (alive) setReady(f)
+    })
+    return () => {
+      alive = false
+    }
+  }, [params.font])
 
-  const text = useMemo(() => buildTextGeometry(params.text, atlas), [params.text, atlas])
-  useEffect(() => () => text.geometry.dispose(), [text])
+  // アトラスは文字集合かフォントが変わったときだけ焼き直す
+  const atlas = useMemo(
+    () => (ready ? buildSdfAtlas(params.text, ready.family, ready.weight) : null),
+    [params.text, ready],
+  )
+  useEffect(() => () => atlas?.texture.dispose(), [atlas])
+
+  const text = useMemo(
+    () => (atlas ? buildTextGeometry(params.text, atlas) : null),
+    [params.text, atlas],
+  )
+  useEffect(() => () => text?.geometry.dispose(), [text])
 
   const uniforms = useMemo(
     () => ({
@@ -57,6 +74,7 @@ function SdfText({ params }) {
   useEffect(() => () => material.dispose(), [material])
 
   useEffect(() => {
+    if (!atlas || !text) return
     uniforms.uAtlas.value = atlas.texture
     uniforms.uCount.value = text.count
   }, [uniforms, atlas, text])
@@ -103,10 +121,11 @@ function SdfText({ params }) {
 
   // 画面に収める。scale はその上に掛かる倍率として扱う
   const fit = useMemo(() => {
-    const local = text.width + 0.8 // 板の張り出しぶん
+    const local = (text?.width ?? 1) + 0.8 // 板の張り出しぶん
     return Math.min(params.scale, (viewport.width * 0.72) / Math.max(local, 1e-3))
-  }, [text.width, viewport.width, params.scale])
+  }, [text, viewport.width, params.scale])
 
+  if (!text) return null
   return <mesh geometry={text.geometry} material={material} scale={fit} frustumCulled={false} />
 }
 
@@ -117,6 +136,7 @@ export default function TextEffects() {
 
   const [params, setParams] = useControls(() => ({
     text: { value: DEFAULTS.text },
+    font: { value: DEFAULTS.font, options: FONT_OPTIONS },
     mode: { value: DEFAULTS.mode, options: MODES },
     Shape: folder({
       weight: { value: DEFAULTS.weight, min: -1, max: 1, step: 0.02 },

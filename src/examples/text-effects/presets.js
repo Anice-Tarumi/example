@@ -6,6 +6,7 @@ export const PRESETS = {
     label: 'SDF Outline',
     params: {
       text: 'SHOWCASE',
+      font: 'anton',
       mode: 'none',
       weight: 0,
       outlineWidth: 1.6,
@@ -27,6 +28,7 @@ export const PRESETS = {
     label: 'Reveal',
     params: {
       text: 'SHOWCASE',
+      font: 'anton',
       mode: 'reveal',
       weight: 0.2,
       outlineWidth: 0.5,
@@ -48,6 +50,7 @@ export const PRESETS = {
     label: 'Wave',
     params: {
       text: 'SHOWCASE',
+      font: 'grotesk',
       mode: 'wave',
       weight: 0.35,
       outlineWidth: 0.8,
@@ -69,6 +72,7 @@ export const PRESETS = {
     label: 'Glitch',
     params: {
       text: 'SHOWCASE',
+      font: 'anton',
       mode: 'glitch',
       weight: 0.1,
       outlineWidth: 1.2,

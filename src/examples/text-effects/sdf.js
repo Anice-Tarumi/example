@@ -75,7 +75,7 @@ function edt2d(grid, w, h, scratch) {
  * 文字列から SDF アトラスとグリフ情報を作る。
  * 同じ文字が何度出てきても 1 セルで済むよう、重複は除く。
  */
-export function buildSdfAtlas(text, fontFamily = 'sans-serif') {
+export function buildSdfAtlas(text, fontFamily = 'sans-serif', weight = '700') {
   const chars = [...new Set([...text].filter((c) => c !== ' '))]
   const cols = Math.ceil(Math.sqrt(chars.length)) || 1
   const rows = Math.ceil(chars.length / cols)
@@ -89,7 +89,9 @@ export function buildSdfAtlas(text, fontFamily = 'sans-serif') {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
   const fontSize = CELL - PAD * 2
-  ctx.font = `700 ${fontSize}px ${fontFamily}`
+  // 太さはフォント側の実ウェイトに合わせる。持っていない太さを指定すると
+  // ブラウザが疑似ボールドを掛けて、輪郭が歪む
+  ctx.font = `${weight} ${fontSize}px ${fontFamily}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#fff'

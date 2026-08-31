@@ -84,6 +84,45 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 
 ---
 
+## アセットの方針
+
+長らくアセット 0 で通していたが、板ライト（`Lightformer`）での環境代用と
+システムフォントでの SDF 生成が絵の弱さになっていたため、必要なものだけ入れる。
+
+### 置き場所
+
+- **複数 example で使うもの** → `src/assets/<種別>/`（例: `src/assets/env/`）
+  参照は `src/shared/env.js` のような共有モジュール経由にする。
+- **単一 example 専用** → `src/examples/<name>/assets/`
+  example フォルダだけコピーして他プロジェクトへ移植できる性質を保つため。
+
+Vite なので `src/` 配下は import する。バイナリは `?url` を付ける。
+
+```js
+import hdrUrl from '../assets/env/studio_1k.hdr?url'
+import fontUrl from './assets/Anton-Regular.ttf?url'
+```
+
+### 入っているもの
+
+| ファイル | 出所 | ライセンス | 用途 |
+| --- | --- | --- | --- |
+| `assets/env/studio_1k.hdr` | Poly Haven | CC0 | glass-refraction / physics-playground |
+| `assets/env/road_1k.hdr` | Poly Haven | CC0 | 同上（夜の屋外） |
+| `text-effects/assets/Anton-Regular.ttf` | Google Fonts | OFL | SDF アトラス |
+| `text-effects/assets/SpaceGrotesk-VariableFont_wght.ttf` | Google Fonts | OFL | 同上 |
+| `text-effects/assets/ZenKakuGothicNew-Bold.ttf` | Google Fonts | OFL | 同上（日本語） |
+
+### 決めたこと
+
+- **HDRI は 1k へ落としてから入れる。** 2k は 1 枚 6MB あって配信に向かない。
+  反射に使うだけなら 1k で十分。`magick in.hdr -resize 1024x512 out.hdr`。
+- **公開するショーケースなので CC0 / OFL / 自社制作に限る。**
+- GLB を入れるときは `gltf-transform` で Draco + KTX2 に圧縮してから置く。
+- 日本語フォントは 2.2MB あるので、**選ばれたときだけ読む**（`text-effects/fonts.js`）。
+
+---
+
 ## 実装時の落とし穴（実際に踏んだもの）
 
 新しい example を書く前に読むこと。今日これで数時間溶かした。
@@ -195,6 +234,10 @@ example で足りる。載せるなら次のどちらかを満たすこと。
     視空間 z はカメラ距離ぶん常に大きな負の値。ワールド z のつもりの
     しきい値を当てると全画素で外れて何も出なくなる。
 
-27. **黒い画面は lint も build も検出しない。**
+27. **canvas は未ロードのフォントを黙って代替フォントで描く。**
+    例外も警告も出ない。`ctx.font` の family が使えなければ sans-serif で塗って終わる。
+    SDF を焼く前に `FontFace.load()` の完了を待つこと。
+
+28. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
