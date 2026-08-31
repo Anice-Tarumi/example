@@ -316,18 +316,10 @@ export const fragmentShader = /* glsl */`
     float start = order * (1.0 - window);
     float local = clamp((uProgress - start) / window, 0.0, 1.0);
 
-    // セルは回りながら閉じる
+    // セルは回りながら閉じる。回すのは六角形の形だけで、塗る向きは回さない
     vec2 cell = rot2(gv, (rnd2 - 0.5) * uHexSpin * (1.0 - local));
     float d = hexDist(cell);
 
-    /*
-     * 塗り。
-     *
-     * しきい値を 0.5 * local にすると、閉じきったとき（local = 1）に
-     * しきい値がちょうどセルの辺と一致する。辺の上では smoothstep が 0.5 を返すので、
-     * **全部の格子線が半分ブレンドされた線として残る**。
-     * 辺より外側まで振り切らせる。
-     */
     /*
      * アンチエイリアス幅。
      *
@@ -339,34 +331,43 @@ export const fragmentShader = /* glsl */`
      * 連続な座標（ps）の画素フットプリントから求める。d と同じ単位なのでそのまま使える。
      */
     float aa = max(length(fwidth(ps)) * 0.7, 1e-4);
-    float thr = local * (0.5 + aa * 3.0 + 0.01);
-    float fill = smoothstep(thr + aa, thr - aa, d);
 
     /*
-     * グリッドを見せるのは境界の周りだけ。
+     * セルの塗り進み方。
      *
-     *   bump    … 開閉中のセルで最大、閉じきると 0
-     *   pending … まだ来ていないセルまでの残り時間。**通過済みは 0 に落とす**
+     * 中心から外へ広げると、波が上から来ているのにセルだけ中心から育つので
+     * 動きの向きが噛み合わない。**波の進行方向に沿ってセル内を塗る**。
+     * 上から来るなら六角形の上端から満ちていく。
      *
-     * pending を符号で切らないと、通過し終えたセル（start < progress）でも
-     * smoothstep が 1 を返し、切り替わった後の画面に格子が残る。
+     * 形（六角形）は回転させるが、塗る向きは画面に固定する。
+     * 一緒に回すとセルごとに満ちる向きがばらばらになって、また噛み合わなくなる。
      */
+    vec2 flowDir = normalize(vec2(0.15, -0.85));
+    float along = dot(gv, flowDir);
+    const float extent = 0.5 * 1.7320508 * 0.5 + 0.08;
+    float front = mix(-extent, extent, local);
+
+    /*
+     * 六角形のマスク。**辺（d = 0.5）でちょうど 1 に届かせる。**
+     * smoothstep の境界を 0.5 に置くと、辺の上で 0.5 を返して
+     * 隣接セルとの間に細い隙間が残る。
+     */
+    float hexMask = smoothstep(0.5 + aa * 4.0, 0.5 + aa, d);
+    float wipe = smoothstep(front + aa, front - aa, along);
+    float fill = hexMask * wipe;
+
     float bump = 4.0 * local * (1.0 - local);
+    float grow = smoothstep(0.0, 0.08, local) * smoothstep(1.0, 0.94, local);
 
     /*
-     * 縁は**いま描かれている六角形の輪郭**だけ。
-     *
-     * 「まだ来ていないセルの外形」を薄く描く予告も試したが、
-     * 六角形が無い場所に線だけが出るので消し残しに見える。出さない。
-     *
-     * セルは中心から外へ塗り広がるので、local がごく小さい間は等高線が点に潰れる。
-     * 立ち上がりと終わりでは輪を出さない。
+     * 縁は**塗られている領域の輪郭**。2 本ある。
+     *   進行線 … 塗りの先端。セル内を進む
+     *   外周   … 六角形の辺のうち、すでに塗られた側
      */
-    float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
-    // 幅は一定にする。bump で変調すると進行度によってセルごとに太さが変わり、
-    // 「ぼけているセル」と「くっきりしたセル」が混ざって見える
     float edgeBand = uHexEdge;
-    float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump * grow;
+    float frontLine = smoothstep(edgeBand, 0.0, abs(along - front)) * hexMask;
+    float rim = smoothstep(edgeBand, 0.0, abs(d - 0.5)) * wipe;
+    float edge = clamp(max(frontLine, rim), 0.0, 1.0) * bump * grow;
 
     /*
      * 屈折。距離場の勾配方向へ画をずらす。
@@ -376,7 +377,10 @@ export const fragmentShader = /* glsl */`
      * 掛けるのは開閉中（bump）のセルだけ。通過後と通過前は素の画を出す。
      */
     vec2 grad = normalize(cell + 1e-6);
-    float nearEdge = smoothstep(max(edgeBand, 1e-4) * 2.5, 0.0, abs(d - thr)) * bump * grow;
+    float nearEdge = clamp(max(
+      smoothstep(edgeBand * 2.5, 0.0, abs(along - front)) * hexMask,
+      smoothstep(edgeBand * 2.5, 0.0, abs(d - 0.5)) * wipe
+    ), 0.0, 1.0) * bump * grow;
     vec2 refr = grad * nearEdge * uHexRefract;
 
     float ca = uCaAmount * 0.35 * nearEdge;
