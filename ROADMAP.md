@@ -113,6 +113,11 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 | `text-effects/assets/SpaceGrotesk-VariableFont_wght.ttf` | Google Fonts | OFL | 同上 |
 | `text-effects/assets/ZenKakuGothicNew-Bold.ttf` | Google Fonts | OFL | 同上（日本語） |
 | `flip-stage/assets/*.glb` × 6 | Tripo 生成 | 自社 | 円盤に載せる小シーン |
+| `toon-outline/assets/character.glb` | Tripo 生成 | 自社 | 輪郭線の被写体 |
+| `gpu-particles/assets/sculpture.glb` | Tripo 生成 | 自社 | SDF ベイク元 |
+| `vertex-animation-texture/assets/monument.glb` | Tripo 生成 | 自社 | 破砕対象 |
+| `depth-parallax/assets/scene-*.jpg` | Unsplash | Unsplash License | 視差の元画像（深度マップ待ち） |
+| `public/favicon.ico` | 自社 | 自社 | サイトアイコン |
 
 ### 決めたこと
 
