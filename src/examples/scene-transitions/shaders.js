@@ -285,7 +285,15 @@ export const fragmentShader = /* glsl */`
     vec2 ps = p * uHexScale;
     vec4 hc = hexCoords(ps);
     vec2 gv = hc.xy;
-    vec2 id = hc.zw;
+
+    /*
+     * セル ID は**量子化してから使う**。
+     *
+     * id = ps - gv は浮動小数の引き算なので、同じセル内でも下位ビットが画素ごとに揺れる。
+     * hash は混沌関数なのでその微小差を全域に増幅し、セル内で rnd がばらつく。
+     * 結果、local も spin も画素ごとに変わり、セルが点描のようにざらつく。
+     */
+    vec2 id = floor(hc.zw * 64.0 + 0.5) / 64.0;
 
     // セルごとの乱数。遅延・回転・縮み方を散らす
     float rnd = hash(id * 0.137);
