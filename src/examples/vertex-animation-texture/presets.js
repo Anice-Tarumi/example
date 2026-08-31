@@ -6,7 +6,7 @@ export const PRESETS = {
       mode: 'explode',
       cols: 26,
       rows: 18,
-      frames: 96,
+      frames: 140,
       scatter: 1,
       speed: 1,
       reveal: 0,
@@ -27,7 +27,7 @@ export const PRESETS = {
       mode: 'collapse',
       cols: 30,
       rows: 20,
-      frames: 110,
+      frames: 150,
       scatter: 1,
       speed: 0.9,
       reveal: 0,
@@ -46,17 +46,16 @@ export const PRESETS = {
     label: 'Icon Reveal',
     params: {
       /*
-       * 像は破片の**画面上の位置**から作るので、着地した破片が画面を覆っていないと
-       * 絵の一部しか映らない。崩れ落ちるだけだと床に薄く積もって帯にしかならない。
-       * 弱く弾けさせて、壁のあった面いっぱいに散らす。
+       * 像は破片の**画面上の位置**から作るので、静止した破片が画面を覆っていないと
+       * 絵の一部しか映らない。落ちて床に積もると帯になる。
+       * 重力ゼロ + 減衰で、空中に広がったまま止める。
        */
-      mode: 'explode',
+      mode: 'float',
       cols: 40,
       rows: 26,
-      // 落ちきる前に焼き終える。床に積もると帯になって絵の上下が出ない
-      frames: 42,
-      scatter: 0.5,
-      speed: 0.7,
+      frames: 90,
+      scatter: 1,
+      speed: 0.9,
       reveal: 1,
       // 回さない。locked は着地時のカメラで像が結ぶので、回すと崩れる
       revealMode: 'locked',
@@ -76,7 +75,7 @@ export const PRESETS = {
       mode: 'swirl',
       cols: 24,
       rows: 16,
-      frames: 120,
+      frames: 150,
       scatter: 1,
       speed: 0.8,
       reveal: 0.9,
@@ -97,7 +96,7 @@ export const PRESETS = {
       mode: 'explode',
       cols: 44,
       rows: 30,
-      frames: 96,
+      frames: 140,
       scatter: 1,
       speed: 1.15,
       reveal: 0.9,

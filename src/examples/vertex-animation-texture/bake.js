@@ -72,6 +72,25 @@ const MODES = {
     spin: new THREE.Vector3(r[0] - 0.5, r[1] - 0.5, r[2] - 0.5).multiplyScalar(3.2),
     gravity: -9.2,
   }),
+  /**
+   * 重力ゼロで外へ広がり、減衰して止まる。
+   * アナモルフォーシス用。床に積もると帯になって絵の上下が失われるので、
+   * **空中で広がったまま静止**させる。
+   */
+  float: (p, r) => {
+    const dir = p.origin.clone().normalize()
+    return {
+      velocity: new THREE.Vector3(
+        dir.x * (1.5 + r[0] * 1.2),
+        dir.y * (1.5 + r[1] * 1.2),
+        (r[2] - 0.5) * 1.1,
+      ),
+      spin: new THREE.Vector3(r[0] - 0.5, r[1] - 0.5, r[2] - 0.5).multiplyScalar(2.2),
+      gravity: 0,
+      drag: 2.6,
+    }
+  },
+
   /** Y 軸まわりに巻き上がる */
   swirl: (p, r) => {
     const tangent = new THREE.Vector3(-p.origin.y, p.origin.x, 0).normalize()
@@ -134,6 +153,7 @@ export function bakeShatter({
   const radius = new Float64Array(count)
   const invMass = new Float64Array(count)
   const gravity = new Float64Array(count)
+  const drag = new Float64Array(count)
   const quats = []
   const spins = []
 
@@ -149,6 +169,7 @@ export function bakeShatter({
     vy[i] = built.velocity.y
     vz[i] = built.velocity.z
     gravity[i] = built.gravity
+    drag[i] = built.drag ?? 0
     // 破片を包む球。角は多少めり込むが、積み上がり方は十分それらしくなる
     const r = 0.5 * Math.hypot(piece.size.x, piece.size.y, piece.size.z) * 0.78
     radius[i] = r
@@ -268,6 +289,13 @@ export function bakeShatter({
     for (let s = 0; s < sub; s++) {
       for (let i = 0; i < count; i++) {
         vy[i] += gravity[i] * dt
+        if (drag[i] > 0) {
+          // 空気抵抗。これが無いと重力ゼロのモードは永久に飛び続ける
+          const k = Math.exp(-drag[i] * dt)
+          vx[i] *= k
+          vy[i] *= k
+          vz[i] *= k
+        }
         px[i] += vx[i] * dt
         py[i] += vy[i] * dt
         pz[i] += vz[i] * dt

@@ -166,10 +166,14 @@ function Shatter({ params }) {
       params.revealScale,
     )
 
-    // 着地間際から絵を出す。飛んでいる最中に出ると何の絵か分からない
-    const t = duration > 0 ? playhead.current / duration : 0
-    const ramp = Math.min(1, Math.max(0, (t - 0.55) / 0.4))
-    uniforms.uRevealMix.value = params.reveal * ramp
+    /*
+     * 絵は**最初から**出す。
+     *
+     * 壁の状態では各破片が「最終位置で自分が覆う絵」を持っているので、
+     * 並びが合わず意味のない模様に見える。それが飛んで所定の位置に来たとき揃う。
+     * 途中から出すと「色が変わった」だけに見えて、仕掛けが伝わらない。
+     */
+    uniforms.uRevealMix.value = params.reveal
   })
 
   return (
