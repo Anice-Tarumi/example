@@ -40,6 +40,7 @@ export const fragmentShader = /* glsl */`
   uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
   uniform float uHexReach;    // 境界の手前どこまでグリッドを薄く見せるか
   uniform vec3  uEdgeColor;
+  uniform float uHexGlow;     // 輪郭線の強さ。0 で線を消す
 
   varying vec2 vUv;
 
@@ -318,7 +319,14 @@ export const fragmentShader = /* glsl */`
      */
     float bump = 4.0 * local * (1.0 - local);
     float pending = start - uProgress;
-    float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending);
+
+    /*
+     * 予告は**遷移が動いている間だけ**。
+     * 静止中（progress が 0 か 1 で止まっている）にも出すと、
+     * 切り替わりが終わった画面に輪郭だけが residue のように残って見える。
+     */
+    float running = step(0.001, uProgress) * step(uProgress, 0.999);
+    float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending) * running;
 
     /*
      * 縁は 2 種類を足す。
@@ -359,7 +367,7 @@ export const fragmentShader = /* glsl */`
     vec3 b = chromatic(uSceneB, vUv - refr, ca, n);
 
     vec3 color = mix(a, b, fill);
-    return color + uEdgeColor * edge;
+    return color + uEdgeColor * edge * uHexGlow;
   }
 
   vec3 iceCut() {

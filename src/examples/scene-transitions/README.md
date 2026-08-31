@@ -164,6 +164,16 @@ float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5;
 float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
 ```
 
+**予告は遷移が動いている間だけ出す。**
+静止中（`progress` が 0 か 1 で止まっている）にも出すと、
+切り替わりが終わった画面に輪郭だけが残骸のように見える。
+通過後のセルには何も描いていないのに「消し残し」に見えるのはこれが原因。
+
+```glsl
+float running = step(0.001, uProgress) * step(uProgress, 0.999);
+float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending) * running;
+```
+
 **進行中の等高線をそのまま通過前にも使ってはいけない。**
 `local = 0` ではしきい値が 0 なので、等高線がセルの中心に潰れて**光点が並ぶ**。
 予告はセルの外形（`d = 0.5`）を薄く描く。

@@ -30,6 +30,7 @@ function createUniforms() {
     uHexWindow: { value: 0.28 },
     uHexReach: { value: 0.18 },
     uEdgeColor: { value: new THREE.Color('#8fe6ff') },
+    uHexGlow: { value: 1 },
     uMode: { value: 0 },
     uDirection: { value: DEFAULTS.direction },
     uEdge: { value: DEFAULTS.edge },
@@ -99,6 +100,7 @@ function TransitionStage({ params }) {
     uniforms.uHexWindow.value = params.hexWindow
     uniforms.uHexReach.value = params.hexReach
     uniforms.uEdgeColor.value.set(params.edgeColor)
+    uniforms.uHexGlow.value = params.hexGlow
   }, [uniforms, params])
 
   useEffect(() => {
@@ -171,6 +173,7 @@ export default function SceneTransitions() {
       hexWindow: { value: DEFAULTS.hexWindow, min: 0.05, max: 1, step: 0.01, label: 'cell time' },
       hexReach: { value: DEFAULTS.hexReach, min: 0, max: 0.6, step: 0.01, label: 'grid reach' },
       edgeColor: { value: DEFAULTS.edgeColor, label: 'edge col' },
+      hexGlow: { value: DEFAULTS.hexGlow, min: 0, max: 2, step: 0.05, label: 'edge glow' },
     }),
     auto: true,
     progress: {

@@ -24,6 +24,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
       duration: 1.8,
     },
   },
@@ -52,6 +53,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
       duration: 1.6,
     },
   },
@@ -81,6 +83,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
     },
   },
   curtain: {
@@ -108,6 +111,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
     },
   },
   fade: {
@@ -135,6 +139,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
     },
   },
   circle: {
@@ -162,6 +167,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       hexReach: 0.18,
       edgeColor: '#8fe6ff',
+      hexGlow: 1,
     },
   },
 }
