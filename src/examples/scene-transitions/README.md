@@ -117,11 +117,20 @@ vec2  refr = normalize(cell) * nearEdge * uHexRefract;             // 屈折（�
 **1 セルが閉じる時間（`cell time`）を短くし、開始時刻を掃引でずらす。**
 
 ```glsl
-float sweep = (1.0 - vUv.y) * 0.85 + vUv.x * 0.15;   // 上から、わずかに斜め
+// 掃引は「画素」ではなく「セルの中心」で評価する
+vec2 cuv = vec2(id.x / (uHexScale * uAspect), id.y / uHexScale) + 0.5;
+float sweep = clamp((1.0 - cuv.y) * 0.85 + cuv.x * 0.15, 0.0, 1.0);
 float order = mix(sweep, rnd, uHexJitter);
 float start = order * (1.0 - window);
 float local = clamp((uProgress - start) / window, 0.0, 1.0);
 ```
+
+**画素ごとに評価してはいけない。** `local` がセル内で連続的に変わり、しきい値が
+セル内で傾く。六角形が相似形で育たなくなって**ぼけ方が場所ごとに変わり**、
+隣接セルとの境で `rnd` が飛ぶので**直線状の継ぎ目**が出る。1 セル 1 進行度にする。
+
+アンチエイリアス幅 `fwidth(d)` にも上限を切る。`warp` でグリッドの局所スケールが
+変わるので、そのままだと場所によって縁のぼけ幅が数倍違う。
 
 窓を長く取ると全セルの開閉が重なって、**画面全体が一斉に変わって見える**。
 短くするほど「閉じている帯」が細くなり、波として読める。

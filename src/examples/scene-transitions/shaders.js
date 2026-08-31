@@ -284,8 +284,13 @@ export const fragmentShader = /* glsl */`
      *
      * **1 セルが閉じる時間（window）を短くし、開始時刻を掃引でずらす**のが要点。
      * window を長く取ると全セルの開閉が重なって、画面全体が一斉に変わって見える。
+     *
+     * 掃引は**セルの中心**で評価する。画素ごとに評価すると local がセル内で
+     * 連続的に変わり、しきい値がセル内で傾く。六角形が一様に育たなくなって
+     * ぼけ方が場所ごとに変わり、隣接セルとの境に直線状の継ぎ目が出る。
      */
-    float sweep = clamp((1.0 - vUv.y) * 0.85 + vUv.x * 0.15, 0.0, 1.0);
+    vec2 cuv = vec2(id.x / (uHexScale * uAspect), id.y / uHexScale) + 0.5;
+    float sweep = clamp((1.0 - cuv.y) * 0.85 + cuv.x * 0.15, 0.0, 1.0);
     float order = clamp(mix(sweep, rnd, uHexJitter), 0.0, 1.0);
     float window = max(uHexWindow, 0.02);
     float start = order * (1.0 - window);
@@ -303,7 +308,9 @@ export const fragmentShader = /* glsl */`
      * **全部の格子線が半分ブレンドされた線として残る**。
      * 辺より外側まで振り切らせる。
      */
-    float aa = fwidth(d) * 1.5 + 1e-5;
+    // warp でグリッドの局所スケールが変わるので、そのままだと
+    // 場所によって縁のぼけ幅が大きく違う。上限を切る
+    float aa = clamp(fwidth(d) * 1.5, 0.002, 0.02);
     float thr = local * (0.5 + aa * 3.0 + 0.01);
     float fill = smoothstep(thr + aa, thr - aa, d);
 
