@@ -24,6 +24,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
       duration: 1.8,
     },
   },
@@ -52,6 +53,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
       duration: 1.6,
     },
   },
@@ -81,6 +83,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
     },
   },
   curtain: {
@@ -108,6 +111,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
     },
   },
   fade: {
@@ -135,6 +139,7 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
     },
   },
   circle: {
@@ -162,9 +167,12 @@ export const PRESETS = {
       hexWindow: 0.28,
       edgeColor: '#8fe6ff',
       hexGlow: 1,
+      debug: 'off',
     },
   },
 }
+
+export const DEBUG_MODES = ['off', 'local', 'dist', 'fill', 'edge', 'nearEdge', 'aa', 'blue', 'cellId']
 
 export const MODES = ['noise-wipe', 'curtain', 'fade', 'circle', 'ice-cut', 'hex']
 

@@ -24,6 +24,9 @@ export const fragmentShader = /* glsl */`
   uniform float uAspect;
 
   // --- ice cut（igloo 方式）用 ---
+  uniform sampler2D uBlue;     // ブルーノイズ
+  uniform vec2  uBlueSize;
+  uniform vec2  uBlueOffset;   // 毎フレームずらして固定パターンを避ける
   uniform sampler2D uScroll;   // r = 割れ目 / g = 中周波 / b = 低周波
   uniform float uSlope;        // 切り取り線の傾き
   uniform float uParallax;     // 前後のシーンを逆方向へ流す量
@@ -40,6 +43,7 @@ export const fragmentShader = /* glsl */`
   uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
   uniform vec3  uEdgeColor;
   uniform float uHexGlow;     // 輪郭線の強さ。0 で線を消す
+  uniform int   uDebug;       // 中間値の可視化。0 = 通常
 
   varying vec2 vUv;
 
@@ -66,9 +70,16 @@ export const fragmentShader = /* glsl */`
 
   float power2In(float t) { return t * t; }
 
-  /** 交互勾配ノイズ。ブルーノイズの代用。色収差の継ぎ目を隠す */
-  float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
+  /**
+   * ブルーノイズ。色収差の量を画素ごとにばらつかせて継ぎ目を隠す。
+   *
+   * 交互勾配ノイズ（IGN）で代用してはいけない。IGN は
+   * fract(52.98 * fract(0.0671x + 0.00584y)) という**線形式**で構造を持つ。
+   * ディザのオフセットとしてなら許容されるが、**量そのものに掛けると
+   * hatching パターンが縞として画面に出る**。
+   */
+  float blueNoise(vec2 frag) {
+    return texture2D(uBlue, (frag + uBlueOffset) / uBlueSize).r;
   }
 
   // ---- 色収差。5 サンプルを樽型に歪ませて重ねる ----
@@ -271,7 +282,8 @@ export const fragmentShader = /* glsl */`
     float w2 = valueNoise(p * 2.3 - 7.0) - 0.5;
     p += vec2(w1, w2) * uHexWarp;
 
-    vec4 hc = hexCoords(p * uHexScale);
+    vec2 ps = p * uHexScale;
+    vec4 hc = hexCoords(ps);
     vec2 gv = hc.xy;
     vec2 id = hc.zw;
 
@@ -308,9 +320,17 @@ export const fragmentShader = /* glsl */`
      * **全部の格子線が半分ブレンドされた線として残る**。
      * 辺より外側まで振り切らせる。
      */
-    // warp でグリッドの局所スケールが変わるので、そのままだと
-    // 場所によって縁のぼけ幅が大きく違う。上限を切る
-    float aa = clamp(fwidth(d) * 1.5, 0.002, 0.02);
+    /*
+     * アンチエイリアス幅。
+     *
+     * **fwidth(d) を使ってはいけない。** セルごとに回転量が違うので d は
+     * セル境界で不連続になり、画面空間の微分である fwidth はそこで跳ね上がる。
+     * その画素だけ縁の幅が変わって「ぼけているセル」に見え、
+     * 不連続線そのものが格子状の筋として画面に出る。
+     *
+     * 連続な座標（ps）の画素フットプリントから求める。d と同じ単位なのでそのまま使える。
+     */
+    float aa = max(length(fwidth(ps)) * 0.7, 1e-4);
     float thr = local * (0.5 + aa * 3.0 + 0.01);
     float fill = smoothstep(thr + aa, thr - aa, d);
 
@@ -335,7 +355,9 @@ export const fragmentShader = /* glsl */`
      * 立ち上がりと終わりでは輪を出さない。
      */
     float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
-    float edgeBand = uHexEdge * (0.35 + 0.65 * bump);
+    // 幅は一定にする。bump で変調すると進行度によってセルごとに太さが変わり、
+    // 「ぼけているセル」と「くっきりしたセル」が混ざって見える
+    float edgeBand = uHexEdge;
     float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump * grow;
 
     /*
@@ -350,10 +372,24 @@ export const fragmentShader = /* glsl */`
     vec2 refr = grad * nearEdge * uHexRefract;
 
     float ca = uCaAmount * 0.35 * nearEdge;
-    float n = ign(gl_FragCoord.xy);
+
+    float n = blueNoise(gl_FragCoord.xy);
 
     vec3 a = chromatic(uSceneA, vUv + refr, ca, n);
     vec3 b = chromatic(uSceneB, vUv - refr, ca, n);
+
+    /*
+     * 中間値の可視化。症状がどの項から出ているかを推測でなく特定するため。
+     * 1=local 2=d 3=fill 4=edge 5=nearEdge 6=aa 7=blueNoise 8=cell id
+     */
+    if (uDebug == 1) return vec3(local);
+    if (uDebug == 2) return vec3(d * 2.0);
+    if (uDebug == 3) return vec3(fill);
+    if (uDebug == 4) return vec3(edge);
+    if (uDebug == 5) return vec3(nearEdge);
+    if (uDebug == 6) return vec3(aa * 40.0);
+    if (uDebug == 7) return vec3(blueNoise(gl_FragCoord.xy));
+    if (uDebug == 8) return vec3(fract(rnd * 7.0), fract(rnd2 * 5.0), 0.5);
 
     vec3 color = mix(a, b, fill);
     return color + uEdgeColor * edge * uHexGlow;
@@ -383,8 +419,8 @@ export const fragmentShader = /* glsl */`
       * smoothstep(1.0, 0.7, abs(vUv.x * 2.0 - 1.0))
       * smoothstep(1.0, 0.7, abs(vUv.y * 2.0 - 1.0));
 
-    float n1 = ign(gl_FragCoord.xy);
-    float n2 = ign(gl_FragCoord.xy + 19.0);
+    float n1 = blueNoise(gl_FragCoord.xy);
+    float n2 = blueNoise(gl_FragCoord.xy + 19.0);
 
     // 片側が完全に隠れているならサンプルしない
     vec3 s1 = vec3(0.0);

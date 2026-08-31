@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { createScrollTexture } from './scrollTexture'
+import { createBlueNoiseTexture } from '../../shared/blueNoise'
 import { SceneA, SceneB } from './scenes'
 import { vertexShader, fragmentShader } from './shaders'
-import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES } from './presets'
+import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES, DEBUG_MODES } from './presets'
 
 const HOLD = 0.7 // 端で止まる秒数
 
@@ -17,6 +18,9 @@ function createUniforms() {
     uSceneB: { value: null },
     uProgress: { value: 0 },
     uScroll: { value: null },
+    uBlue: { value: null },
+    uBlueSize: { value: new THREE.Vector2(64, 64) },
+    uBlueOffset: { value: new THREE.Vector2() },
     uSlope: { value: 0.2 },
     uParallax: { value: 0.4 },
     uDisplace: { value: 0.025 },
@@ -30,6 +34,7 @@ function createUniforms() {
     uHexWindow: { value: 0.28 },
     uEdgeColor: { value: new THREE.Color('#8fe6ff') },
     uHexGlow: { value: 1 },
+    uDebug: { value: 0 },
     uMode: { value: 0 },
     uDirection: { value: DEFAULTS.direction },
     uEdge: { value: DEFAULTS.edge },
@@ -50,6 +55,10 @@ function TransitionStage({ params }) {
   // 切り口を作るテクスチャ。手続きで一度だけ焼く
   const scroll = useMemo(() => createScrollTexture(), [])
   useEffect(() => () => scroll.dispose(), [scroll])
+
+  // ブルーノイズ。void-and-cluster で 64x64 を一度だけ生成する
+  const blue = useMemo(() => createBlueNoiseTexture(64), [])
+  useEffect(() => () => blue.dispose(), [blue])
 
   const targetA = useFBO(fboSettings)
   const targetB = useFBO(fboSettings)
@@ -99,6 +108,7 @@ function TransitionStage({ params }) {
     uniforms.uHexWindow.value = params.hexWindow
     uniforms.uEdgeColor.value.set(params.edgeColor)
     uniforms.uHexGlow.value = params.hexGlow
+    uniforms.uDebug.value = DEBUG_MODES.indexOf(params.debug)
   }, [uniforms, params])
 
   useEffect(() => {
@@ -137,6 +147,13 @@ function TransitionStage({ params }) {
 
     gl.setRenderTarget(null)
     uniforms.uScroll.value = scroll
+    uniforms.uBlue.value = blue
+    uniforms.uBlueSize.value.set(blue.image.width, blue.image.height)
+    // 毎フレームずらす。固定だとノイズの模様が画面に焼き付いて見える
+    uniforms.uBlueOffset.value.set(
+      Math.floor(Math.random() * 64),
+      Math.floor(Math.random() * 64),
+    )
     uniforms.uSceneA.value = targetA.texture
     uniforms.uSceneB.value = targetB.texture
     quad.render(gl)
@@ -171,6 +188,7 @@ export default function SceneTransitions() {
       hexWindow: { value: DEFAULTS.hexWindow, min: 0.05, max: 1, step: 0.01, label: 'cell time' },
       edgeColor: { value: DEFAULTS.edgeColor, label: 'edge col' },
       hexGlow: { value: DEFAULTS.hexGlow, min: 0, max: 2, step: 0.05, label: 'edge glow' },
+      debug: { value: DEFAULTS.debug, options: DEBUG_MODES },
     }),
     auto: true,
     progress: {
