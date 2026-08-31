@@ -38,7 +38,6 @@ export const fragmentShader = /* glsl */`
   uniform float uHexRefract;  // 縁での屈折
   uniform float uHexSpin;     // セルの回転
   uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
-  uniform float uHexReach;    // 境界の手前どこまでグリッドを薄く見せるか
   uniform vec3  uEdgeColor;
   uniform float uHexGlow;     // 輪郭線の強さ。0 で線を消す
 
@@ -318,36 +317,19 @@ export const fragmentShader = /* glsl */`
      * smoothstep が 1 を返し、切り替わった後の画面に格子が残る。
      */
     float bump = 4.0 * local * (1.0 - local);
-    float pending = start - uProgress;
 
     /*
-     * 予告は**遷移が動いている間だけ**。
-     * 静止中（progress が 0 か 1 で止まっている）にも出すと、
-     * 切り替わりが終わった画面に輪郭だけが residue のように残って見える。
-     */
-    float running = step(0.001, uProgress) * step(uProgress, 0.999);
-    float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending) * running;
-
-    /*
-     * 縁は 2 種類を足す。
+     * 縁は**いま描かれている六角形の輪郭**だけ。
      *
-     *   進行中 … しきい値の等高線。閉じていく輪
-     *   予告   … セルの外形（d = 0.5）。薄く出して、来るのが分かるようにする
+     * 「まだ来ていないセルの外形」を薄く描く予告も試したが、
+     * 六角形が無い場所に線だけが出るので消し残しに見える。出さない。
      *
-     * 進行中の等高線をそのまま local = 0 に使うと、しきい値が 0 なので
-     * **等高線がセルの中心に潰れて点になる**。通過前の画面に光点が並んでしまう。
-     */
-    /*
-     * セルは中心から外へ塗り広がるので、local がごく小さい間は
-     * **等高線が点に潰れる**。掃引の始まり側は往復の戻りで最後にこの段階を通るため、
-     * 他が終わったあとに画面の端だけ光点が残って見える。
-     * 立ち上がりの数 % は輪を出さない。
+     * セルは中心から外へ塗り広がるので、local がごく小さい間は等高線が点に潰れる。
+     * 立ち上がりと終わりでは輪を出さない。
      */
     float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
     float edgeBand = uHexEdge * (0.35 + 0.65 * bump);
-    float edgeActive = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump * grow;
-    float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5;
-    float edge = clamp(edgeActive + edgePreview, 0.0, 1.0);
+    float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump * grow;
 
     /*
      * 屈折。距離場の勾配方向へ画をずらす。

@@ -137,50 +137,28 @@ float thr  = local * (0.5 + aa * 3.0 + 0.01);   // 辺（0.5）を越える
 float fill = smoothstep(thr + aa, thr - aa, d);
 ```
 
-### グリッドは境界の周りだけ
+### 縁はいま描かれている六角形の輪郭だけ
 
 ```glsl
-float bump    = 4.0 * local * (1.0 - local);      // 開閉中で最大、閉じると 0
-float pending = start - uProgress;                 // > 0 ならまだ来ていない
-float ahead   = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending);
+float bump = 4.0 * local * (1.0 - local);                      // 開閉中で最大、閉じると 0
+float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
+float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump * grow;
 ```
 
-**`pending` を符号で切ること。** 切らないと通過し終えたセル（`start < progress`）でも
-`smoothstep` が 1 を返し、切り替わった後の画面に格子が残る。
+**「まだ来ていないセルの外形を薄く描く」予告も試したが、消した。**
+六角形が無い場所に線だけが出るので、消し残しにしか見えない。
+縁は実際に伸縮している六角形の周りだけに出す。
 
-縁は 2 種類を足す。
-
-```glsl
-float edgeActive  = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump;             // 閉じていく輪
-float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5; // 予告の外形
-```
-
-**立ち上がりと終わりでは輪を出さない。**
+`grow` は立ち上がりと終わりを抑えるためのもの。
 セルは中心から外へ塗り広がるので、`local` がごく小さい間は等高線が点に潰れる。
 掃引の始まり側は往復の戻りで最後にこの段階を通るため、
-**他が終わったあとに画面の端だけ光点が残る**。
+これを抑えないと**他が終わったあとに画面の端だけ光点が残る**。
 
-```glsl
-float grow = smoothstep(0.0, 0.14, local) * smoothstep(1.0, 0.92, local);
-```
-
-**予告は遷移が動いている間だけ出す。**
-静止中（`progress` が 0 か 1 で止まっている）にも出すと、
-切り替わりが終わった画面に輪郭だけが残骸のように見える。
-通過後のセルには何も描いていないのに「消し残し」に見えるのはこれが原因。
-
-```glsl
-float running = step(0.001, uProgress) * step(uProgress, 0.999);
-float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending) * running;
-```
-
-**進行中の等高線をそのまま通過前にも使ってはいけない。**
-`local = 0` ではしきい値が 0 なので、等高線がセルの中心に潰れて**光点が並ぶ**。
-予告はセルの外形（`d = 0.5`）を薄く描く。
-
-屈折と色収差は `bump` だけに掛ける。通過後も通過前も素の画になる。
+屈折と色収差も同じ `bump * grow` を掛ける。通過後も通過前も素の画になる。
 屈折は「しきい値より内側すべて」ではなく**等高線の帯だけ**。
 内側全部に掛けるとセルの中身が丸ごと歪んで、ガラス玉が敷き詰まった絵になる。
+
+`edge glow` を 0 にすると輪郭線が消え、屈折と色収差だけで境界を表現する地味な見え方になる。
 
 ### セルごとに散らす
 
