@@ -1,11 +1,11 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { quadVertexShader, outlineFragmentShader } from './glsl/outline'
-import { Island } from './scene'
+import { Island, Character } from './scene'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES } from './presets'
 
 /** 色 + 情報の 2 枚を同時に書き出す MRT ターゲット */
@@ -112,6 +112,7 @@ export default function ToonOutline() {
   })
 
   const [params, setParams] = useControls(() => ({
+    subject: { value: DEFAULTS.subject, options: ['character', 'island'] },
     mode: { value: DEFAULTS.mode, options: MODES },
     Outline: folder({
       thickness: { value: DEFAULTS.thickness, min: 0.2, max: 5, step: 0.1 },
@@ -145,7 +146,10 @@ export default function ToonOutline() {
 
   return (
     <Canvas camera={{ position: [0, 1.6, 9.2], fov: 38 }} dpr={[1, 2]}>
-      <Island params={params} />
+      {/* GLB は読み込み中に suspend するので境界の中に置く */}
+      <Suspense fallback={null}>
+        {params.subject === 'character' ? <Character params={params} /> : <Island params={params} />}
+      </Suspense>
       <OutlineRenderer params={params} />
       <OrbitControls enablePan={false} minDistance={4.5} maxDistance={18} target={[0, 0, 0]} />
     </Canvas>

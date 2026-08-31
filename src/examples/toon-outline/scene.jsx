@@ -1,7 +1,11 @@
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useGLTF } from '@react-three/drei'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { createGBufferMaterial } from './material'
+import characterUrl from './assets/character.glb?url'
+
+useGLTF.preload(characterUrl)
 
 /**
  * 小惑星。messenger.abeto.co のタイトル画面に寄せて、球の上に街と木を生やす。
@@ -209,6 +213,114 @@ export function Island({ params }) {
           quaternion={it.quaternion}
           scale={it.scale}
         />
+      ))}
+    </group>
+  )
+}
+
+/** キャラの周りに置く小物。ID の差で線が出る相手が要る */
+const PROPS = [
+  { key: 'cliff', geo: () => new THREE.CylinderGeometry(2.3, 2.5, 0.35, 32), pos: [0, -1.62, 0] },
+  { key: 'rock', geo: () => new THREE.IcosahedronGeometry(0.42, 0), pos: [1.55, -1.15, 0.5] },
+  { key: 'rock', geo: () => new THREE.IcosahedronGeometry(0.26, 0), pos: [-1.5, -1.28, -0.7] },
+  { key: 'wallA', geo: () => new THREE.BoxGeometry(0.42, 1.3, 0.42), pos: [-1.35, -0.8, 0.9] },
+  { key: 'trunk', geo: () => new THREE.CylinderGeometry(0.1, 0.13, 1.6, 8), pos: [1.75, -0.65, -0.9] },
+  { key: 'leaf', geo: () => new THREE.IcosahedronGeometry(0.5, 1), pos: [1.75, 0.35, -0.9] },
+]
+
+/**
+ * キャラクター。
+ *
+ * モデルは 1 メッシュ 1 マテリアルなので **surfaceId は 1 つしか振れない**。
+ * だから内側の線は深度と法線のエッジで出る。ID が効くのは背景・小物との境界。
+ *
+ * 惑星（Island）は逆で、同一球面上に素材を重ねてあるので深度も法線も連続。
+ * そこに線が引けるのは ID があるから。2 つ並べると ID の役割が分かる。
+ */
+export function Character({ params }) {
+  const group = useRef(null)
+  const { scene } = useGLTF(characterUrl)
+  const model = useMemo(() => scene.clone(true), [scene])
+
+  const bodyMaterial = useMemo(
+    () =>
+      createGBufferMaterial({
+        color: PALETTE.wallA.color,
+        shadowColor: PALETTE.wallA.shadow,
+        surfaceId: 0.62,
+      }),
+    [],
+  )
+
+  const props = useMemo(
+    () =>
+      PROPS.map((p, i) => ({
+        ...p,
+        geometry: p.geo(),
+        // 隣接要素の ID が近すぎると差分が出ないので、無理数っぽい間隔で散らす
+        material: createGBufferMaterial({
+          color: PALETTE[p.key].color,
+          shadowColor: PALETTE[p.key].shadow,
+          surfaceId: ((i + 1) * 0.137) % 1,
+        }),
+      })),
+    [],
+  )
+
+  const materials = useMemo(
+    () => [bodyMaterial, ...props.map((p) => p.material)],
+    [bodyMaterial, props],
+  )
+
+  // スケールと原点は生成側に依存するので、bbox から毎回求める
+  useLayoutEffect(() => {
+    model.traverse((o) => {
+      if (o.isMesh) o.material = bodyMaterial
+    })
+
+    const g = group.current
+    if (!g) return
+    g.scale.setScalar(1)
+    g.position.set(0, 0, 0)
+    g.updateMatrixWorld(true)
+
+    const box = new THREE.Box3().setFromObject(model)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const fit = 2.9 / Math.max(size.y, 1e-4)
+    const center = new THREE.Vector3()
+    box.getCenter(center)
+
+    g.scale.setScalar(fit)
+    g.position.set(-center.x * fit, -1.45 - box.min.y * fit, -center.z * fit)
+  }, [model, bodyMaterial])
+
+  useEffect(
+    () => () => {
+      materials.forEach((m) => m.dispose())
+      props.forEach((p) => p.geometry.dispose())
+    },
+    [materials, props],
+  )
+
+  const root = useRef(null)
+  useFrame((state, delta) => {
+    if (root.current) root.current.rotation.y += delta * params.spin
+    for (const m of materials) {
+      if (!m.uniforms) continue
+      m.uniforms.uSteps.value = params.toonSteps
+      m.uniforms.uSketch.value = params.sketch
+      m.uniforms.uTime.value = state.clock.elapsedTime
+    }
+  })
+
+  return (
+    <group ref={root} rotation={[0.1, 0, 0]}>
+      <group ref={group}>
+        <primitive object={model} />
+      </group>
+      {props.map((p, i) => (
+        <mesh key={i} geometry={p.geometry} material={p.material} position={p.pos} />
       ))}
     </group>
   )
