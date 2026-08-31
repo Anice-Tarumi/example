@@ -1,15 +1,27 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { vertexShader, parallaxFragmentShader } from './glsl/parallax'
+import { useTexture } from '@react-three/drei'
 import { getSceneTextures } from './scene'
+import { PHOTOS, SOURCE_OPTIONS, configureTextures } from './photos'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES } from './presets'
 
 function ParallaxCard({ params }) {
   const size = useThree((s) => s.size)
   const domElement = useThree((s) => s.gl.domElement)
-  const scene = useMemo(() => getSceneTextures(), [])
+  // 手続きの絵は同期で作れる。写真は読み込みが要るので useTexture（suspend する）
+  const procedural = useMemo(() => getSceneTextures(), [])
+  const photoId = params.source === 'photoB' ? 'photoB' : 'photoA'
+  const photo = PHOTOS[photoId]
+  const [photoColor, photoDepth] = useTexture([photo.color, photo.depth])
+
+  const scene = useMemo(() => {
+    if (params.source === 'procedural') return procedural
+    configureTextures(photoColor, photoDepth)
+    return { color: photoColor, depth: photoDepth, aspect: photo.aspect }
+  }, [params.source, procedural, photoColor, photoDepth, photo.aspect])
 
   // サンプル数はシェーダーへ定数として埋め込むので、変わったら作り直す
   const material = useMemo(() => {
@@ -134,6 +146,7 @@ export default function DepthParallax() {
   })
 
   const [params, setParams] = useControls(() => ({
+    source: { value: DEFAULTS.source, options: SOURCE_OPTIONS },
     mode: { value: DEFAULTS.mode, options: MODES },
     Parallax: folder({
       zMultiplier: { value: DEFAULTS.zMultiplier, min: 0, max: 0.8, step: 0.01, label: 'depth' },
@@ -171,7 +184,10 @@ export default function DepthParallax() {
   return (
     <Canvas camera={{ position: [0, 0, 2.4], fov: 45 }} dpr={[1, 2]}>
       <color attach="background" args={['#05070c']} />
-      <ParallaxCard params={params} />
+      {/* 写真は読み込み中に suspend する */}
+      <Suspense fallback={null}>
+        <ParallaxCard params={params} />
+      </Suspense>
     </Canvas>
   )
 }

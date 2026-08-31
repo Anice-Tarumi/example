@@ -3,11 +3,12 @@ export const PRESETS = {
   parallax: {
     label: 'Depth Parallax',
     params: {
+      source: 'photoA',
       mode: 'scene',
-      parallaxSamples: 12,
+      parallaxSamples: 28,
       blurSamples: 10,
-      zMultiplier: 0.72,
-      shiftAmount: 0.13,
+      zMultiplier: 0.5,
+      shiftAmount: 0.1,
       shiftEase: 0.06,
       focus: 0.9,
       blurStrength: 0.0,
@@ -27,8 +28,9 @@ export const PRESETS = {
   dof: {
     label: 'Rack Focus',
     params: {
+      source: 'photoA',
       mode: 'scene',
-      parallaxSamples: 12,
+      parallaxSamples: 28,
       blurSamples: 10,
       zMultiplier: 0.3,
       shiftAmount: 0.08,
@@ -51,8 +53,9 @@ export const PRESETS = {
   flashlight: {
     label: 'Depth Flashlight',
     params: {
+      source: 'photoA',
       mode: 'scene',
-      parallaxSamples: 12,
+      parallaxSamples: 28,
       blurSamples: 6,
       zMultiplier: 0.38,
       shiftAmount: 0.1,
@@ -75,8 +78,9 @@ export const PRESETS = {
   depth: {
     label: 'Depth Map',
     params: {
+      source: 'photoA',
       mode: 'depth',
-      parallaxSamples: 12,
+      parallaxSamples: 28,
       blurSamples: 6,
       zMultiplier: 0.36,
       shiftAmount: 0.11,

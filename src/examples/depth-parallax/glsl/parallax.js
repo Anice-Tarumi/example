@@ -53,17 +53,28 @@ export function parallaxFragmentShader(parallaxSamples, blurSamples) {
      * 視差レイマーチ。
      * 視点から出たレイを進めながら、その xy 位置の深度と現在の z を比べ、
      * サーフェスをくぐった時点で止める。止まった uv で本画像を引く。
+     *
+     * **止めただけでは足りない。** ステップ幅で量子化されるので、深度が急に変わる縁で
+     * 階段状のギザギザが出る。実写の深度マップは輪郭が鋭いので特に目立つ。
+     * 直前のステップとの間を線形補間して交差点を詰める。
      */
     vec2 marchParallax(vec2 uv, vec2 shift) {
       vec3 rayPos = vec3(uv, 0.0);
       vec3 rayStep = vec3(shift, 1.0) / float(${P});
+      vec3 prev = rayPos;
 
       for (int i = 0; i < ${P}; i++) {
         float d = (1.0 - sampleDepth(rayPos.xy)) * uZMultiplier;
         if (d < rayPos.z) break;
+        prev = rayPos;
         rayPos += rayStep;
       }
-      return rayPos.xy;
+
+      // 直前と現在の「サーフェスまでの符号付き距離」から交点の比を出す
+      float dCur = (1.0 - sampleDepth(rayPos.xy)) * uZMultiplier - rayPos.z;
+      float dPrev = (1.0 - sampleDepth(prev.xy)) * uZMultiplier - prev.z;
+      float t = clamp(dPrev / max(dPrev - dCur, 1e-5), 0.0, 1.0);
+      return mix(prev.xy, rayPos.xy, t);
     }
 
     /** 焦点面から外れた深度ほどぼかす。ディスク状にサンプルして平均 */
