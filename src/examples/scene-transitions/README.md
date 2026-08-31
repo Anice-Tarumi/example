@@ -140,16 +140,27 @@ float fill = smoothstep(thr + aa, thr - aa, d);
 ### グリッドは境界の周りだけ
 
 ```glsl
-float bump  = 4.0 * local * (1.0 - local);              // 開閉中で最大、閉じると 0
-float ahead = smoothstep(uHexReach, 0.0, start - uProgress);  // これから来る分を薄く
-float gridVis = max(bump, ahead * 0.45);
+float bump    = 4.0 * local * (1.0 - local);      // 開閉中で最大、閉じると 0
+float pending = start - uProgress;                 // > 0 ならまだ来ていない
+float ahead   = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending);
 ```
 
-縁・屈折・色収差すべてに `gridVis` を掛ける。
-通り過ぎたセルは素のシーンに戻り、遠くのセルはまだ現れない。
-**変化している帯にだけ処理が集まる**ので、そこに視線が行く。
+**`pending` を符号で切ること。** 切らないと通過し終えたセル（`start < progress`）でも
+`smoothstep` が 1 を返し、切り替わった後の画面に格子が残る。
 
-屈折は「しきい値より内側すべて」ではなく**等高線の帯だけ**に掛ける。
+縁は 2 種類を足す。
+
+```glsl
+float edgeActive  = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump;             // 閉じていく輪
+float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5; // 予告の外形
+```
+
+**進行中の等高線をそのまま通過前にも使ってはいけない。**
+`local = 0` ではしきい値が 0 なので、等高線がセルの中心に潰れて**光点が並ぶ**。
+予告はセルの外形（`d = 0.5`）を薄く描く。
+
+屈折と色収差は `bump` だけに掛ける。通過後も通過前も素の画になる。
+屈折は「しきい値より内側すべて」ではなく**等高線の帯だけ**。
 内側全部に掛けるとセルの中身が丸ごと歪んで、ガラス玉が敷き詰まった絵になる。
 
 ### セルごとに散らす

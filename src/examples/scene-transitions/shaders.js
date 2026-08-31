@@ -309,29 +309,43 @@ export const fragmentShader = /* glsl */`
 
     /*
      * グリッドを見せるのは境界の周りだけ。
-     *   bump  … 開閉中のセルで最大、閉じきると 0
-     *   ahead … これから来るセルを薄く先読みさせる
-     * 遠いセルは 0 になるので、切り替わった後の画面に格子が残らない。
+     *
+     *   bump    … 開閉中のセルで最大、閉じきると 0
+     *   pending … まだ来ていないセルまでの残り時間。**通過済みは 0 に落とす**
+     *
+     * pending を符号で切らないと、通過し終えたセル（start < progress）でも
+     * smoothstep が 1 を返し、切り替わった後の画面に格子が残る。
      */
     float bump = 4.0 * local * (1.0 - local);
-    float ahead = smoothstep(uHexReach, 0.0, start - uProgress);
-    float gridVis = clamp(max(bump, ahead * 0.45), 0.0, 1.0);
+    float pending = start - uProgress;
+    float ahead = smoothstep(uHexReach, 0.0, pending) * step(0.0001, pending);
 
-    // 縁。同じ距離場の等高線
+    /*
+     * 縁は 2 種類を足す。
+     *
+     *   進行中 … しきい値の等高線。閉じていく輪
+     *   予告   … セルの外形（d = 0.5）。薄く出して、来るのが分かるようにする
+     *
+     * 進行中の等高線をそのまま local = 0 に使うと、しきい値が 0 なので
+     * **等高線がセルの中心に潰れて点になる**。通過前の画面に光点が並んでしまう。
+     */
     float edgeBand = uHexEdge * (0.35 + 0.65 * bump);
-    float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * gridVis;
+    float edgeActive = smoothstep(edgeBand, 0.0, abs(d - thr)) * bump;
+    float edgePreview = smoothstep(edgeBand * 0.7, 0.0, abs(d - 0.5)) * ahead * 0.5;
+    float edge = clamp(edgeActive + edgePreview, 0.0, 1.0);
 
     /*
      * 屈折。距離場の勾配方向へ画をずらす。
      *
      * しきい値より内側すべてに掛けると、セルの中身が丸ごと歪んで
      * 「ガラス玉が敷き詰まった」絵になる。**等高線の帯だけ**に掛ける。
+     * 掛けるのは開閉中（bump）のセルだけ。通過後と通過前は素の画を出す。
      */
     vec2 grad = normalize(cell + 1e-6);
-    float nearEdge = smoothstep(max(edgeBand, 1e-4) * 2.5, 0.0, abs(d - thr));
-    vec2 refr = grad * nearEdge * uHexRefract * gridVis;
+    float nearEdge = smoothstep(max(edgeBand, 1e-4) * 2.5, 0.0, abs(d - thr)) * bump;
+    vec2 refr = grad * nearEdge * uHexRefract;
 
-    float ca = uCaAmount * 0.35 * nearEdge * gridVis;
+    float ca = uCaAmount * 0.35 * nearEdge;
     float n = ign(gl_FragCoord.xy);
 
     vec3 a = chromatic(uSceneA, vUv + refr, ca, n);
