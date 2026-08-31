@@ -37,6 +37,7 @@ export const fragmentShader = /* glsl */`
   uniform float uHexEdge;     // 縁の太さ
   uniform float uHexRefract;  // 縁での屈折
   uniform float uHexSpin;     // セルの回転
+  uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
   uniform vec3  uEdgeColor;
 
   varying vec2 vUv;
@@ -277,12 +278,17 @@ export const fragmentShader = /* glsl */`
     float rnd = hash(id * 0.137);
     float rnd2 = hash(id * 0.317 + 5.0);
 
-    // 掃引の順番。画面を斜めに走らせる
-    float sweep = (vUv.x * 0.6 + vUv.y * 0.4);
-    float order = mix(sweep, rnd, uHexJitter);
-    float span = 0.45;
-    float local = clamp((uProgress * (1.0 + span) - order * span) / (1.0 - span * 0.0), 0.0, 1.0);
-    local = clamp(local, 0.0, 1.0);
+    /*
+     * 上から順に閉じる。
+     *
+     * **1 セルが閉じる時間（window）を短くし、開始時刻を掃引でずらす**のが要点。
+     * window を長く取ると全セルの開閉が重なって、画面全体が一斉に変わって見える。
+     */
+    float sweep = clamp((1.0 - vUv.y) * 0.85 + vUv.x * 0.15, 0.0, 1.0);
+    float order = clamp(mix(sweep, rnd, uHexJitter), 0.0, 1.0);
+    float window = max(uHexWindow, 0.02);
+    float start = order * (1.0 - window);
+    float local = clamp((uProgress - start) / window, 0.0, 1.0);
 
     // セルは回りながら閉じる
     vec2 cell = rot2(gv, (rnd2 - 0.5) * uHexSpin * (1.0 - local));

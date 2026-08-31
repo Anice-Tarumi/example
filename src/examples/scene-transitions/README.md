@@ -112,6 +112,20 @@ vec2  refr = normalize(cell) * nearEdge * uHexRefract;             // 屈折（�
 塗り・縁・屈折が**同じ距離場から出ている**ので、形が必ず一致する。
 別々にマスクを作ると、拡大したときにズレが見える。
 
+### 上から順に閉じる
+
+**1 セルが閉じる時間（`cell time`）を短くし、開始時刻を掃引でずらす。**
+
+```glsl
+float sweep = (1.0 - vUv.y) * 0.85 + vUv.x * 0.15;   // 上から、わずかに斜め
+float order = mix(sweep, rnd, uHexJitter);
+float start = order * (1.0 - window);
+float local = clamp((uProgress - start) / window, 0.0, 1.0);
+```
+
+窓を長く取ると全セルの開閉が重なって、**画面全体が一斉に変わって見える**。
+短くするほど「閉じている帯」が細くなり、波として読める。
+
 ### セルごとに散らす
 
 - `hash(セル ID)` で**遅延**を散らす。掃引の順番と混ぜる比率が `jitter`
