@@ -1,0 +1,16 @@
+{
+  "title": "Debris Assembly",
+  "description": "上から降ってきた破片が積み重なり、その山が絵になる。着地点を絵から逆算してから順方向にシミュレーションを回し、結果を Float テクスチャへ焼く。逆再生は使わない。",
+  "emoji": "🧱",
+  "category": "geometry",
+  "tags": ["bake", "vat", "simulation", "instancing", "3d"],
+  "variants": [
+    { "id": "drop", "label": "Drop" },
+    { "id": "fine", "label": "Fine Grain" },
+    { "id": "chunky", "label": "Chunky" },
+    { "id": "rain", "label": "Slow Rain" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "逆再生は散逸項でエネルギーを生むので使えない。着地点を先に決めて順方向に落とす"
+}
