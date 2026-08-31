@@ -1,9 +1,10 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { Environment, OrbitControls } from '@react-three/drei'
+import { ENV_MAPS } from '../../shared/env'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { STAGE_SCENES, Slab, SCENE_COUNT } from './scenes'
+import { STAGE_SCENES, Slab, Diorama, SCENE_COUNT } from './scenes'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, AXES } from './presets'
 
 /**
@@ -131,11 +132,7 @@ function Stage({ params }) {
         <group position={[0, half, 0]}>
           {STAGE_SCENES.map((s, i) => (
             <group key={s.id} ref={(el) => (topRefs.current[i] = el)} visible={i === 0}>
-              <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[params.radius * 0.995, 48]} />
-                <meshStandardMaterial color={s.ground} />
-              </mesh>
-              <s.Component radius={params.radius} />
+              <Diorama url={s.url} radius={params.radius} />
             </group>
           ))}
         </group>
@@ -144,11 +141,7 @@ function Stage({ params }) {
         <group position={[0, -half, 0]} rotation={[Math.PI, 0, 0]}>
           {STAGE_SCENES.map((s, i) => (
             <group key={s.id} ref={(el) => (bottomRefs.current[i] = el)} visible={i === 1}>
-              <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[params.radius * 0.995, 48]} />
-                <meshStandardMaterial color={s.ground} />
-              </mesh>
-              <s.Component radius={params.radius} />
+              <Diorama url={s.url} radius={params.radius} />
             </group>
           ))}
         </group>
@@ -200,12 +193,14 @@ export default function FlipStage() {
       <directionalLight position={[3, 6, 4]} intensity={2.1} />
       <directionalLight position={[-4, -3, -2]} intensity={0.5} color="#8fb6ff" />
 
-      <Stage params={params} />
-
-      <Environment resolution={128}>
-        <Lightformer intensity={1.6} position={[0, 5, 2]} scale={[8, 3, 1]} color="#dceaff" />
-        <Lightformer intensity={0.9} position={[-4, 0, -3]} scale={[4, 5, 1]} color="#ffb9a0" />
-      </Environment>
+      {/*
+        GLB も HDRI も読み込み中は suspend する。Suspense 境界の中に置かないと
+        Canvas の中身ごと外され、キャンバスが消える。
+      */}
+      <Suspense fallback={null}>
+        <Stage params={params} />
+        <Environment files={ENV_MAPS.studio.url} />
+      </Suspense>
 
       <OrbitControls enablePan={false} minDistance={3} maxDistance={11} target={[0, 0.2, 0]} />
     </Canvas>

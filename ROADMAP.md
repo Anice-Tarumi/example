@@ -112,6 +112,7 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 | `text-effects/assets/Anton-Regular.ttf` | Google Fonts | OFL | SDF アトラス |
 | `text-effects/assets/SpaceGrotesk-VariableFont_wght.ttf` | Google Fonts | OFL | 同上 |
 | `text-effects/assets/ZenKakuGothicNew-Bold.ttf` | Google Fonts | OFL | 同上（日本語） |
+| `flip-stage/assets/*.glb` × 6 | Tripo 生成 | 自社 | 円盤に載せる小シーン |
 
 ### 決めたこと
 
@@ -238,6 +239,10 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
     例外も警告も出ない。`ctx.font` の family が使えなければ sans-serif で塗って終わる。
     SDF を焼く前に `FontFace.load()` の完了を待つこと。
 
-28. **黒い画面は lint も build も検出しない。**
+28. **読み込みで suspend するものは `Suspense` 境界の中に置く。**
+    drei の `useGLTF` / `<Environment files>` は suspend する。境界の外に置くと
+    Canvas の中身ごと外され、キャンバスの DOM ごと消える。
+
+29. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
