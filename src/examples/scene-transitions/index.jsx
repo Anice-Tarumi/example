@@ -31,6 +31,9 @@ function createUniforms() {
     uHexEdge: { value: 0.06 },
     uHexRefract: { value: 0.03 },
     uHexSpin: { value: 1.2 },
+    uHexSoft: { value: 0.18 },
+    uHexWobble: { value: 0.18 },
+    uHexSeedJitter: { value: 0.35 },
     uHexWindow: { value: 0.28 },
     uEdgeColor: { value: new THREE.Color('#8fe6ff') },
     uHexGlow: { value: 1 },
@@ -105,6 +108,9 @@ function TransitionStage({ params }) {
     uniforms.uHexEdge.value = params.hexEdge
     uniforms.uHexRefract.value = params.hexRefract
     uniforms.uHexSpin.value = params.hexSpin
+    uniforms.uHexSoft.value = params.hexSoft
+    uniforms.uHexWobble.value = params.hexWobble
+    uniforms.uHexSeedJitter.value = params.hexSeedJitter
     uniforms.uHexWindow.value = params.hexWindow
     uniforms.uEdgeColor.value.set(params.edgeColor)
     uniforms.uHexGlow.value = params.hexGlow
@@ -185,6 +191,9 @@ export default function SceneTransitions() {
       hexEdge: { value: DEFAULTS.hexEdge, min: 0, max: 0.25, step: 0.005, label: 'edge' },
       hexRefract: { value: DEFAULTS.hexRefract, min: 0, max: 0.15, step: 0.002, label: 'refract' },
       hexSpin: { value: DEFAULTS.hexSpin, min: 0, max: 4, step: 0.05, label: 'spin' },
+      hexSoft: { value: DEFAULTS.hexSoft, min: 0.01, max: 0.6, step: 0.01, label: 'softness' },
+      hexWobble: { value: DEFAULTS.hexWobble, min: 0, max: 0.6, step: 0.01, label: 'wobble' },
+      hexSeedJitter: { value: DEFAULTS.hexSeedJitter, min: 0, max: 1, step: 0.02, label: 'seed var' },
       hexWindow: { value: DEFAULTS.hexWindow, min: 0.05, max: 1, step: 0.01, label: 'cell time' },
       edgeColor: { value: DEFAULTS.edgeColor, label: 'edge col' },
       hexGlow: { value: DEFAULTS.hexGlow, min: 0, max: 2, step: 0.05, label: 'edge glow' },

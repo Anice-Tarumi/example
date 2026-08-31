@@ -40,6 +40,9 @@ export const fragmentShader = /* glsl */`
   uniform float uHexEdge;     // 縁の太さ
   uniform float uHexRefract;  // 縁での屈折
   uniform float uHexSpin;     // セルの回転
+  uniform float uHexSoft;     // 円と六角形の接合の丸み
+  uniform float uHexWobble;   // 輪郭の波打ち
+  uniform float uHexSeedJitter; // 生える起点のばらつき
   uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
   uniform vec3  uEdgeColor;
   uniform float uHexGlow;     // 輪郭線の強さ。0 で線を消す
@@ -316,71 +319,58 @@ export const fragmentShader = /* glsl */`
     float start = order * (1.0 - window);
     float local = clamp((uProgress - start) / window, 0.0, 1.0);
 
-    // セルは回りながら閉じる。回すのは六角形の形だけで、塗る向きは回さない
-    vec2 cell = rot2(gv, (rnd2 - 0.5) * uHexSpin * (1.0 - local));
-    float d = hexDist(cell);
-
     /*
-     * アンチエイリアス幅。
+     * タイルの生え方。
      *
-     * **fwidth(d) を使ってはいけない。** セルごとに回転量が違うので d は
-     * セル境界で不連続になり、画面空間の微分である fwidth はそこで跳ね上がる。
-     * その画素だけ縁の幅が変わって「ぼけているセル」に見え、
-     * 不連続線そのものが格子状の筋として画面に出る。
+     * ぼかして現れさせるのではなく、**六角形そのものが変形しながら拡大する**。
+     * 小さい間は隣のタイルと接しないので隙間が空き、そこから前のシーンが見える。
+     * 満ちると辺どうしが接して隙間が閉じる。
      *
-     * 連続な座標（ps）の画素フットプリントから求める。d と同じ単位なのでそのまま使える。
+     * 拡大の中心は**波が来る側の端**から始めて、育つにつれてセル中心へ寄る。
+     * 中心から等方に膨らませると、波の向きと噛み合わない。
      */
     float aa = max(length(fwidth(ps)) * 0.7, 1e-4);
 
-    /*
-     * セルの塗り進み方。
-     *
-     * 中心から外へ広げると、波が上から来ているのにセルだけ中心から育つので
-     * 動きの向きが噛み合わない。**波の進行方向に沿ってセル内を塗る**。
-     * 上から来るなら六角形の上端から満ちていく。
-     *
-     * 形（六角形）は回転させるが、塗る向きは画面に固定する。
-     * 一緒に回すとセルごとに満ちる向きがばらばらになって、また噛み合わなくなる。
-     */
     vec2 flowDir = normalize(vec2(0.15, -0.85));
-    float along = dot(gv, flowDir);
-    const float extent = 0.5 * 1.7320508 * 0.5 + 0.08;
-    float front = mix(-extent, extent, local);
+    const float extent = 0.5 * 1.7320508 * 0.5;
+
+    float g = local * local * (3.0 - 2.0 * local);
+    float scale = max(g, 1e-3);
+
+    vec2 seed = -flowDir * extent * (1.0 + uHexSeedJitter * (rnd - 0.5));
+    vec2 center = seed * (1.0 - g);
+
+    // タイル座標へ。回転と拡大をここで戻す
+    vec2 q = rot2(gv - center, (rnd2 - 0.5) * uHexSpin * (1.0 - g)) / scale;
 
     /*
-     * 六角形のマスク。**辺（d = 0.5）でちょうど 1 に届かせる。**
-     * smoothstep の境界を 0.5 に置くと、辺の上で 0.5 を返して
-     * 隣接セルとの間に細い隙間が残る。
+     * 変形。角度によって辺までの距離を伸縮させる。
+     * 真っ直ぐな六角形のまま拡大すると硬いので、輪郭を波打たせる。
      */
-    float hexMask = smoothstep(0.5 + aa * 4.0, 0.5 + aa, d);
-    float wipe = smoothstep(front + aa, front - aa, along);
-    float fill = hexMask * wipe;
+    float ang = atan(q.y, q.x);
+    float wob = 1.0 + uHexWobble * (
+      sin(ang * 3.0 + rnd * 6.2831 + uProgress * 3.0) * 0.5 +
+      sin(ang * 5.0 - rnd2 * 6.2831) * 0.5
+    ) * (1.0 - g);
+
+    float d = hexDist(q);
+    float shape = d - 0.5 * wob;
+
+    // q は scale で割ってあるので、アンチエイリアス幅も同じだけ割る
+    float aq = aa / scale;
+    float fill = smoothstep(aq, -aq, shape);
 
     float bump = 4.0 * local * (1.0 - local);
-    float grow = smoothstep(0.0, 0.08, local) * smoothstep(1.0, 0.94, local);
+
+    // 発光は出さない。輪郭は形のエッジだけで見せる
+    float edge = 0.0;
 
     /*
-     * 縁は**塗られている領域の輪郭**。2 本ある。
-     *   進行線 … 塗りの先端。セル内を進む
-     *   外周   … 六角形の辺のうち、すでに塗られた側
+     * 隙間のまわりを歪ませる。
+     * タイルの縁からの距離で帯を作り、そこだけ画をずらす。
      */
-    float edgeBand = uHexEdge;
-    float frontLine = smoothstep(edgeBand, 0.0, abs(along - front)) * hexMask;
-    float rim = smoothstep(edgeBand, 0.0, abs(d - 0.5)) * wipe;
-    float edge = clamp(max(frontLine, rim), 0.0, 1.0) * bump * grow;
-
-    /*
-     * 屈折。距離場の勾配方向へ画をずらす。
-     *
-     * しきい値より内側すべてに掛けると、セルの中身が丸ごと歪んで
-     * 「ガラス玉が敷き詰まった」絵になる。**等高線の帯だけ**に掛ける。
-     * 掛けるのは開閉中（bump）のセルだけ。通過後と通過前は素の画を出す。
-     */
-    vec2 grad = normalize(cell + 1e-6);
-    float nearEdge = clamp(max(
-      smoothstep(edgeBand * 2.5, 0.0, abs(along - front)) * hexMask,
-      smoothstep(edgeBand * 2.5, 0.0, abs(d - 0.5)) * wipe
-    ), 0.0, 1.0) * bump * grow;
+    float nearEdge = smoothstep(uHexEdge * 4.0 / scale, 0.0, abs(shape)) * bump;
+    vec2 grad = normalize(q + 1e-6);
     vec2 refr = grad * nearEdge * uHexRefract;
 
     float ca = uCaAmount * 0.35 * nearEdge;
