@@ -115,9 +115,10 @@ export function bakeAssembly({
     const [tx, tz] = slots[i]
     const s = pieceSize * (1 - sizeVariation * 0.5 + rand() * sizeVariation)
 
-    sizes[i * 3] = s * (0.8 + rand() * 0.6)
-    sizes[i * 3 + 1] = s * (0.35 + rand() * 0.4)
-    sizes[i * 3 + 2] = s * (0.8 + rand() * 0.6)
+    // 平たい板にする。厚みがあると縦に積み上がって輪郭がぼやける
+    sizes[i * 3] = s * (0.85 + rand() * 0.5)
+    sizes[i * 3 + 1] = s * (0.18 + rand() * 0.16)
+    sizes[i * 3 + 2] = s * (0.85 + rand() * 0.5)
 
     // 目標の真上。水平のばらつきは小さく。大きいと絵が崩れる
     px[i] = tx + (rand() - 0.5) * spread

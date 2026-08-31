@@ -1,5 +1,24 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 export const PRESETS = {
+  ice: {
+    label: 'Ice Cut',
+    params: {
+      mode: 'ice-cut',
+      direction: 0,
+      edge: 0.12,
+      noiseScale: 3,
+      noiseAmount: 0.18,
+      flash: 0,
+      zoom: 0,
+      overlayColor: '#0a0d14',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
+      duration: 1.6,
+    },
+  },
+
   'noise-wipe': {
     label: 'Noise Wipe',
     params: {
@@ -12,6 +31,10 @@ export const PRESETS = {
       flash: 0.4,
       zoom: 0.04,
       overlayColor: '#f25a5a',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
     },
   },
   curtain: {
@@ -26,6 +49,10 @@ export const PRESETS = {
       flash: 0,
       zoom: 0,
       overlayColor: '#f25a5a',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
     },
   },
   fade: {
@@ -40,6 +67,10 @@ export const PRESETS = {
       flash: 0,
       zoom: 0,
       overlayColor: '#151d47',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
     },
   },
   circle: {
@@ -54,13 +85,17 @@ export const PRESETS = {
       flash: 0.5,
       zoom: 0.12,
       overlayColor: '#151d47',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
     },
   },
 }
 
-export const MODES = ['noise-wipe', 'curtain', 'fade', 'circle']
+export const MODES = ['noise-wipe', 'curtain', 'fade', 'circle', 'ice-cut']
 
-export const DEFAULT_PRESET = 'noise-wipe'
+export const DEFAULT_PRESET = 'ice'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
 
 /** leva の options 用 { ラベル: id } テーブル */

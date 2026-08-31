@@ -4,6 +4,7 @@ import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
+import { createScrollTexture } from './scrollTexture'
 import { SceneA, SceneB } from './scenes'
 import { vertexShader, fragmentShader } from './shaders'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, MODES } from './presets'
@@ -15,6 +16,11 @@ function createUniforms() {
     uSceneA: { value: null },
     uSceneB: { value: null },
     uProgress: { value: 0 },
+    uScroll: { value: null },
+    uSlope: { value: 0.2 },
+    uParallax: { value: 0.4 },
+    uDisplace: { value: 0.025 },
+    uCaAmount: { value: 12 },
     uMode: { value: 0 },
     uDirection: { value: DEFAULTS.direction },
     uEdge: { value: DEFAULTS.edge },
@@ -32,6 +38,10 @@ function TransitionStage({ params }) {
   const sceneA = useMemo(() => new THREE.Scene(), [])
   const sceneB = useMemo(() => new THREE.Scene(), [])
   const fboSettings = useMemo(() => ({ type: THREE.UnsignedByteType }), [])
+  // 切り口を作るテクスチャ。手続きで一度だけ焼く
+  const scroll = useMemo(() => createScrollTexture(), [])
+  useEffect(() => () => scroll.dispose(), [scroll])
+
   const targetA = useFBO(fboSettings)
   const targetB = useFBO(fboSettings)
 
@@ -67,6 +77,10 @@ function TransitionStage({ params }) {
     uniforms.uFlash.value = params.flash
     uniforms.uZoom.value = params.zoom
     uniforms.uOverlayColor.value.set(params.overlayColor)
+    uniforms.uSlope.value = params.slope
+    uniforms.uParallax.value = params.parallax
+    uniforms.uDisplace.value = params.displace
+    uniforms.uCaAmount.value = params.ca
   }, [uniforms, params])
 
   useEffect(() => {
@@ -104,6 +118,7 @@ function TransitionStage({ params }) {
     gl.render(sceneB, camera)
 
     gl.setRenderTarget(null)
+    uniforms.uScroll.value = scroll
     uniforms.uSceneA.value = targetA.texture
     uniforms.uSceneB.value = targetB.texture
     quad.render(gl)
@@ -124,6 +139,10 @@ export default function SceneTransitions() {
 
   const [params, setParams] = useControls(() => ({
     mode: { value: DEFAULTS.mode, options: MODES },
+    slope: { value: DEFAULTS.slope, min: 0, max: 0.6, step: 0.01, label: 'cut slope' },
+    parallax: { value: DEFAULTS.parallax, min: 0, max: 1, step: 0.02 },
+    displace: { value: DEFAULTS.displace, min: 0, max: 0.12, step: 0.002, label: 'push' },
+    ca: { value: DEFAULTS.ca, min: 0, max: 40, step: 1, label: 'aberration' },
     auto: true,
     progress: {
       value: 0.5,

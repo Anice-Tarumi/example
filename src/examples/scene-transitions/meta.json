@@ -1,16 +1,37 @@
 {
   "title": "Scene Transitions",
-  "description": "2つの3DシーンをFBOに焼き、全画面クアッドで合成して切り替える。ノイズワイプ・劇場カーテン・オーバーレイフェード・円形ワイプを同じ画面で試せる。",
+  "description": "2 つの 3D シーンを FBO へ焼き、全画面クアッドで合成して切り替える。igloo 方式の Ice Cut は、同じ切り取り線から margin 違いで 3 本の縁を取り出し、色収差・押しのけ・割れを別々の速さで走らせる。",
   "emoji": "🎬",
   "category": "transitions",
-  "tags": ["transition", "fbo", "shader", "postprocess"],
-  "variants": [
-    { "id": "noise-wipe", "label": "Noise Wipe" },
-    { "id": "curtain", "label": "Theater Curtain" },
-    { "id": "fade", "label": "Overlay Fade" },
-    { "id": "circle", "label": "Circle Wipe" }
+  "tags": [
+    "transition",
+    "fbo",
+    "shader",
+    "postprocess"
   ],
-  "source": "ai-quest (Lusion) / bilal.show / gameboy-tawny",
-  "sourceUrl": "https://ai-quest.lusion.co/",
+  "variants": [
+    {
+      "id": "ice",
+      "label": "Ice Cut"
+    },
+    {
+      "id": "noise-wipe",
+      "label": "Noise Wipe"
+    },
+    {
+      "id": "curtain",
+      "label": "Theater Curtain"
+    },
+    {
+      "id": "fade",
+      "label": "Overlay Fade"
+    },
+    {
+      "id": "circle",
+      "label": "Circle Wipe"
+    }
+  ],
+  "source": "igloo.inc / ai-quest (Lusion) / bilal.show",
+  "sourceUrl": "https://www.igloo.inc/",
   "note": "Obsidian: ノイズマスクによる画面トランジション / 劇場カーテンのDOMトランジション / 全画面オーバーレイクアッドによるローディング画面フェード"
 }
