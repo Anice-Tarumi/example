@@ -202,7 +202,17 @@ export default function FlipStage() {
         <Environment files={ENV_MAPS.studio.url} />
       </Suspense>
 
-      <OrbitControls enablePan={false} minDistance={3} maxDistance={11} target={[0, 0.2, 0]} />
+      {/*
+        回転は無効。どんでん返しは「正面から見て板が返る」演出なので、
+        横や真上から見ると仕掛けが読めなくなる。寄り引きだけ残す。
+      */}
+      <OrbitControls
+        enableRotate={false}
+        enablePan={false}
+        minDistance={3}
+        maxDistance={11}
+        target={[0, 0.2, 0]}
+      />
     </Canvas>
   )
 }
