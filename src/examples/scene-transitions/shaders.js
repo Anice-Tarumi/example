@@ -38,6 +38,7 @@ export const fragmentShader = /* glsl */`
   uniform float uHexRefract;  // 縁での屈折
   uniform float uHexSpin;     // セルの回転
   uniform float uHexWindow;   // 1 セルが閉じきるまでの長さ（全体に対する割合）
+  uniform float uHexReach;    // 境界の手前どこまでグリッドを薄く見せるか
   uniform vec3  uEdgeColor;
 
   varying vec2 vUv;
@@ -294,20 +295,43 @@ export const fragmentShader = /* glsl */`
     vec2 cell = rot2(gv, (rnd2 - 0.5) * uHexSpin * (1.0 - local));
     float d = hexDist(cell);
 
-    // 塗り。閉じきると 0.5（辺）まで届く
+    /*
+     * 塗り。
+     *
+     * しきい値を 0.5 * local にすると、閉じきったとき（local = 1）に
+     * しきい値がちょうどセルの辺と一致する。辺の上では smoothstep が 0.5 を返すので、
+     * **全部の格子線が半分ブレンドされた線として残る**。
+     * 辺より外側まで振り切らせる。
+     */
     float aa = fwidth(d) * 1.5 + 1e-5;
-    float fill = smoothstep(0.5 * local + aa, 0.5 * local - aa, d);
+    float thr = local * (0.5 + aa * 3.0 + 0.01);
+    float fill = smoothstep(thr + aa, thr - aa, d);
+
+    /*
+     * グリッドを見せるのは境界の周りだけ。
+     *   bump  … 開閉中のセルで最大、閉じきると 0
+     *   ahead … これから来るセルを薄く先読みさせる
+     * 遠いセルは 0 になるので、切り替わった後の画面に格子が残らない。
+     */
+    float bump = 4.0 * local * (1.0 - local);
+    float ahead = smoothstep(uHexReach, 0.0, start - uProgress);
+    float gridVis = clamp(max(bump, ahead * 0.45), 0.0, 1.0);
 
     // 縁。同じ距離場の等高線
-    float edgeBand = uHexEdge * (0.35 + 0.65 * (1.0 - abs(local * 2.0 - 1.0)));
-    float edge = smoothstep(edgeBand, 0.0, abs(d - 0.5 * local)) * step(0.001, local) * step(local, 0.999);
+    float edgeBand = uHexEdge * (0.35 + 0.65 * bump);
+    float edge = smoothstep(edgeBand, 0.0, abs(d - thr)) * gridVis;
 
-    // 屈折。距離場の勾配方向へ画をずらす
+    /*
+     * 屈折。距離場の勾配方向へ画をずらす。
+     *
+     * しきい値より内側すべてに掛けると、セルの中身が丸ごと歪んで
+     * 「ガラス玉が敷き詰まった」絵になる。**等高線の帯だけ**に掛ける。
+     */
     vec2 grad = normalize(cell + 1e-6);
-    float nearEdge = smoothstep(0.5 * local, 0.5 * local - edgeBand * 2.0, d);
-    vec2 refr = grad * nearEdge * uHexRefract * (1.0 - local);
+    float nearEdge = smoothstep(max(edgeBand, 1e-4) * 2.5, 0.0, abs(d - thr));
+    vec2 refr = grad * nearEdge * uHexRefract * gridVis;
 
-    float ca = uCaAmount * 0.35 * nearEdge;
+    float ca = uCaAmount * 0.35 * nearEdge * gridVis;
     float n = ign(gl_FragCoord.xy);
 
     vec3 a = chromatic(uSceneA, vUv + refr, ca, n);
