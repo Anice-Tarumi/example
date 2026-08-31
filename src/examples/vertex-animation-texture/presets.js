@@ -9,6 +9,9 @@ export const PRESETS = {
       frames: 96,
       scatter: 1,
       speed: 1,
+      reveal: 0,
+      revealMode: 'locked',
+      revealScale: 1.5,
       steps: 4,
       autoPlay: true,
       loopDelay: 1.4,
@@ -27,6 +30,9 @@ export const PRESETS = {
       frames: 110,
       scatter: 1,
       speed: 0.9,
+      reveal: 0,
+      revealMode: 'locked',
+      revealScale: 1.5,
       steps: 3,
       autoPlay: true,
       loopDelay: 1.8,
@@ -34,6 +40,34 @@ export const PRESETS = {
       colorShadow: '#3a2a1d',
       colorHot: '#c96a3a',
       spin: 0.12,
+    },
+  },
+  reveal: {
+    label: 'Icon Reveal',
+    params: {
+      /*
+       * 像は破片の**画面上の位置**から作るので、着地した破片が画面を覆っていないと
+       * 絵の一部しか映らない。崩れ落ちるだけだと床に薄く積もって帯にしかならない。
+       * 弱く弾けさせて、壁のあった面いっぱいに散らす。
+       */
+      mode: 'explode',
+      cols: 40,
+      rows: 26,
+      // 落ちきる前に焼き終える。床に積もると帯になって絵の上下が出ない
+      frames: 42,
+      scatter: 0.5,
+      speed: 0.7,
+      reveal: 1,
+      // 回さない。locked は着地時のカメラで像が結ぶので、回すと崩れる
+      revealMode: 'locked',
+      revealScale: 1.5,
+      steps: 4,
+      autoPlay: true,
+      loopDelay: 2.6,
+      colorLit: '#2a2f3a',
+      colorShadow: '#12151c',
+      colorHot: '#3a4152',
+      spin: 0,
     },
   },
   swirl: {
@@ -45,6 +79,9 @@ export const PRESETS = {
       frames: 120,
       scatter: 1,
       speed: 0.8,
+      reveal: 0.9,
+      revealMode: 'locked',
+      revealScale: 1.5,
       steps: 5,
       autoPlay: true,
       loopDelay: 1.2,
@@ -63,6 +100,9 @@ export const PRESETS = {
       frames: 96,
       scatter: 1,
       speed: 1.15,
+      reveal: 0.9,
+      revealMode: 'locked',
+      revealScale: 1.5,
       steps: 3,
       autoPlay: true,
       loopDelay: 1,

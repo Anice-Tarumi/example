@@ -100,6 +100,10 @@ export function bakeShatter({ pieces, frames, fps = 30, mode = 'explode', floorY
   const posData = new Float32Array(count * frames * 4)
   const oriData = new Float32Array(count * frames * 4)
 
+  // 着地した状態。アナモルフォーシスの UV をここから作る
+  const restPos = new Float32Array(count * 3)
+  const restQuat = new Float32Array(count * 4)
+
   const pos = new THREE.Vector3()
   const vel = new THREE.Vector3()
   const quat = new THREE.Quaternion()
@@ -153,6 +157,14 @@ export function bakeShatter({ pieces, frames, fps = 30, mode = 'explode', floorY
         quat.premultiply(spinQuat)
       }
     }
+
+    restPos[i * 3] = pos.x
+    restPos[i * 3 + 1] = pos.y
+    restPos[i * 3 + 2] = pos.z
+    restQuat[i * 4] = quat.x
+    restQuat[i * 4 + 1] = quat.y
+    restQuat[i * 4 + 2] = quat.z
+    restQuat[i * 4 + 3] = quat.w
   }
 
   const makeTex = (data) => {
@@ -169,6 +181,8 @@ export function bakeShatter({ pieces, frames, fps = 30, mode = 'explode', floorY
   return {
     positionTexture: makeTex(posData),
     orientTexture: makeTex(oriData),
+    restPos,
+    restQuat,
     count,
     frames,
   }

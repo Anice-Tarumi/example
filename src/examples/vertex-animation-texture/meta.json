@@ -1,14 +1,36 @@
 {
   "title": "Vertex Animation Texture",
-  "description": "破砕アニメを全フレームぶん事前計算して Float テクスチャに焼き、頂点シェーダーが (破片, フレーム) で引いて再生する。実行時の CPU は uniform を3つ書き換えるだけで、数百の破片が1ドローで動く。",
+  "description": "破砕アニメを全フレームぶん事前計算して Float テクスチャに焼き、頂点シェーダーが (破片, フレーム) で引いて再生する。実行時の CPU は uniform を 3 つ書き換えるだけ。焼いた最終位置の画面座標を UV にすると、散らばった破片が絵を結ぶ（アナモルフォーシス）。",
   "emoji": "🧱",
   "category": "geometry",
-  "tags": ["vat", "float-texture", "instancing", "vertex-shader", "bake"],
+  "tags": [
+    "vat",
+    "float-texture",
+    "instancing",
+    "vertex-shader",
+    "bake"
+  ],
   "variants": [
-    { "id": "explode", "label": "Shatter Burst" },
-    { "id": "collapse", "label": "Collapse" },
-    { "id": "swirl", "label": "Swirl Up" },
-    { "id": "dense", "label": "Dense Debris" }
+    {
+      "id": "explode",
+      "label": "Shatter Burst"
+    },
+    {
+      "id": "reveal",
+      "label": "Icon Reveal"
+    },
+    {
+      "id": "collapse",
+      "label": "Collapse"
+    },
+    {
+      "id": "swirl",
+      "label": "Swirl Up"
+    },
+    {
+      "id": "dense",
+      "label": "Dense Debris"
+    }
   ],
   "source": "Lusion.co",
   "sourceUrl": "https://lusion.co/",

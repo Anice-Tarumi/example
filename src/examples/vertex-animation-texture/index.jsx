@@ -1,11 +1,12 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
+import { OrbitControls, useTexture } from '@react-three/drei'
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { createPieces, bakeShatter, SHATTER_MODES } from './bake'
 import { vatVertexShader, vatFragmentShader } from './glsl/vat'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
+import revealUrl from './assets/reveal.png'
 
 const WALL_W = 3.4
 const WALL_H = 2.2
@@ -38,6 +39,10 @@ function Shatter({ params }) {
       uColorShadow: { value: new THREE.Color(DEFAULTS.colorShadow) },
       uColorHot: { value: new THREE.Color(DEFAULTS.colorHot) },
       uSteps: { value: DEFAULTS.steps },
+      uReveal: { value: null },
+      uRevealMix: { value: 0 },
+      uRevealViewProj: { value: new THREE.Matrix4() },
+      uRevealFrame: { value: new THREE.Vector2(1, 1) },
     }),
     [],
   )
@@ -80,6 +85,8 @@ function Shatter({ params }) {
     geo.setAttribute('aOrigin', new THREE.InstancedBufferAttribute(origin, 3))
     geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 3))
     geo.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 3))
+    geo.setAttribute('aRestPos', new THREE.InstancedBufferAttribute(baked.restPos, 3))
+    geo.setAttribute('aRestQuat', new THREE.InstancedBufferAttribute(baked.restQuat, 4))
     geo.instanceCount = n
     // 位置が頂点シェーダー由来なので境界は手で与える
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 24)
@@ -104,6 +111,13 @@ function Shatter({ params }) {
   }, [uniforms, params])
 
   // 再生ヘッド（秒）。焼いたフレーム数と実フレームレートは無関係
+  // 現れる絵。着地した破片の画面位置で引く
+  const revealTex = useTexture(revealUrl)
+  useEffect(() => {
+    revealTex.colorSpace = THREE.SRGBColorSpace
+    uniforms.uReveal.value = revealTex
+  }, [revealTex, uniforms])
+
   const playhead = useRef(0)
   const waiting = useRef(0)
   const group = useRef(null)
@@ -132,6 +146,30 @@ function Shatter({ params }) {
     uniforms.uFrameFrom.value = from
     uniforms.uFrameTo.value = to
     uniforms.uFrameRatio.value = f - from
+
+    /*
+     * 像が結ぶカメラ行列。
+     *
+     * follow  … 毎フレーム更新する。どの角度からでも絵が揃う
+     * locked  … 着地するまで追従し、そこで固定する。
+     *            カメラや被写体が回ると絵が崩れる（アナモルフォーシス本来の挙動）
+     */
+    const settled = playhead.current >= duration - 1e-4
+    if (group.current && (params.revealMode === 'follow' || !settled)) {
+      const m = uniforms.uRevealViewProj.value
+      m.multiplyMatrices(state.camera.projectionMatrix, state.camera.matrixWorldInverse)
+      m.multiply(group.current.matrixWorld)
+    }
+
+    uniforms.uRevealFrame.value.set(
+      state.size.width / Math.max(state.size.height, 1),
+      params.revealScale,
+    )
+
+    // 着地間際から絵を出す。飛んでいる最中に出ると何の絵か分からない
+    const t = duration > 0 ? playhead.current / duration : 0
+    const ramp = Math.min(1, Math.max(0, (t - 0.55) / 0.4))
+    uniforms.uRevealMix.value = params.reveal * ramp
   })
 
   return (
@@ -160,6 +198,11 @@ export default function VertexAnimationTexture() {
       loopDelay: { value: DEFAULTS.loopDelay, min: 0, max: 4, step: 0.1, label: 'delay' },
       spin: { value: DEFAULTS.spin, min: 0, max: 1, step: 0.02 },
     }),
+    Reveal: folder({
+      reveal: { value: DEFAULTS.reveal, min: 0, max: 1, step: 0.01, label: 'amount' },
+      revealMode: { value: DEFAULTS.revealMode, options: ['locked', 'follow'], label: 'mode' },
+      revealScale: { value: DEFAULTS.revealScale, min: 0.4, max: 3, step: 0.05, label: 'size' },
+    }),
     Look: folder({
       steps: { value: DEFAULTS.steps, min: 2, max: 8, step: 1, label: 'toon steps' },
       colorLit: { value: DEFAULTS.colorLit, label: 'lit' },
@@ -176,7 +219,9 @@ export default function VertexAnimationTexture() {
   return (
     <Canvas camera={{ position: [0, 0.6, 5.2], fov: 45 }} dpr={[1, 2]}>
       <color attach="background" args={['#070910']} />
-      <Shatter params={params} />
+      <Suspense fallback={null}>
+        <Shatter params={params} />
+      </Suspense>
       <OrbitControls enablePan={false} minDistance={2.5} maxDistance={12} />
     </Canvas>
   )
