@@ -30,6 +30,15 @@ export const fragmentShader = /* glsl */`
   uniform float uDisplace;     // 切り口付近の押しのけ
   uniform float uCaAmount;     // 色収差の強さ
 
+  // --- hex shatter 用 ---
+  uniform float uHexScale;    // 画面あたりのセル数
+  uniform float uHexJitter;   // セルごとの時間差
+  uniform float uHexWarp;     // グリッド自体の歪み（六角形が崩れる）
+  uniform float uHexEdge;     // 縁の太さ
+  uniform float uHexRefract;  // 縁での屈折
+  uniform float uHexSpin;     // セルの回転
+  uniform vec3  uEdgeColor;
+
   varying vec2 vUv;
 
   // ---- igloo の GLSL ヘルパーと同じ形 ----
@@ -216,6 +225,92 @@ export const fragmentShader = /* glsl */`
    * 3 本が違う速さで走るので、切り口の手前が先にざわつき、遅れて割れる。
    * 1 本のマスクだけで切ると、どれだけ凝った形でも「切り替わった」だけに見える。
    */
+  // ---- 六角形グリッド ----
+
+  const vec2 HEX = vec2(1.0, 1.7320508);
+
+  /** uv → (セル内の位置 xy, セル ID zw)。市松に 2 系統の格子を重ねて近い方を採る */
+  vec4 hexCoords(vec2 uv) {
+    vec2 a = mod(uv, HEX) - HEX * 0.5;
+    vec2 b = mod(uv - HEX * 0.5, HEX) - HEX * 0.5;
+    vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+    return vec4(gv, uv - gv);
+  }
+
+  /** 六角形の距離関数。中心 0、辺で 0.5 */
+  float hexDist(vec2 p) {
+    p = abs(p);
+    return max(dot(p, normalize(HEX)), p.x);
+  }
+
+  vec2 rot2(vec2 p, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+  }
+
+  /**
+   * 六角形グリッドで割れて入れ替わる遷移。
+   *
+   * 1 枚のマスクで切らない。**セルごとの距離場から 3 つの量を取り出す**。
+   *   - 塗り  … 距離をセルの進行度でしきい値切り
+   *   - 縁    … 同じ距離の等高線（絶対値の帯）
+   *   - 屈折  … 距離の勾配。縁の近くだけ画を曲げる
+   *
+   * セルごとにハッシュで遅延・回転を散らすので、割れ方が規則的にならない。
+   * グリッドを作る前に uv をノイズで歪めると、六角形が崩れて不定形の多角形になる。
+   */
+  vec3 hexShatter() {
+    vec2 p = vUv - 0.5;
+    p.x *= uAspect;
+
+    // グリッドを作る前に歪める。これで六角形が崩れる
+    float w1 = valueNoise(p * 2.3 + 11.0) - 0.5;
+    float w2 = valueNoise(p * 2.3 - 7.0) - 0.5;
+    p += vec2(w1, w2) * uHexWarp;
+
+    vec4 hc = hexCoords(p * uHexScale);
+    vec2 gv = hc.xy;
+    vec2 id = hc.zw;
+
+    // セルごとの乱数。遅延・回転・縮み方を散らす
+    float rnd = hash(id * 0.137);
+    float rnd2 = hash(id * 0.317 + 5.0);
+
+    // 掃引の順番。画面を斜めに走らせる
+    float sweep = (vUv.x * 0.6 + vUv.y * 0.4);
+    float order = mix(sweep, rnd, uHexJitter);
+    float span = 0.45;
+    float local = clamp((uProgress * (1.0 + span) - order * span) / (1.0 - span * 0.0), 0.0, 1.0);
+    local = clamp(local, 0.0, 1.0);
+
+    // セルは回りながら閉じる
+    vec2 cell = rot2(gv, (rnd2 - 0.5) * uHexSpin * (1.0 - local));
+    float d = hexDist(cell);
+
+    // 塗り。閉じきると 0.5（辺）まで届く
+    float aa = fwidth(d) * 1.5 + 1e-5;
+    float fill = smoothstep(0.5 * local + aa, 0.5 * local - aa, d);
+
+    // 縁。同じ距離場の等高線
+    float edgeBand = uHexEdge * (0.35 + 0.65 * (1.0 - abs(local * 2.0 - 1.0)));
+    float edge = smoothstep(edgeBand, 0.0, abs(d - 0.5 * local)) * step(0.001, local) * step(local, 0.999);
+
+    // 屈折。距離場の勾配方向へ画をずらす
+    vec2 grad = normalize(cell + 1e-6);
+    float nearEdge = smoothstep(0.5 * local, 0.5 * local - edgeBand * 2.0, d);
+    vec2 refr = grad * nearEdge * uHexRefract * (1.0 - local);
+
+    float ca = uCaAmount * 0.35 * nearEdge;
+    float n = ign(gl_FragCoord.xy);
+
+    vec3 a = chromatic(uSceneA, vUv + refr, ca, n);
+    vec3 b = chromatic(uSceneB, vUv - refr, ca, n);
+
+    vec3 color = mix(a, b, fill);
+    return color + uEdgeColor * edge;
+  }
+
   vec3 iceCut() {
     vec2 uvTex = vUv - 0.5;
     uvTex.x *= uAspect;
@@ -259,7 +354,8 @@ export const fragmentShader = /* glsl */`
 
   void main() {
     vec3 color;
-    if (uMode == 4)      color = iceCut();
+    if (uMode == 5)      color = hexShatter();
+    else if (uMode == 4) color = iceCut();
     else if (uMode == 0) color = noiseWipe();
     else if (uMode == 1) color = curtain();
     else if (uMode == 2) color = overlayFade();

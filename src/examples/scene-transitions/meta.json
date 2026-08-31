@@ -11,6 +11,10 @@
   ],
   "variants": [
     {
+      "id": "hex",
+      "label": "Hex Shatter"
+    },
+    {
       "id": "ice",
       "label": "Ice Cut"
     },

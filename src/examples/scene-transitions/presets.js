@@ -1,5 +1,31 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 export const PRESETS = {
+  hex: {
+    label: 'Hex Shatter',
+    params: {
+      mode: 'hex',
+      direction: 0,
+      edge: 0.12,
+      noiseScale: 3,
+      noiseAmount: 0.18,
+      flash: 0,
+      zoom: 0,
+      overlayColor: '#0a0d14',
+      slope: 0.2,
+      parallax: 0.4,
+      displace: 0.025,
+      ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
+      duration: 1.8,
+    },
+  },
+
   ice: {
     label: 'Ice Cut',
     params: {
@@ -15,6 +41,13 @@ export const PRESETS = {
       parallax: 0.4,
       displace: 0.025,
       ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
       duration: 1.6,
     },
   },
@@ -35,6 +68,13 @@ export const PRESETS = {
       parallax: 0.4,
       displace: 0.025,
       ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
     },
   },
   curtain: {
@@ -53,6 +93,13 @@ export const PRESETS = {
       parallax: 0.4,
       displace: 0.025,
       ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
     },
   },
   fade: {
@@ -71,6 +118,13 @@ export const PRESETS = {
       parallax: 0.4,
       displace: 0.025,
       ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
     },
   },
   circle: {
@@ -89,13 +143,20 @@ export const PRESETS = {
       parallax: 0.4,
       displace: 0.025,
       ca: 12,
+      hexScale: 9,
+      hexJitter: 0.55,
+      hexWarp: 0.12,
+      hexEdge: 0.06,
+      hexRefract: 0.03,
+      hexSpin: 1.2,
+      edgeColor: '#8fe6ff',
     },
   },
 }
 
-export const MODES = ['noise-wipe', 'curtain', 'fade', 'circle', 'ice-cut']
+export const MODES = ['noise-wipe', 'curtain', 'fade', 'circle', 'ice-cut', 'hex']
 
-export const DEFAULT_PRESET = 'ice'
+export const DEFAULT_PRESET = 'hex'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
 
 /** leva の options 用 { ラベル: id } テーブル */

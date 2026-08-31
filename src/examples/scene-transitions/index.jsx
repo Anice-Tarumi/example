@@ -21,6 +21,13 @@ function createUniforms() {
     uParallax: { value: 0.4 },
     uDisplace: { value: 0.025 },
     uCaAmount: { value: 12 },
+    uHexScale: { value: 9 },
+    uHexJitter: { value: 0.55 },
+    uHexWarp: { value: 0.12 },
+    uHexEdge: { value: 0.06 },
+    uHexRefract: { value: 0.03 },
+    uHexSpin: { value: 1.2 },
+    uEdgeColor: { value: new THREE.Color('#8fe6ff') },
     uMode: { value: 0 },
     uDirection: { value: DEFAULTS.direction },
     uEdge: { value: DEFAULTS.edge },
@@ -81,6 +88,13 @@ function TransitionStage({ params }) {
     uniforms.uParallax.value = params.parallax
     uniforms.uDisplace.value = params.displace
     uniforms.uCaAmount.value = params.ca
+    uniforms.uHexScale.value = params.hexScale
+    uniforms.uHexJitter.value = params.hexJitter
+    uniforms.uHexWarp.value = params.hexWarp
+    uniforms.uHexEdge.value = params.hexEdge
+    uniforms.uHexRefract.value = params.hexRefract
+    uniforms.uHexSpin.value = params.hexSpin
+    uniforms.uEdgeColor.value.set(params.edgeColor)
   }, [uniforms, params])
 
   useEffect(() => {
@@ -143,6 +157,15 @@ export default function SceneTransitions() {
     parallax: { value: DEFAULTS.parallax, min: 0, max: 1, step: 0.02 },
     displace: { value: DEFAULTS.displace, min: 0, max: 0.12, step: 0.002, label: 'push' },
     ca: { value: DEFAULTS.ca, min: 0, max: 40, step: 1, label: 'aberration' },
+    Hex: folder({
+      hexScale: { value: DEFAULTS.hexScale, min: 2, max: 30, step: 0.5, label: 'cells' },
+      hexJitter: { value: DEFAULTS.hexJitter, min: 0, max: 1, step: 0.02, label: 'jitter' },
+      hexWarp: { value: DEFAULTS.hexWarp, min: 0, max: 0.6, step: 0.01, label: 'warp' },
+      hexEdge: { value: DEFAULTS.hexEdge, min: 0, max: 0.25, step: 0.005, label: 'edge' },
+      hexRefract: { value: DEFAULTS.hexRefract, min: 0, max: 0.15, step: 0.002, label: 'refract' },
+      hexSpin: { value: DEFAULTS.hexSpin, min: 0, max: 4, step: 0.05, label: 'spin' },
+      edgeColor: { value: DEFAULTS.edgeColor, label: 'edge col' },
+    }),
     auto: true,
     progress: {
       value: 0.5,
