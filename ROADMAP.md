@@ -116,8 +116,19 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 | `toon-outline/assets/character.glb` | Tripo 生成 | 自社 | 輪郭線の被写体 |
 | `gpu-particles/assets/sculpture.glb` | Tripo 生成 | 自社 | SDF ベイク元 |
 | `vertex-animation-texture/assets/monument.glb` | Tripo 生成 | 自社 | 破砕対象 |
-| `depth-parallax/assets/scene-*.jpg` | Unsplash | Unsplash License | 視差の元画像（深度マップ待ち） |
+| `depth-parallax/assets/scene-*.jpg` | Unsplash | Unsplash License | 視差の元画像 |
+| `depth-parallax/assets/depth-*.png` | Depth Anything V2 で生成 | 自社 | 上記の深度マップ |
+| `crt-noise/assets/tv-*.glb` × 5 | Tripo 生成 | 自社 | ブラウン管（example は未実装） |
 | `public/favicon.ico` | 自社 | 自社 | サイトアイコン |
+
+### モデルを頼むときの指定（訂正あり）
+
+- **albedo テクスチャは要る。** 一度「トゥーンならテクスチャ不要」と伝えたが誤り。
+  トゥーンが量子化するのは**ライティング**であって色ではない。
+  テクスチャが無く、かつ 1 メッシュ 1 マテリアルだと、全身が単色になる。
+- **避けるべきなのは「陰影が焼き込まれたテクスチャ」**。こちらの陰影と二重になって濁る。
+  プロンプトに `no baked lighting` を入れる。
+- 1024 の albedo 1 枚で足りる。normal / roughness は不要。
 
 ### 決めたこと
 

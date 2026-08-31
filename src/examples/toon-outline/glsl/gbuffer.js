@@ -30,18 +30,22 @@ export const gbufferVertexShader = /* glsl */`
   // RawShaderMaterial なので three は何も足してくれない。全部自分で宣言する
   in vec3 position;
   in vec3 normal;
+  // ジオメトリが uv を持たなくても宣言してよい。その場合 (0,0) が入るだけ
+  in vec2 uv;
 
   uniform mat4 modelMatrix;
   uniform mat4 viewMatrix;
   uniform mat4 projectionMatrix;
   uniform mat3 normalMatrix;
 
+  out vec2 vUv;
   out vec3 vNormalView;
   out vec3 vWorldPos;
   out vec2 vHighPrecisionZW;
   out float vViewZ;
 
   void main() {
+    vUv = uv;
     vNormalView = normalize(normalMatrix * normal);
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPos = world.xyz;
@@ -64,6 +68,8 @@ export const gbufferFragmentShader = /* glsl */`
   layout(location = 0) out highp vec4 gColor;
   layout(location = 1) out highp vec4 gInfo;
 
+  uniform sampler2D uMap;
+  uniform float uHasMap;
   uniform vec3  uColor;
   uniform vec3  uShadowColor;
   uniform vec3  uLightDir;
@@ -73,6 +79,7 @@ export const gbufferFragmentShader = /* glsl */`
   uniform float uSketch;
   uniform float uTime;
 
+  in vec2 vUv;
   in vec3 vNormalView;
   in vec3 vWorldPos;
   in vec2 vHighPrecisionZW;
@@ -108,10 +115,23 @@ ${normalCodecGLSL}
   void main() {
     vec3 n = normalize(vNormalView);
 
-    // トゥーン陰影。段数で量子化する
+    /*
+     * トゥーンが量子化するのは**ライティング**であって色ではない。
+     * albedo テクスチャがあればそれを基準色にして、その上で陰影だけ段にする。
+     * 避けるべきなのは「陰影が焼き込まれたテクスチャ」で、それは二重に暗くなる。
+     */
+    vec3 base = uColor;
+    vec3 shade = uShadowColor;
+    if (uHasMap > 0.5) {
+      vec3 tex = texture(uMap, vUv).rgb;
+      base = tex;
+      // 影色はテクスチャ色を暗く寄せて作る。色相を保ったまま沈む
+      shade = mix(tex * 0.35, uShadowColor, 0.35);
+    }
+
     float ndl = dot(normalize(vNormalView), normalize(uLightDir)) * 0.5 + 0.5;
     float stepped = floor(ndl * uSteps) / max(uSteps - 1.0, 1.0);
-    vec3 color = mix(uShadowColor, uColor, clamp(stepped, 0.0, 1.0));
+    vec3 color = mix(shade, base, clamp(stepped, 0.0, 1.0));
 
     // 輪郭を出すかどうか。ノイズで間引くと手描きのかすれになる
     float mask = uOutlineMask;

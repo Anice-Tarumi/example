@@ -2,12 +2,14 @@ import * as THREE from 'three'
 import { gbufferVertexShader, gbufferFragmentShader } from './glsl/gbuffer'
 
 /** G-Buffer へ書き出すマテリアルを作る */
-export function createGBufferMaterial({ color, shadowColor, surfaceId, outlineMask = 1 }) {
+export function createGBufferMaterial({ color, shadowColor, surfaceId, outlineMask = 1, map = null }) {
   return new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
     vertexShader: gbufferVertexShader,
     fragmentShader: gbufferFragmentShader,
     uniforms: {
+      uMap: { value: map },
+      uHasMap: { value: map ? 1 : 0 },
       uColor: { value: new THREE.Color(color) },
       uShadowColor: { value: new THREE.Color(shadowColor) },
       uLightDir: { value: new THREE.Vector3(0.5, 0.9, 0.4).normalize() },

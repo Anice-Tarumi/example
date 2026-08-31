@@ -242,14 +242,25 @@ export function Character({ params }) {
   const { scene } = useGLTF(characterUrl)
   const model = useMemo(() => scene.clone(true), [scene])
 
+  // モデルが albedo テクスチャを持っていればそれを基準色に使う。
+  // 持っていなければ単色になる（1 メッシュ 1 マテリアルだと全身が同じ色になる）
+  const modelMap = useMemo(() => {
+    let found = null
+    scene.traverse((o) => {
+      if (!found && o.isMesh && o.material && o.material.map) found = o.material.map
+    })
+    return found
+  }, [scene])
+
   const bodyMaterial = useMemo(
     () =>
       createGBufferMaterial({
         color: PALETTE.wallA.color,
         shadowColor: PALETTE.wallA.shadow,
         surfaceId: 0.62,
+        map: modelMap,
       }),
-    [],
+    [modelMap],
   )
 
   const props = useMemo(
