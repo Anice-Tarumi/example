@@ -78,13 +78,12 @@ const MODES = {
    * **空中で広がったまま静止**させる。
    */
   float: (p, r) => {
-    const dir = p.origin.clone().normalize()
+    /*
+     * 放射状に飛ばさない。外向きにすると中心が抜けて、絵の真ん中が空洞になる。
+     * その場でランダムにばらけさせると壁の面が保たれ、絵が全面に出る。
+     */
     return {
-      velocity: new THREE.Vector3(
-        dir.x * (1.5 + r[0] * 1.2),
-        dir.y * (1.5 + r[1] * 1.2),
-        (r[2] - 0.5) * 1.1,
-      ),
+      velocity: new THREE.Vector3(r[0] - 0.5, r[1] - 0.5, (r[2] - 0.5) * 1.4).multiplyScalar(1.25),
       spin: new THREE.Vector3(r[0] - 0.5, r[1] - 0.5, r[2] - 0.5).multiplyScalar(2.2),
       gravity: 0,
       drag: 2.6,

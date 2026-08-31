@@ -51,15 +51,18 @@ export const PRESETS = {
        * 重力ゼロ + 減衰で、空中に広がったまま止める。
        */
       mode: 'float',
-      cols: 40,
-      rows: 26,
+      // 破片が細かいほど絵の解像度が上がる。壁の面積は変わらないので密度は落ちない
+      cols: 62,
+      rows: 42,
       frames: 90,
       scatter: 1,
       speed: 0.9,
       reveal: 1,
       // 回さない。locked は着地時のカメラで像が結ぶので、回すと崩れる
       revealMode: 'locked',
-      revealScale: 1.5,
+      // 絵を写す大きさは、散った破片が覆う範囲に合わせる。
+      // 広すぎると絵の縁が破片の外に出て、欠けて見える
+      revealScale: 0.55,
       steps: 4,
       autoPlay: true,
       loopDelay: 2.6,
