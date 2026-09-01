@@ -275,3 +275,24 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 31. **黒い画面は lint も build も検出しない。**
    `node scripts/screenshot.mjs <url> <out.png> [hover] [waitMs] [dpr]` で目視確認する。
    時間差で 2 枚撮って差分がなければ、アニメーションが止まっている。
+
+32. **手書き `ShaderMaterial` の頂点シェーダーは `instanceMatrix` を自分で掛ける。**
+   組み込みマテリアルは chunk が掛けてくれるので忘れやすい。
+   忘れると全インスタンスが原点に重なり、「巨大な単色の塊が 1 つ」に見える。
+   `gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);`
+
+33. **`sin` ベースの hash は座標が大きいと乱数にならない。**
+   `gl_FragCoord` のような数百〜数千の値を入れると `sin` の引数が桁あふれし、
+   滑らかな関数に化けて「のっぺりした画面」になる。Hoskins の hash12 を使う。
+
+34. **固定周波数の縞（走査線・ストライプ・fbm の高オクターブ）は遠いとモアレになる。**
+   `fwidth` で 1 画素あたりの周期数を出し、ナイキストに近づいた成分を中立値へ溶かす。
+   逆に画素密度に追従させたいノイズ（砂嵐など）は `gl_FragCoord` を種にする。
+   **フェードで消すか、画素に固定するか。周波数を距離で変えると質感が距離で変わる。**
+
+35. **leva の値は example を跨いで残る。**
+   `disposePaths` は参照カウントを減らすだけで、ボタンとフォルダ以外は `data` に残る。
+   どの example も `variant` という同じパスを使うので、次の example の初期値が捨てられる。
+   `ExampleLayout` のアンマウント時に `levaStore.dispose()` で丸ごと捨てている。
+   ストアを分ける手は使えない。**`useControls` の多くは R3F の Canvas 内にあり、
+   Canvas は別レンダラなので React のコンテキストが渡らない。**
