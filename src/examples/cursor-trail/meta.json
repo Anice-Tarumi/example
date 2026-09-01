@@ -1,0 +1,16 @@
+{
+  "title": "Cursor Trail",
+  "description": "カーソルの位置の履歴を N×1 のテクスチャにシフトレジスタとして持ち、静的な円筒を頂点シェーダーで軌跡に沿って並べ直す。ジオメトリは作ったきり触らないので、長さを伸ばしても転送は増えない。組み込みマテリアルの頂点だけ差し替えているため、金属も環境マップもそのまま効く。",
+  "emoji": "🎗️",
+  "category": "interaction",
+  "tags": ["mouse", "fbo", "ping-pong", "3d", "shader"],
+  "variants": [
+    { "id": "chrome", "label": "Chrome" },
+    { "id": "ink", "label": "Ink" },
+    { "id": "ribbon", "label": "Ribbon" },
+    { "id": "glass", "label": "Frost" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "位置も法線も頂点シェーダーがテクスチャから引く。CPU は 1 フレーム 1 点しか書かない"
+}
