@@ -1,0 +1,16 @@
+{
+  "title": "CRT Noise",
+  "description": "暗い空間に並べたブラウン管に砂嵐を流す。樽型歪み・蛍光体マスク・走査線・ローリングバー・色ずれを重ねて管の質感を作り、画面の明るさをそのまま点光源へ流して部屋を明滅させる。",
+  "emoji": "📺",
+  "category": "materials",
+  "tags": ["shader", "3d", "crt", "noise", "lighting"],
+  "variants": [
+    { "id": "snow", "label": "Snow" },
+    { "id": "broadcast", "label": "Broadcast" },
+    { "id": "deadAir", "label": "Dead Air" },
+    { "id": "warm", "label": "Warm Tube" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "モデルは画面が分離されていないので、bbox から位置を割り出して湾曲した板を前面に重ねる"
+}
