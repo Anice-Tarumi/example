@@ -30,6 +30,7 @@ export const tileVertexShader = /* glsl */`
   uniform float uAxisMix;   // 0 = 横軸まわり / 1 = 縦軸まわり
 
   varying vec2  vUv;
+  varying vec2  vUvBack;  // 裏面が拾う uv
   varying vec2  vLocal;   // タイル内の 0..1
   varying vec3  vNormal;
   varying float vT;
@@ -81,6 +82,20 @@ export const tileVertexShader = /* glsl */`
 
     vLocal = position.xy + 0.5;
     vUv = (aTile + vLocal) / uGrid;
+
+    /*
+     * 裏面の uv。
+     *
+     * 反転する向きは**回転軸で決まる**。横軸まわりに回せば裏は上下が逆、
+     * 縦軸まわりなら左右が逆。片方に固定すると必ずどちらかで絵が転ぶ。
+     *
+     * そして反転は**タイルの中で閉じる**。画像全体の uv を反転すると、
+     * 裏面が別のタイルの絵を拾って、めくった先が繋がらない。
+     */
+    vec2 backLocal = uAxisMix < 0.5
+      ? vec2(vLocal.x, 1.0 - vLocal.y)
+      : vec2(1.0 - vLocal.x, vLocal.y);
+    vUvBack = (aTile + backLocal) / uGrid;
     vNormal = normalize(mat3(modelMatrix) * rn);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(world, 1.0);
@@ -99,6 +114,7 @@ export const tileFragmentShader = /* glsl */`
   uniform float uEdge;
 
   varying vec2  vUv;
+  varying vec2  vUvBack;
   varying vec2  vLocal;
   varying vec3  vNormal;
   varying float vT;
@@ -114,7 +130,7 @@ export const tileFragmentShader = /* glsl */`
      */
     vec3 col = gl_FrontFacing
       ? texture2D(uFront, cover(vUv, uFrontScale)).rgb
-      : texture2D(uBack, cover(vec2(1.0 - vUv.x, vUv.y), uBackScale)).rgb;
+      : texture2D(uBack, cover(vUvBack, uBackScale)).rgb;
 
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;
