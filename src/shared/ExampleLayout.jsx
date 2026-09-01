@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Leva } from 'leva'
+import { useLayoutEffect, useState } from 'react'
+import { Leva, levaStore } from 'leva'
 import { getCategory } from '../categories'
 import { levaTheme } from './levaTheme'
 
@@ -7,6 +7,24 @@ import { levaTheme } from './levaTheme'
 export default function ExampleLayout({ meta, children }) {
   const [infoOpen, setInfoOpen] = useState(true)
   const category = getCategory(meta.category)
+
+  /*
+   * example を切り替えるたびに leva のストアを空にする。
+   *
+   * leva は値を**パスで**持つ。どの example も `variant` という同じパスを
+   * 使うので、前の example の値が残ったまま次が登録され、新しい方の初期値が
+   * 捨てられる。アンマウント時の `disposePaths` は参照カウントを減らすだけで、
+   * ボタンとフォルダ以外は `data` に残り続ける。
+   *
+   * ストアを分ける手もあるが、`useControls` の多くは R3F の Canvas の中に
+   * あり、**Canvas は別のレンダラなので React のコンテキストが渡らない**。
+   * ここで捨てるのが確実。
+   *
+   * 捨てるのは**アンマウント時**。leva の登録は useEffect の中なので、
+   * 「古い方の後始末 → 新しい方の登録」の順になり、消し過ぎない。
+   * 描画中に呼ぶと、レンダー中に別コンポーネントを更新したと React に怒られる。
+   */
+  useLayoutEffect(() => () => levaStore.dispose(), [])
 
   return (
     <div className="stage">

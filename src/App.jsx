@@ -15,7 +15,7 @@ export default function App() {
             key={ex.slug}
             path={`/examples/${ex.slug}`}
             element={
-              <ExampleLayout meta={ex}>
+              <ExampleLayout key={ex.slug} meta={ex}>
                 <Suspense fallback={<div className="loading">Loading…</div>}>
                   <ex.Component />
                 </Suspense>
