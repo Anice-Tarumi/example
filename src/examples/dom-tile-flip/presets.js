@@ -1,34 +1,42 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 
 const BASE = {
-  cols: 12,
-  rows: 8,
+  cols: 6,
+  rows: 6,
   gap: 3,
-  radius: 6,
-  inset: 4,
+  radius: 8,
+  inset: 0,
   mode: 'hover',
   axis: 'x',
-  duration: 0.55,
+  // 22% で 180deg まで回りきるので、体感の反応は duration の 1/5
+  duration: 1,
   perspective: 1000,
   depth: -20,
   sweepOrder: 'diagonal',
   sweepSpeed: 0.55,
-  title: 'IMMERSIVE',
-  lead: 'DIGITAL EXPERIENCE STUDIO',
-  blend: true,
+  look: 'plate',
+  bg: '#0e0f12',
+  plateFront: '#1c1d21',
+  plateBack: '#d3ff02',
+  ink: '#f4f4f2',
+  title: 'JUNCTION',
+  lead: 'INTERACTIVE STUDIO',
 }
 
 export const PRESETS = {
-  hover: { label: 'Hover', params: { ...BASE } },
-  fine: { label: 'Fine Grid', params: { ...BASE, cols: 24, rows: 16, gap: 2, radius: 2, duration: 0.4 } },
-  sweep: { label: 'Auto Sweep', params: { ...BASE, mode: 'auto', cols: 16, rows: 10, sweepOrder: 'radial', duration: 0.5 } },
-  cards: {
-    label: 'Cards',
-    params: { ...BASE, cols: 4, rows: 3, gap: 18, radius: 22, perspective: 700, depth: -60, axis: 'y', duration: 0.9 },
+  plate: { label: 'Plate', params: { ...BASE } },
+  fine: { label: 'Fine Grid', params: { ...BASE, cols: 14, rows: 9, gap: 2, radius: 3, duration: 0.8 } },
+  photo: {
+    label: 'Photo',
+    params: { ...BASE, look: 'photo', cols: 10, rows: 7, gap: 2, radius: 4, duration: 0.9, bg: '#08090b' },
+  },
+  sweep: {
+    label: 'Auto Sweep',
+    params: { ...BASE, mode: 'auto', cols: 16, rows: 10, gap: 2, radius: 3, duration: 0.7, sweepOrder: 'radial' },
   },
 }
 
-export const DEFAULT_PRESET = 'hover'
+export const DEFAULT_PRESET = 'plate'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
 
 export const PRESET_OPTIONS = Object.fromEntries(

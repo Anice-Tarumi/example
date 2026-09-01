@@ -1,16 +1,32 @@
 {
   "title": "DOM Tile Flip",
-  "description": "WebGL を使わず CSS 3D だけで組むタイルめくり。親の perspective で本物の透視投影が掛かり、backface-visibility で表裏を出し分ける。上に載せた文字は DOM のままなので選択もコピーもできる。canvas 2D はアフィン変換しか持たないので、この遠近は原理的に出せない。",
+  "description": "WebGL を使わず CSS 3D だけで組むタイルめくり。カーソルが乗ったタイルは一周して元の面に戻り、裏は途中で一瞬だけ覗く。始点と終点が同じ見た目なので transition では書けず、animation のキーフレーム配分でイージングを作る。22% で 180deg まで回りきり、残りは行き過ぎと戻りの減衰。",
   "emoji": "🗂️",
   "category": "dom-webgl",
-  "tags": ["mouse", "transition", "interaction"],
+  "tags": [
+    "mouse",
+    "transition",
+    "interaction"
+  ],
   "variants": [
-    { "id": "hover", "label": "Hover" },
-    { "id": "fine", "label": "Fine Grid" },
-    { "id": "sweep", "label": "Auto Sweep" },
-    { "id": "cards", "label": "Cards" }
+    {
+      "id": "plate",
+      "label": "Plate"
+    },
+    {
+      "id": "fine",
+      "label": "Fine Grid"
+    },
+    {
+      "id": "photo",
+      "label": "Photo"
+    },
+    {
+      "id": "sweep",
+      "label": "Auto Sweep"
+    }
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "回すのはパネルではなく面。パネルを回すと中の要素も一緒に回る"
+  "note": "判定は射影後の矩形から割り出す。格子は translateZ で縮んで描かれるので、変形しない板を重ねると必ずずれる"
 }

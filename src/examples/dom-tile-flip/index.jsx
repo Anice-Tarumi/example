@@ -1,5 +1,5 @@
 import { useControls, folder } from 'leva'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import frontUrl from '../../assets/photos/scene-a.jpg'
 import backUrl from '../../assets/photos/scene-b.jpg'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
@@ -7,6 +7,7 @@ import './styles.css'
 
 const MODES = { 'Hover each tile': 'hover', 'Auto sweep': 'auto' }
 const AXES = { 'Horizontal axis': 'x', 'Vertical axis': 'y' }
+const LOOKS = { 'Plate (flat colour)': 'plate', 'Photo (two images)': 'photo' }
 const ORDERS = { Diagonal: 'diagonal', Row: 'row', Column: 'column', Radial: 'radial', Random: 'random' }
 
 /**
@@ -21,12 +22,12 @@ const ORDERS = { Diagonal: 'diagonal', Row: 'row', Column: 'column', Radial: 'ra
  * キービジュアル単体で完結するなら DOM のほうが軽くて速い。
  */
 
-/** タイルの背景位置。1 枚の画像を cols×rows に割って各パネルへ配る */
-function tileStyle(url, col, row, cols, rows) {
+/** 1 枚の画像を cols×rows に割って各パネルへ配る */
+function photoStyle(url, col, row, cols, rows) {
   return {
     backgroundImage: `url(${url})`,
     backgroundSize: `${cols * 100}% ${rows * 100}%`,
-    // 端の 1 枚は 0% / 100% に収める。cols-1 で割るのはそのため
+    // 端の 1 枚を 0% / 100% に収めるため cols-1 で割る
     backgroundPosition: `${cols > 1 ? (col / (cols - 1)) * 100 : 50}% ${rows > 1 ? (row / (rows - 1)) * 100 : 50}%`,
   }
 }
@@ -57,16 +58,22 @@ export default function DomTileFlip() {
     Flip: folder({
       mode: { value: DEFAULTS.mode, options: MODES },
       axis: { value: DEFAULTS.axis, options: AXES },
-      duration: { value: DEFAULTS.duration, min: 0.15, max: 2, step: 0.05, label: 'duration (s)' },
+      duration: { value: DEFAULTS.duration, min: 0.3, max: 2.5, step: 0.05, label: 'duration (s)' },
       perspective: { value: DEFAULTS.perspective, min: 200, max: 4000, step: 50 },
       depth: { value: DEFAULTS.depth, min: -200, max: 0, step: 5, label: 'grid z (px)' },
       sweepOrder: { value: DEFAULTS.sweepOrder, options: ORDERS, label: 'order' },
       sweepSpeed: { value: DEFAULTS.sweepSpeed, min: 0.1, max: 3, step: 0.05, label: 'sweep speed' },
     }),
+    Look: folder({
+      look: { value: DEFAULTS.look, options: LOOKS },
+      bg: { value: DEFAULTS.bg },
+      plateFront: { value: DEFAULTS.plateFront, label: 'front' },
+      plateBack: { value: DEFAULTS.plateBack, label: 'back' },
+      ink: { value: DEFAULTS.ink, label: 'text' },
+    }),
     Overlay: folder({
       title: { value: DEFAULTS.title },
       lead: { value: DEFAULTS.lead },
-      blend: { value: DEFAULTS.blend, label: 'difference blend' },
     }),
   }))
 
@@ -90,43 +97,65 @@ export default function DomTileFlip() {
     return list
   }, [cols, rows, params.sweepOrder])
 
+  const rootRef = useRef(null)
   const gridRef = useRef(null)
+  const rect = useRef(null)
   const lastHit = useRef(-1)
 
   /*
-   * めくりは React の state ではなく **DOM 属性を直に書き換える**。
-   * 100 枚のうち 1 枚が変わるたびに再レンダリングすると、
-   * 変わっていない 99 枚まで作り直すことになる。
+   * 格子の矩形はキャッシュする。
+   *
+   * `getBoundingClientRect` は同期的にレイアウトを確定させる。pointermove
+   * ごとに呼ぶと、カーソルを速く動かしたときだけ反応が重くなる。
+   * 変わるのは寸法かパラメータが変わったときだけなので、その時に取り直す。
    */
-  const flip = (el) => {
-    if (!el) return
-    el.dataset.flipped = el.dataset.flipped === 'true' ? 'false' : 'true'
+  const measure = useCallback(() => {
+    rect.current = gridRef.current?.getBoundingClientRect() ?? null
+  }, [])
+
+  useEffect(() => {
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (rootRef.current) ro.observe(rootRef.current)
+    return () => ro.disconnect()
+  }, [measure, cols, rows, params.inset, params.gap, params.perspective, params.depth])
+
+  /*
+   * ひとめくりは transition ではなく animation。
+   * `data-spin` を立てて、終わったら外す。外さないと二度目が発火しない。
+   */
+  const spin = (el) => {
+    if (!el || el.dataset.spin === 'true') return
+    el.dataset.spin = 'true'
+  }
+
+  const onAnimationEnd = (e) => {
+    const panel = e.currentTarget.parentElement
+    if (panel?.dataset.spin === 'true') panel.dataset.spin = 'false'
   }
 
   /*
-   * どのタイルの上にいるかは、**描画後の格子の矩形から計算する**。
+   * どのタイルの上にいるかは**射影後の矩形から計算する**。
    *
    * 判定用の板を重ねる手は使えない。格子は `translateZ` されていて
    * `perspective` で縮んで描かれるので、変形しない板とは必ずずれる。
    * `getBoundingClientRect` は射影後の矩形を返すので、そこから割れば
    * 見えている位置とそのまま一致する。z を変えても追従する。
-   *
-   * ついでにノードも 96 個減る。
    */
   const onMove = (e) => {
-    if (params.mode !== 'hover' || !gridRef.current) return
-    const r = gridRef.current.getBoundingClientRect()
+    if (params.mode !== 'hover') return
+    const r = rect.current
+    if (!r || !gridRef.current) return
+
     const fx = (e.clientX - r.x) / r.width
     const fy = (e.clientY - r.y) / r.height
     if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) { lastHit.current = -1; return }
 
-    const col = Math.min(cols - 1, Math.floor(fx * cols))
-    const row = Math.min(rows - 1, Math.floor(fy * rows))
-    const i = row * cols + col
-    // 同じタイルの上で動かしている間ずっと裏返らないように
+    const i = Math.min(rows - 1, Math.floor(fy * rows)) * cols + Math.min(cols - 1, Math.floor(fx * cols))
+    // 同じタイルの上で動かしている間は撃ち続けない
     if (i === lastHit.current) return
     lastHit.current = i
-    flip(gridRef.current.children[i])
+    spin(gridRef.current.children[i])
   }
 
   // 自動掃き。順番どおりに表裏を往復する
@@ -155,10 +184,14 @@ export default function DomTileFlip() {
     return () => cancelAnimationFrame(raf)
   }, [params.mode, params.sweepSpeed, tiles])
 
-  // モードを切り替えたら全部戻す
+  // モードやタイル数を変えたら全部戻す
   useEffect(() => {
     if (!gridRef.current) return
-    for (const el of gridRef.current.children) el.dataset.flipped = 'false'
+    for (const el of gridRef.current.children) {
+      el.dataset.flipped = 'false'
+      el.dataset.spin = 'false'
+    }
+    lastHit.current = -1
   }, [params.mode, cols, rows])
 
   const style = {
@@ -170,33 +203,47 @@ export default function DomTileFlip() {
     '--dtf-perspective': `${params.perspective}px`,
     '--dtf-depth': `${params.depth}px`,
     '--dtf-duration': `${params.duration}s`,
-    '--dtf-ax': params.axis === 'x' ? 1 : 0,
-    '--dtf-ay': params.axis === 'x' ? 0 : 1,
+    '--dtf-bg': params.bg,
+    '--dtf-ink': params.ink,
+  }
+
+  const photo = params.look === 'photo'
+  const faceStyle = (side, col, row) => {
+    if (photo) return photoStyle(side === 'front' ? frontUrl : backUrl, col, row, cols, rows)
+    return { background: side === 'front' ? params.plateFront : params.plateBack }
   }
 
   return (
-    <div className="dtf" style={style} onPointerMove={onMove} onPointerLeave={() => { lastHit.current = -1 }}>
+    <div
+      ref={rootRef}
+      className="dtf"
+      style={style}
+      data-axis={params.axis}
+      data-mode={params.mode}
+      onPointerMove={onMove}
+      onPointerLeave={() => { lastHit.current = -1 }}
+    >
       <div className="dtf__stage">
         <div className="dtf__grid" ref={gridRef}>
           {tiles.map(({ col, row }) => (
-            <div
-              key={`${col}-${row}`}
-              className="dtf__panel"
-              data-flipped="false"
->
-              <div className="dtf__face dtf__face--front" style={tileStyle(frontUrl, col, row, cols, rows)} />
-              <div className="dtf__face dtf__face--back" style={tileStyle(backUrl, col, row, cols, rows)} />
+            <div key={`${col}-${row}`} className="dtf__panel" data-flipped="false" data-spin="false">
+              <div
+                className="dtf__face dtf__face--front"
+                style={faceStyle('front', col, row)}
+                onAnimationEnd={onAnimationEnd}
+              />
+              <div className="dtf__face dtf__face--back" style={faceStyle('back', col, row)} />
             </div>
           ))}
         </div>
       </div>
 
-      <div className="dtf__overlay" data-blend={params.blend ? 'true' : 'false'}>
+      <div className="dtf__overlay">
         <p className="dtf__lead">{params.lead}</p>
         <h1 className="dtf__title">{params.title}</h1>
       </div>
 
-      <div className="dtf__hint">{params.mode === 'hover' ? 'MOVE THE CURSOR' : 'AUTO'}</div>
+      <div className="dtf__hint">{params.mode === 'hover' ? 'MOVE THE CURSOR' : 'AUTO SWEEP'}</div>
     </div>
   )
 }
