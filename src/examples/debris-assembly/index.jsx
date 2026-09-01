@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { sampleSlots, bakeAssembly } from './bake'
 import { debrisVertexShader, debrisFragmentShader } from './glsl/debris'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
-import iconUrl from './assets/icon.png'
+import iconUrl from '../../assets/brand/icon.png'
 
 const FPS = 30
 

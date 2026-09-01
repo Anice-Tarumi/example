@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { edt2d, EDT_INF as INF } from '../../shared/edt'
 
 /**
  * 符号付き距離場（SDF）のフォントアトラスを**実行時に**焼く。
@@ -23,54 +24,6 @@ const CELL = 128
 const PAD = 16
 /** 何 px ぶんの距離を 0..1 に写すか。太い縁取りを引くなら広く要る */
 const SPREAD = 18
-/**
- * 距離変換の「無限遠」。Infinity を使ってはいけない。
- * 行がまるごと未確定（グリフの無い行）のとき Infinity - Infinity = NaN になり、
- * 以降が全部 NaN になってテクスチャが真っ黒になる。
- */
-const INF = 1e20
-
-/** Felzenszwalb の 1 次元距離変換。f は二乗距離、結果も二乗距離 */
-function edt1d(f, d, v, z, n) {
-  v[0] = 0
-  z[0] = -Infinity
-  z[1] = Infinity
-  let k = 0
-
-  for (let q = 1; q < n; q++) {
-    let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
-    while (s <= z[k]) {
-      k--
-      s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
-    }
-    k++
-    v[k] = q
-    z[k] = s
-    z[k + 1] = Infinity
-  }
-
-  k = 0
-  for (let q = 0; q < n; q++) {
-    while (z[k + 1] < q) k++
-    d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]
-  }
-}
-
-/** 2 次元。行 → 列の順に 1 次元変換を掛ける */
-function edt2d(grid, w, h, scratch) {
-  const { f, d, v, z } = scratch
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) f[x] = grid[y * w + x]
-    edt1d(f, d, v, z, w)
-    for (let x = 0; x < w; x++) grid[y * w + x] = d[x]
-  }
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) f[y] = grid[y * w + x]
-    edt1d(f, d, v, z, h)
-    for (let y = 0; y < h; y++) grid[y * w + x] = d[y]
-  }
-}
-
 /**
  * 文字列から SDF アトラスとグリフ情報を作る。
  * 同じ文字が何度出てきても 1 セルで済むよう、重複は除く。
