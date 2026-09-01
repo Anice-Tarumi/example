@@ -1,0 +1,16 @@
+{
+  "title": "Day / Night Cycle",
+  "description": "一日のライティングをキーフレームで持ち、Catmull-Rom で補間する。太陽の角度から色を式で導くのではなく時刻ごとに値を置くので、夕方だけ赤くするような調整が他の時刻に波及しない。霧は単色ではなく、視線と太陽の内積で二色を混ぜる。天候はキーフレームの上から掛ける。",
+  "emoji": "🌅",
+  "category": "lighting",
+  "tags": ["lighting", "3d", "shader", "fog", "bake"],
+  "variants": [
+    { "id": "dawn", "label": "Dawn" },
+    { "id": "noon", "label": "Noon" },
+    { "id": "dusk", "label": "Dusk" },
+    { "id": "overcast", "label": "Overcast" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "色は Catmull-Rom だと補間で範囲外へ飛んで彩度が暴れるので線形。数値だけ曲線で繋ぐ"
+}

@@ -1,12 +1,12 @@
 import { useGLTF } from '@react-three/drei'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import forestUrl from './assets/forest.glb?url'
-import townUrl from './assets/town.glb?url'
-import desertUrl from './assets/desert.glb?url'
-import iceUrl from './assets/ice.glb?url'
-import ruinsUrl from './assets/ruins.glb?url'
-import lighthouseUrl from './assets/lighthouse.glb?url'
+import forestUrl from '../../assets/dioramas/forest.glb?url'
+import townUrl from '../../assets/dioramas/town.glb?url'
+import desertUrl from '../../assets/dioramas/desert.glb?url'
+import iceUrl from '../../assets/dioramas/ice.glb?url'
+import ruinsUrl from '../../assets/dioramas/ruins.glb?url'
+import lighthouseUrl from '../../assets/dioramas/lighthouse.glb?url'
 
 /**
  * 床に乗せる小シーン。
