@@ -122,10 +122,16 @@ export default function DomTileFlip() {
 
   /*
    * ひとめくりは transition ではなく animation。
-   * `data-spin` を立てて、終わったら外す。外さないと二度目が発火しない。
+   *
+   * 回っている最中でも**必ず頭から回し直す**。「もう回っているから無視」に
+   * すると、animationend を取りこぼした瞬間にそのタイルが二度と反応しなく
+   * なる。属性を落として強制的にレイアウトを読み、立て直すと再生し直せる。
    */
   const spin = (el) => {
-    if (!el || el.dataset.spin === 'true') return
+    if (!el) return
+    el.dataset.spin = 'false'
+    // 読むだけで再計算が走り、アニメーションの再適用が別の変化として扱われる
+    void el.offsetWidth
     el.dataset.spin = 'true'
   }
 
