@@ -91,6 +91,7 @@ export default function DomTileFlip() {
   }, [cols, rows, params.sweepOrder])
 
   const gridRef = useRef(null)
+  const lastHit = useRef(-1)
 
   /*
    * めくりは React の state ではなく **DOM 属性を直に書き換える**。
@@ -100,6 +101,32 @@ export default function DomTileFlip() {
   const flip = (el) => {
     if (!el) return
     el.dataset.flipped = el.dataset.flipped === 'true' ? 'false' : 'true'
+  }
+
+  /*
+   * どのタイルの上にいるかは、**描画後の格子の矩形から計算する**。
+   *
+   * 判定用の板を重ねる手は使えない。格子は `translateZ` されていて
+   * `perspective` で縮んで描かれるので、変形しない板とは必ずずれる。
+   * `getBoundingClientRect` は射影後の矩形を返すので、そこから割れば
+   * 見えている位置とそのまま一致する。z を変えても追従する。
+   *
+   * ついでにノードも 96 個減る。
+   */
+  const onMove = (e) => {
+    if (params.mode !== 'hover' || !gridRef.current) return
+    const r = gridRef.current.getBoundingClientRect()
+    const fx = (e.clientX - r.x) / r.width
+    const fy = (e.clientY - r.y) / r.height
+    if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) { lastHit.current = -1; return }
+
+    const col = Math.min(cols - 1, Math.floor(fx * cols))
+    const row = Math.min(rows - 1, Math.floor(fy * rows))
+    const i = row * cols + col
+    // 同じタイルの上で動かしている間ずっと裏返らないように
+    if (i === lastHit.current) return
+    lastHit.current = i
+    flip(gridRef.current.children[i])
   }
 
   // 自動掃き。順番どおりに表裏を往復する
@@ -148,7 +175,7 @@ export default function DomTileFlip() {
   }
 
   return (
-    <div className="dtf" style={style}>
+    <div className="dtf" style={style} onPointerMove={onMove} onPointerLeave={() => { lastHit.current = -1 }}>
       <div className="dtf__stage">
         <div className="dtf__grid" ref={gridRef}>
           {tiles.map(({ col, row }) => (
@@ -163,19 +190,6 @@ export default function DomTileFlip() {
           ))}
         </div>
       </div>
-
-      {/* 当たり判定。3D の外に置くのでめくり途中でも判定がずれない */}
-      {params.mode === 'hover' && (
-        <div className="dtf__hits">
-          {tiles.map(({ col, row }, i) => (
-            <div
-              key={`hit-${col}-${row}`}
-              className="dtf__hit"
-              onPointerEnter={() => flip(gridRef.current?.children[i])}
-            />
-          ))}
-        </div>
-      )}
 
       <div className="dtf__overlay" data-blend={params.blend ? 'true' : 'false'}>
         <p className="dtf__lead">{params.lead}</p>
