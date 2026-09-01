@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import colorA from './assets/scene-a.jpg'
+import colorA from '../../assets/photos/scene-a.jpg'
 import depthA from './assets/depth-a.png'
-import colorB from './assets/scene-b.jpg'
+import colorB from '../../assets/photos/scene-b.jpg'
 import depthB from './assets/depth-b.png'
 
 /**
