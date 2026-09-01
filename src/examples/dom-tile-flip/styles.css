@@ -44,6 +44,32 @@
   transform-style: preserve-3d;
   /* 数十枚を同時に回すので、合成レイヤーを先に確保しておく */
   will-change: transform;
+  /* 当たり判定は別レイヤーで取る。理由は .dtf__hits を参照 */
+  pointer-events: none;
+}
+
+/*
+ * 当たり判定の格子。
+ *
+ * パネルの中で受けると**めくり途中に判定がずれる**。面は 3D 変形されて
+ * いるので、透視で射影される位置がアニメーション中に動き、隣のパネルの
+ * 面を拾って隣が裏返る。
+ *
+ * 変形しない板を同じ格子で上に重ね、そこで受ける。判定は素の 2D になる。
+ */
+.dtf__hits {
+  position: absolute;
+  inset: var(--dtf-inset, 6%);
+  display: grid;
+  grid-template-columns: repeat(var(--dtf-cols), 1fr);
+  grid-template-rows: repeat(var(--dtf-rows), 1fr);
+  gap: var(--dtf-gap, 3px);
+  z-index: 3;
+}
+
+.dtf__hit {
+  /* 見えないが触れる。gap のぶんは意図的に隙間のままにする */
+  background: transparent;
 }
 
 .dtf__face {

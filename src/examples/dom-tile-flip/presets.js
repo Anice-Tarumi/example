@@ -1,14 +1,14 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 
 const BASE = {
-  cols: 6,
-  rows: 6,
+  cols: 12,
+  rows: 8,
   gap: 3,
-  radius: 10,
+  radius: 6,
   inset: 4,
   mode: 'hover',
   axis: 'x',
-  duration: 0.7,
+  duration: 0.55,
   perspective: 1000,
   depth: -20,
   sweepOrder: 'diagonal',
@@ -20,8 +20,8 @@ const BASE = {
 
 export const PRESETS = {
   hover: { label: 'Hover', params: { ...BASE } },
-  fine: { label: 'Fine Grid', params: { ...BASE, cols: 12, rows: 8, gap: 2, radius: 4, duration: 0.5 } },
-  sweep: { label: 'Auto Sweep', params: { ...BASE, mode: 'auto', cols: 10, rows: 7, sweepOrder: 'radial', duration: 0.5 } },
+  fine: { label: 'Fine Grid', params: { ...BASE, cols: 24, rows: 16, gap: 2, radius: 2, duration: 0.4 } },
+  sweep: { label: 'Auto Sweep', params: { ...BASE, mode: 'auto', cols: 16, rows: 10, sweepOrder: 'radial', duration: 0.5 } },
   cards: {
     label: 'Cards',
     params: { ...BASE, cols: 4, rows: 3, gap: 18, radius: 22, perspective: 700, depth: -60, axis: 'y', duration: 0.9 },

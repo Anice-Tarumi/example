@@ -48,8 +48,8 @@ export default function DomTileFlip() {
 
   const [params, setParams] = useControls(() => ({
     Grid: folder({
-      cols: { value: DEFAULTS.cols, min: 2, max: 14, step: 1 },
-      rows: { value: DEFAULTS.rows, min: 2, max: 12, step: 1 },
+      cols: { value: DEFAULTS.cols, min: 2, max: 32, step: 1 },
+      rows: { value: DEFAULTS.rows, min: 2, max: 24, step: 1 },
       gap: { value: DEFAULTS.gap, min: 0, max: 24, step: 1, label: 'gap (px)' },
       radius: { value: DEFAULTS.radius, min: 0, max: 40, step: 1, label: 'radius (px)' },
       inset: { value: DEFAULTS.inset, min: 0, max: 20, step: 0.5, label: 'inset (%)' },
@@ -156,14 +156,26 @@ export default function DomTileFlip() {
               key={`${col}-${row}`}
               className="dtf__panel"
               data-flipped="false"
-              onPointerEnter={params.mode === 'hover' ? (e) => flip(e.currentTarget) : undefined}
-            >
+>
               <div className="dtf__face dtf__face--front" style={tileStyle(frontUrl, col, row, cols, rows)} />
               <div className="dtf__face dtf__face--back" style={tileStyle(backUrl, col, row, cols, rows)} />
             </div>
           ))}
         </div>
       </div>
+
+      {/* 当たり判定。3D の外に置くのでめくり途中でも判定がずれない */}
+      {params.mode === 'hover' && (
+        <div className="dtf__hits">
+          {tiles.map(({ col, row }, i) => (
+            <div
+              key={`hit-${col}-${row}`}
+              className="dtf__hit"
+              onPointerEnter={() => flip(gridRef.current?.children[i])}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="dtf__overlay" data-blend={params.blend ? 'true' : 'false'}>
         <p className="dtf__lead">{params.lead}</p>
