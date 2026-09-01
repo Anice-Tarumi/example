@@ -1,0 +1,133 @@
+/*
+ * DOM だけで組むタイルめくり。
+ *
+ * canvas 2D では原理的にできない。`setTransform` が受けるのは 2×3 の
+ * アフィン行列で、透視変換を表現できないため、めくれの手前側が大きくなる
+ * 遠近が出ず「横に潰れる」だけになる。
+ * CSS の `perspective` は本物の透視投影なので、これが無料で手に入る。
+ *
+ * 要点は 4 つ。
+ *   1. 親に `perspective`。ここで初めて奥行きが効く
+ *   2. 各段に `transform-style: preserve-3d`。1 段でも抜けると平面に潰れる
+ *   3. 表裏 2 枚を重ね、`backface-visibility: hidden` で裏返った側を消す
+ *   4. 回すのは**パネルではなく面**。パネルを回すと中の要素も一緒に回る
+ */
+
+.dtf {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0c0f;
+}
+
+/* 1. 透視投影。値が小さいほど強い遠近が付く */
+.dtf__stage {
+  position: absolute;
+  inset: 0;
+  perspective: var(--dtf-perspective, 1000px);
+}
+
+.dtf__grid {
+  position: absolute;
+  inset: var(--dtf-inset, 6%);
+  display: grid;
+  grid-template-columns: repeat(var(--dtf-cols), 1fr);
+  grid-template-rows: repeat(var(--dtf-rows), 1fr);
+  gap: var(--dtf-gap, 3px);
+  /* 2. 奥へ引くと、めくれた板が手前に出てくるのが分かりやすい */
+  transform: translateZ(var(--dtf-depth, -20px));
+  transform-style: preserve-3d;
+}
+
+.dtf__panel {
+  position: relative;
+  transform-style: preserve-3d;
+  /* 数十枚を同時に回すので、合成レイヤーを先に確保しておく */
+  will-change: transform;
+}
+
+.dtf__face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--dtf-radius, 8px);
+  background-repeat: no-repeat;
+  /* 3. 裏返った面を消す。これが無いと表裏が重なって濁る */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform var(--dtf-duration, 0.7s) cubic-bezier(0.22, 0.7, 0.16, 1);
+}
+
+/*
+ * 4. 面ごとに回す。角度は 180deg ずらして向かい合わせる。
+ *
+ * 0deg / 180deg ではなく 360deg / 180deg から始めるのは、
+ * めくったとき**両方が同じ向きに 180deg 進む**ようにするため。
+ * 片方が戻る向きに回ると、板が途中でねじれる。
+ */
+.dtf__face--front {
+  transform: rotate3d(var(--dtf-ax, 1), var(--dtf-ay, 0), 0, 360deg);
+}
+
+.dtf__face--back {
+  transform: rotate3d(var(--dtf-ax, 1), var(--dtf-ay, 0), 0, 180deg);
+}
+
+.dtf__panel[data-flipped='true'] .dtf__face--front {
+  transform: rotate3d(var(--dtf-ax, 1), var(--dtf-ay, 0), 0, 540deg);
+}
+
+.dtf__panel[data-flipped='true'] .dtf__face--back {
+  transform: rotate3d(var(--dtf-ax, 1), var(--dtf-ay, 0), 0, 360deg);
+}
+
+/*
+ * 上に載せる文字。
+ *
+ * DOM でやる利点がここに出る。文字は選択できるしコピーもできる。
+ * WebGL に焼くとテキストではなくなる。
+ */
+.dtf__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  /* 触れるのはタイル。文字が hover を食うとめくれない */
+  pointer-events: none;
+  text-align: center;
+  z-index: 2;
+}
+
+.dtf__overlay[data-blend='true'] {
+  /* 表と裏で下地の明るさが変わるので、反転合成にすると常に読める */
+  mix-blend-mode: difference;
+  color: #ffffff;
+}
+
+.dtf__title {
+  margin: 0;
+  font-size: clamp(30px, 5.6vw, 74px);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.1;
+}
+
+.dtf__lead {
+  margin: 0;
+  font-size: clamp(11px, 1.1vw, 14px);
+  letter-spacing: 0.28em;
+  opacity: 0.8;
+}
+
+.dtf__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  opacity: 0.5;
+}

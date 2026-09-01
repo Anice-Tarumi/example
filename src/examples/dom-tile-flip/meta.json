@@ -1,0 +1,16 @@
+{
+  "title": "DOM Tile Flip",
+  "description": "WebGL を使わず CSS 3D だけで組むタイルめくり。親の perspective で本物の透視投影が掛かり、backface-visibility で表裏を出し分ける。上に載せた文字は DOM のままなので選択もコピーもできる。canvas 2D はアフィン変換しか持たないので、この遠近は原理的に出せない。",
+  "emoji": "🗂️",
+  "category": "dom-webgl",
+  "tags": ["mouse", "transition", "interaction"],
+  "variants": [
+    { "id": "hover", "label": "Hover" },
+    { "id": "fine", "label": "Fine Grid" },
+    { "id": "sweep", "label": "Auto Sweep" },
+    { "id": "cards", "label": "Cards" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "回すのはパネルではなく面。パネルを回すと中の要素も一緒に回る"
+}
