@@ -1,0 +1,16 @@
+{
+  "title": "Relief Field",
+  "description": "平らな石膏の壁をなぞると隆起し、上から落ちてくる金属球がその斜面で逸れて転がる。壁の陰影も球の物理も同じ高さ場を読むので、見えている凹凸と球の動きが一致する。転がった球は溝を刻み、次の球がそこへ流れ込む。",
+  "emoji": "🪨",
+  "category": "interaction",
+  "tags": ["shader", "physics", "interaction", "simulation", "lighting"],
+  "variants": [
+    { "id": "plaster", "label": "Plaster" },
+    { "id": "clay", "label": "Deep Clay" },
+    { "id": "sand", "label": "Quick Sand" },
+    { "id": "night", "label": "Raking Light" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "ジオメトリは板1枚。立体に見えているのは高さ場から作った法線とセルフシャドウ"
+}
