@@ -20,6 +20,7 @@ export const tileVertexShader = /* glsl */`
   attribute vec2  aTile;    // タイルの列・行
   attribute float aDelay;   // 0..1。順番
   attribute float aSpin;    // 回転軸のばらつき
+  attribute float aProg;    // hover モードで板ごとに持つ進行度
 
   uniform vec2  uGrid;
   uniform vec2  uSize;      // 板全体のワールドサイズ
@@ -28,6 +29,7 @@ export const tileVertexShader = /* glsl */`
   uniform float uLift;      // めくる途中に手前へ出る量
   uniform float uGap;       // タイル間の隙間
   uniform float uAxisMix;   // 0 = 横軸まわり / 1 = 縦軸まわり
+  uniform float uHover;     // 1 なら板ごとの進行度を使う
 
   varying vec2  vUv;
   varying vec2  vUvBack;  // 裏面が拾う uv
@@ -42,6 +44,8 @@ export const tileVertexShader = /* glsl */`
      */
     float span = max(1e-3, 1.0 - uStagger);
     float t = clamp((uProgress - aDelay * uStagger) / span, 0.0, 1.0);
+    // 板ごとにめくるときは、進行度を CPU 側が板ごとに持つ
+    t = mix(t, aProg, uHover);
     // 等速だとロボットに見える。両端を寝かせる
     t = t * t * (3.0 - 2.0 * t);
     vT = t;

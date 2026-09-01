@@ -1,14 +1,31 @@
 {
   "title": "Tile Flip",
-  "description": "画像をタイルに割って裏返す。表が画像 A、裏が画像 B で、半分回ったところで入れ替わる。板ごとの回転は頂点シェーダーで、CPU が触るのは進行度ひとつ。めくる順番は行・列・対角・放射・青ノイズから選べる。表裏の判定は進行度ではなく gl_FrontFacing。",
+  "description": "画像をタイルに割って裏返す。カーソルが乗ったタイルだけがめくれ、なぞると 1 枚ずつ裏の画像が出る。表裏の判定は進行度ではなく gl_FrontFacing。板ごとの回転は頂点シェーダーで、CPU が書くのは板ごとの進行度だけ。自動掃きは行・列・対角・放射・青ノイズから選べる。",
   "emoji": "🃏",
   "category": "transitions",
-  "tags": ["instancing", "shader", "3d", "transition"],
+  "tags": [
+    "instancing",
+    "shader",
+    "3d",
+    "transition"
+  ],
   "variants": [
-    { "id": "diagonal", "label": "Diagonal" },
-    { "id": "radial", "label": "Radial" },
-    { "id": "scatter", "label": "Scatter" },
-    { "id": "curtain", "label": "Curtain" }
+    {
+      "id": "hover",
+      "label": "Hover"
+    },
+    {
+      "id": "radial",
+      "label": "Radial"
+    },
+    {
+      "id": "scatter",
+      "label": "Scatter"
+    },
+    {
+      "id": "curtain",
+      "label": "Curtain"
+    }
   ],
   "source": "",
   "sourceUrl": "",

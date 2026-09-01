@@ -1,6 +1,8 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 
 const BASE = {
+  mode: 'hover',
+  flipTime: 0.55,
   cols: 16,
   rows: 10,
   order: 'diagonal',
@@ -18,19 +20,19 @@ const BASE = {
 }
 
 export const PRESETS = {
-  diagonal: { label: 'Diagonal', params: { ...BASE } },
-  radial: { label: 'Radial', params: { ...BASE, order: 'radial', cols: 20, rows: 12, stagger: 0.65, lift: 0.3 } },
+  hover: { label: 'Hover', params: { ...BASE, cols: 8, rows: 6, gap: 0.03, lift: 0.12 } },
+  radial: { label: 'Radial', params: { ...BASE, mode: 'auto', order: 'radial', cols: 20, rows: 12, stagger: 0.65, lift: 0.3 } },
   scatter: {
     label: 'Scatter',
-    params: { ...BASE, order: 'blue', cols: 24, rows: 15, stagger: 0.8, gap: 0.1, lift: 0.4, axis: 'y' },
+    params: { ...BASE, mode: 'auto', order: 'blue', cols: 24, rows: 15, stagger: 0.8, gap: 0.1, lift: 0.4, axis: 'y' },
   },
   curtain: {
     label: 'Curtain',
-    params: { ...BASE, order: 'column', cols: 28, rows: 6, stagger: 0.7, gap: 0.02, lift: 0.08, axis: 'y', speed: 0.4 },
+    params: { ...BASE, mode: 'auto', order: 'column', cols: 28, rows: 6, stagger: 0.7, gap: 0.02, lift: 0.08, axis: 'y', speed: 0.4 },
   },
 }
 
-export const DEFAULT_PRESET = 'diagonal'
+export const DEFAULT_PRESET = 'hover'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
 
 export const PRESET_OPTIONS = Object.fromEntries(

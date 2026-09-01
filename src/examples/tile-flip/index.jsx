@@ -11,6 +11,7 @@ import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
 const ORDERS = { Row: 'row', Column: 'column', Diagonal: 'diagonal', Radial: 'radial', 'Blue noise': 'blue' }
 const AXES = { 'Horizontal axis': 'x', 'Vertical axis': 'y' }
+const MODES = { 'Hover each tile': 'hover', 'Auto sweep': 'auto' }
 
 /**
  * めくる順番。
@@ -81,6 +82,8 @@ function Tiles({ params }) {
     }
     geo.setAttribute('aTile', new THREE.InstancedBufferAttribute(tile, 2))
     geo.setAttribute('aSpin', new THREE.InstancedBufferAttribute(spin, 1))
+    // 板ごとの進行度。hover モードで CPU が毎フレーム書く
+    geo.setAttribute('aProg', new THREE.InstancedBufferAttribute(new Float32Array(n), 1))
     geo.instanceCount = n
     base.dispose()
     return geo
@@ -106,6 +109,7 @@ function Tiles({ params }) {
       uLift: { value: DEFAULTS.lift },
       uGap: { value: DEFAULTS.gap },
       uAxisMix: { value: 0 },
+      uHover: { value: 0 },
       uLightDir: { value: new THREE.Vector3(0.4, 0.6, 1) },
       uAmbient: { value: DEFAULTS.ambient },
       uEdge: { value: DEFAULTS.edge },
@@ -142,8 +146,52 @@ function Tiles({ params }) {
   const dir = useRef(1)
   const wait = useRef(0)
 
+  /*
+   * 板ごとのめくり。
+   *
+   * 目標（0 か 1）を持ち、進行度をそこへ寄せる。カーソルが乗った瞬間に
+   * 目標を反転させるだけなので、行き帰りが同じコードで済む。
+   * **入ったタイルが変わったときだけ**反転させないと、同じ板の上で
+   * 動かしている間ずっと裏返り続ける。
+   */
+  const target = useRef(new Float32Array(0))
+  const lastTile = useRef(-1)
+
+  useEffect(() => {
+    target.current = new Float32Array(cols * rows)
+    lastTile.current = -1
+  }, [cols, rows])
+
+  const onMove = (e) => {
+    if (params.mode !== 'hover' || !e.uv) return
+    const x = Math.min(cols - 1, Math.floor(e.uv.x * cols))
+    const y = Math.min(rows - 1, Math.floor(e.uv.y * rows))
+    const i = y * cols + x
+    if (i === lastTile.current) return
+    lastTile.current = i
+    const t = target.current
+    if (i < t.length) t[i] = t[i] > 0.5 ? 0 : 1
+  }
+
   useFrame((_, delta) => {
-    if (params.autoplay) {
+    const hover = params.mode === 'hover'
+    uniforms.uHover.value = hover ? 1 : 0
+
+    if (hover) {
+      // 目標へ寄せる。指数で寄せると最後がだらだら残るので線形で詰める
+      const attr = geometry.getAttribute('aProg')
+      const arr = attr.array
+      const step = delta / Math.max(0.05, params.flipTime)
+      const tg = target.current
+      let dirty = false
+      for (let i = 0; i < arr.length && i < tg.length; i++) {
+        const d = tg[i] - arr[i]
+        if (d === 0) continue
+        arr[i] += Math.sign(d) * Math.min(Math.abs(d), step)
+        dirty = true
+      }
+      if (dirty) attr.needsUpdate = true
+    } else if (params.autoplay) {
       if (wait.current > 0) {
         wait.current -= delta
       } else {
@@ -151,7 +199,7 @@ function Tiles({ params }) {
         if (progress.current >= 1) { progress.current = 1; dir.current = -1; wait.current = params.hold }
         if (progress.current <= 0) { progress.current = 0; dir.current = 1; wait.current = params.hold }
       }
-    } else {
+    } else if (!hover) {
       progress.current = params.progress
     }
 
@@ -172,7 +220,7 @@ function Tiles({ params }) {
     coverScale(back, uniforms.uBackScale.value)
   })
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} />
+  return <mesh geometry={geometry} material={material} frustumCulled={false} onPointerMove={onMove} />
 }
 
 export default function TileFlip() {
@@ -187,6 +235,8 @@ export default function TileFlip() {
       gap: { value: DEFAULTS.gap, min: 0, max: 0.3, step: 0.01 },
     }),
     Flip: folder({
+      mode: { value: DEFAULTS.mode, options: MODES },
+      flipTime: { value: DEFAULTS.flipTime, min: 0.1, max: 2, step: 0.05, label: 'flip time' },
       order: { value: DEFAULTS.order, options: ORDERS },
       axis: { value: DEFAULTS.axis, options: AXES },
       stagger: { value: DEFAULTS.stagger, min: 0, max: 0.95, step: 0.05 },
