@@ -50,11 +50,22 @@ const G = {
   Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
 }
 
+export const GLYPHS = G
 export const GLYPH_W = 5
 export const GLYPH_H = 7
 
 /** コロンと句読点は詰める。等幅のままだと字間が空いて読みにくい */
 const NARROW = { ':': 3, '.': 3, ' ': 3 }
+
+/** 1 文字ぶんの点灯セルを [x, y]（左上原点）で返す */
+export function glyphCells(ch) {
+  const rows = G[ch] ?? G[' ']
+  const out = []
+  for (let y = 0; y < GLYPH_H; y++) {
+    for (let x = 0; x < GLYPH_W; x++) if (rows[y][x] === '1') out.push([x, y])
+  }
+  return out
+}
 
 export function glyphWidth(ch) {
   return NARROW[ch] ?? GLYPH_W

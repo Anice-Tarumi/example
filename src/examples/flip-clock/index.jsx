@@ -3,7 +3,7 @@ import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { generateBlueNoise } from '../../shared/blueNoise'
-import { stampText, measure, GLYPH_H } from './font'
+import { stampText, measure, GLYPH_H } from '../../shared/bitFont'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
 const MODES = { Clock: 'clock', Date: 'date', Countdown: 'count', Text: 'text' }
