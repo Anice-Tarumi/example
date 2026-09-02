@@ -1,0 +1,16 @@
+{
+  "title": "Hologram Globe",
+  "description": "投影されたホログラムの地球儀。陸を点で置き、海岸線を重ね、都市を結ぶ弧が飛ぶ。走査帯は画面ではなく物体空間の高さで数える。画面 UV で数えると、像がどう転がっても帯は画面に貼り付いたままで、板に模様を描いたようにしか見えない。",
+  "emoji": "🛰️",
+  "category": "materials",
+  "tags": ["shader", "3d", "bake", "instancing", "mouse"],
+  "variants": [
+    { "id": "scan", "label": "Scan" },
+    { "id": "dense", "label": "Dense" },
+    { "id": "unstable", "label": "Unstable" },
+    { "id": "amber", "label": "Amber" }
+  ],
+  "source": "Natural Earth 110m land (public domain)",
+  "sourceUrl": "https://www.naturalearthdata.com/",
+  "note": "信号の乱れは CRT と共通なので shared/glsl/signal へ。ガラス管固有の樽型歪み・蛍光体マスクは持ち出さない"
+}
