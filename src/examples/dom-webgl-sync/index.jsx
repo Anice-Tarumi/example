@@ -3,6 +3,7 @@ import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { tileVertexShader, tileFragmentShader } from './glsl/tile'
+import { orbVertexShader, orbFragmentShader } from './glsl/orb'
 import { measureAll, projectToScreen } from './sync'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 import './styles.css'
@@ -185,6 +186,130 @@ function Nodes({ shared, params }) {
   )
 }
 
+/** 尾の節の数。頭を含む */
+const TRAIL = 16
+
+/**
+ * ホバーしたカードへ渡り歩く印。
+ *
+ * **キャンバスが 1 枚であることの実演。** カードごとにキャンバスを置いて
+ * いたら、自分の矩形の外には 1px も描けないので、カードとカードの隙間を
+ * 横切れない。
+ *
+ * 尾は履歴を溜めずに、前の節へ寄っていく鎖で作る。溜めると frame 落ちの
+ * たびに間隔が飛ぶ。
+ */
+function Traveler({ shared, params }) {
+  const mesh = useRef(null)
+  const state = useRef({ x: 0, y: 0, vx: 0, vy: 0, size: 0, chain: null })
+
+  const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: orbVertexShader,
+    fragmentShader: orbFragmentShader,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uColor: { value: new THREE.Color(DEFAULTS.orbColor) },
+      uTime: { value: 0 },
+      uGlow: { value: DEFAULTS.orbGlow },
+    },
+  }), [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+  const color = useMemo(() => new THREE.Color(), [])
+
+  /*
+   * 色の属性を先に作っておく。**`setColorAt` を一度も呼ばないうちは
+   * `instanceColor` が存在せず**、シェーダーの前置きに attribute が入らない
+   * まま組まれて落ちる。
+   */
+  useEffect(() => {
+    const m = mesh.current
+    if (!m) return
+    for (let i = 0; i < TRAIL; i++) m.setColorAt(i, color.setRGB(0, 0, 0))
+    m.instanceColor.needsUpdate = true
+  }, [color])
+
+  useFrame((frame, delta) => {
+    const m = mesh.current
+    const rects = shared.rects.current
+    if (!m || !rects.length) return
+    const dt = Math.max(1 / 240, Math.min(delta, 1 / 20))
+    const s = state.current
+
+    const i = shared.hover.current
+    const target = i >= 0 ? rects[i] : null
+    if (target && !s.chain) {
+      // 最初の 1 回だけ跳ばずに置く。原点から飛んでくると何が起きたか分からない
+      s.x = target.x
+      s.y = target.y
+      s.chain = Array.from({ length: TRAIL }, () => ({ x: s.x, y: s.y }))
+    }
+    if (!s.chain) { m.visible = false; return }
+    m.visible = true
+
+    /*
+     * ばね。減衰は臨界に近づけて、行き過ぎを 1 回だけに抑える。
+     * 弱いと届くまでに間延びし、強いと瞬間移動して道筋が見えない。
+     */
+    if (target) {
+      const k = params.orbSpeed * 60
+      const damp = 2 * Math.sqrt(k) * 0.85
+      s.vx += ((target.x - s.x) * k - s.vx * damp) * dt
+      s.vy += ((target.y - s.y) * k - s.vy * damp) * dt
+    } else {
+      s.vx *= 0.9
+      s.vy *= 0.9
+    }
+    s.x += s.vx * dt
+    s.y += s.vy * dt
+
+    // 触れていない間は縮んで待つ。消すと、次に現れたとき出所が分からない
+    const want = (target ? Math.min(target.w, target.h) * 0.42 : 14) * params.orbSize
+    s.size += (want - s.size) * Math.min(1, dt * 8)
+
+    // 鎖。前の節へ寄る。頭が速いほど間隔が開いて尾が伸びる
+    s.chain[0].x = s.x
+    s.chain[0].y = s.y
+    for (let n = 1; n < TRAIL; n++) {
+      const a = s.chain[n]
+      const b = s.chain[n - 1]
+      const f = Math.min(1, dt * 26)
+      a.x += (b.x - a.x) * f
+      a.y += (b.y - a.y) * f
+    }
+
+    const speed = Math.hypot(s.vx, s.vy)
+    // 進む向きへ伸ばし、直交方向へ潰す。体積を保つと生き物に見える
+    const stretch = 1 + Math.min(1.4, speed / 900)
+
+    for (let n = 0; n < TRAIL; n++) {
+      const c = s.chain[n]
+      const t = n / (TRAIL - 1)
+      const sz = s.size * (1 - t * 0.82)
+      dummy.position.set(c.x, c.y, 60 - n)
+      dummy.rotation.z = n === 0 ? Math.atan2(s.vy, s.vx) : 0
+      dummy.scale.set(sz * (n === 0 ? stretch : 1), sz / (n === 0 ? stretch : 1), 1)
+      dummy.updateMatrix()
+      m.setMatrixAt(n, dummy.matrix)
+      // r = 濃さ / g = 頭かどうか
+      color.setRGB((1 - t) * (1 - t) * (target ? 1 : 0.45), n === 0 ? 1 : 0, 0)
+      m.setColorAt(n, color)
+    }
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+
+    material.uniforms.uTime.value = frame.clock.elapsedTime
+    material.uniforms.uGlow.value = params.orbGlow
+    material.uniforms.uColor.value.set(params.orbColor)
+  })
+
+  return <instancedMesh ref={mesh} args={[geometry, material, TRAIL]} frustumCulled={false} />
+}
+
 export default function DomWebglSync() {
   const { variant } = useControls({
     variant: { value: DEFAULT_PRESET, options: PRESET_OPTIONS, label: 'Variant' },
@@ -207,6 +332,12 @@ export default function DomWebglSync() {
       radius: { value: DEFAULTS.radius, min: 0, max: 40, step: 1, label: 'corner (px)' },
       reveal: { value: DEFAULTS.reveal, label: 'wipe in' },
       lag: { value: DEFAULTS.lag, min: 0, max: 0.9, step: 0.02, label: 'desync' },
+    }),
+    Traveler: folder({
+      orbSize: { value: DEFAULTS.orbSize, min: 0.2, max: 2, step: 0.05, label: 'size' },
+      orbSpeed: { value: DEFAULTS.orbSpeed, min: 0.05, max: 1.2, step: 0.05, label: 'chase' },
+      orbGlow: { value: DEFAULTS.orbGlow, min: 0, max: 3, step: 0.05, label: 'glow' },
+      orbColor: { value: DEFAULTS.orbColor, label: 'colour' },
     }),
     Nodes: folder({
       nodeScale: { value: DEFAULTS.nodeScale, min: 0.3, max: 1.6, step: 0.05, label: 'size' },
@@ -273,6 +404,7 @@ export default function DomWebglSync() {
       <div className="dws__canvas">
         <Canvas orthographic camera={{ position: [0, 0, 1000], near: 1, far: 3000, zoom: 1 }} dpr={[1, 2]}>
           <Tiles shared={shared} params={params} />
+          <Traveler shared={shared} params={params} />
           <Nodes shared={shared} params={params} />
         </Canvas>
       </div>

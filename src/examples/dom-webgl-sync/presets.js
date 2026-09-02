@@ -7,6 +7,12 @@ const BASE = {
   // 0 なら DOM と完全に一致する。上げると同期が崩れる様子が見える
   lag: 0,
 
+  // ホバーしたカードへ渡り歩く印。隙間を横切れるのが 1 枚キャンバスの証拠
+  orbSize: 1,
+  orbSpeed: 0.35,
+  orbGlow: 1.2,
+  orbColor: '#ffd39b',
+
   nodeScale: 0.9,
   nodeSpin: 0.5,
   occlude: true,
@@ -30,7 +36,7 @@ export const PRESETS = {
   },
   soft: {
     label: 'Soft',
-    params: { ...BASE, bend: 2.4, radius: 28, colorA: '#3a1b4f', colorB: '#ffb3c7', nodeColor: '#9ef0c8' },
+    params: { ...BASE, bend: 2.4, radius: 28, colorA: '#3a1b4f', colorB: '#ffb3c7', nodeColor: '#9ef0c8', orbColor: '#9ef0c8' },
   },
 }
 
