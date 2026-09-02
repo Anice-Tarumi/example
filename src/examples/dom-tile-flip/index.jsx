@@ -101,6 +101,7 @@ export default function DomTileFlip() {
   const gridRef = useRef(null)
   const rect = useRef(null)
   const lastHit = useRef(-1)
+  const prevPos = useRef(null)
 
   /*
    * 格子の矩形はキャッシュする。
@@ -148,20 +149,47 @@ export default function DomTileFlip() {
    * `getBoundingClientRect` は射影後の矩形を返すので、そこから割れば
    * 見えている位置とそのまま一致する。z を変えても追従する。
    */
-  const onMove = (e) => {
-    if (params.mode !== 'hover') return
+  /** 位置 → タイル番号。格子の外なら -1 */
+  const indexAt = (clientX, clientY) => {
     const r = rect.current
-    if (!r || !gridRef.current) return
+    if (!r) return -1
+    const fx = (clientX - r.x) / r.width
+    const fy = (clientY - r.y) / r.height
+    if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) return -1
+    return Math.min(rows - 1, Math.floor(fy * rows)) * cols + Math.min(cols - 1, Math.floor(fx * cols))
+  }
 
-    const fx = (e.clientX - r.x) / r.width
-    const fy = (e.clientY - r.y) / r.height
-    if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) { lastHit.current = -1; return }
+  const onMove = (e) => {
+    if (params.mode !== 'hover' || !gridRef.current) return
+    const r = rect.current
+    if (!r) return
 
-    const i = Math.min(rows - 1, Math.floor(fy * rows)) * cols + Math.min(cols - 1, Math.floor(fx * cols))
-    // 同じタイルの上で動かしている間は撃ち続けない
-    if (i === lastHit.current) return
-    lastHit.current = i
-    spin(gridRef.current.children[i])
+    /*
+     * **通り道を全部めくる。**
+     *
+     * `pointermove` はカーソルの軌跡を全点くれるわけではない。速く動かすと
+     * 1 イベントで数セル飛ぶので、サンプルされた点のセルだけ回していると
+     * 横切ったタイルの大半が素通りになる。前の位置と結んで、その線上の
+     * セルを順に発火させる。
+     *
+     * 刻みはセルの短辺の半分。粗いと角を斜めに横切ったとき抜ける。
+     */
+    const cur = { x: e.clientX, y: e.clientY }
+    const prev = prevPos.current ?? cur
+    prevPos.current = cur
+
+    const step = Math.max(4, Math.min(r.width / cols, r.height / rows) * 0.5)
+    const dist = Math.hypot(cur.x - prev.x, cur.y - prev.y)
+    const n = Math.min(64, Math.max(1, Math.ceil(dist / step)))
+
+    for (let k = 1; k <= n; k++) {
+      const t = k / n
+      const i = indexAt(prev.x + (cur.x - prev.x) * t, prev.y + (cur.y - prev.y) * t)
+      if (i < 0) { lastHit.current = -1; continue }
+      if (i === lastHit.current) continue
+      lastHit.current = i
+      spin(gridRef.current.children[i])
+    }
   }
 
   // 自動掃き。順番どおりに表裏を往復する
@@ -227,7 +255,7 @@ export default function DomTileFlip() {
       data-axis={params.axis}
       data-mode={params.mode}
       onPointerMove={onMove}
-      onPointerLeave={() => { lastHit.current = -1 }}
+      onPointerLeave={() => { lastHit.current = -1; prevPos.current = null }}
     >
       <div className="dtf__stage">
         <div className="dtf__grid" ref={gridRef}>
