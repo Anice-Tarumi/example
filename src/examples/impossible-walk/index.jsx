@@ -69,13 +69,38 @@ function Walker({ params, onState }) {
   // 画面上の進行方向。乗り換え先の向きを決めるのに使う
   const screenDir = useRef({ x: 1, y: 0 })
   const lastScreen = useRef(null)
+  /*
+   * 乗り移りの最中。
+   *
+   * 落下も跳躍も、規則の上では瞬間移動でよい。ただし瞬間で飛ばすと
+   * **何が起きたか読めない**。始点と終点を持って、その間を見せる。
+   */
+  const transit = useRef(null)
   const ray = useMemo(() => new THREE.Raycaster(), [])
 
   const reset = () => {
     pos.current = { ...LEVEL.start }
     state.current = 'walk'
     fallY.current = 0
+    transit.current = null
     onState('walk')
+  }
+
+  /** 乗り移りを始める。kind で弧の付け方と速さを変える */
+  const beginTransit = (fromPoint, next, kind) => {
+    const to = pointOn(LEVEL.beams[next.beam], next.t, new THREE.Vector3())
+    transit.current = {
+      from: fromPoint.clone(),
+      to,
+      next,
+      kind,
+      t: 0,
+      // 跳ぶほうは上へ膨らませる。落ちるほうは真っ直ぐ
+      arc: kind === 'jump' ? Math.max(1.2, (to.y - fromPoint.y) * 0.35 + 1.2) : 0,
+      dur: kind === 'jump' ? 0.5 : 0.38,
+    }
+    state.current = 'transit'
+    onState(kind)
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reset, [])
@@ -209,6 +234,28 @@ function Walker({ params, onState }) {
       return
     }
 
+    if (state.current === 'transit') {
+      const tr = transit.current
+      tr.t = Math.min(1, tr.t + dt / tr.dur)
+      /*
+       * 落ちるほうは加速、跳ぶほうは頂点で減速。
+       * 同じイージングを使うと、落下が浮いて見える。
+       */
+      const e = tr.kind === 'land' ? tr.t * tr.t : tr.t * (2 - tr.t)
+      if (ref.current) {
+        tmpA.copy(tr.from).lerp(tr.to, e)
+        // 弧。両端で 0 になる山
+        tmpA.y += Math.sin(tr.t * Math.PI) * tr.arc
+        ref.current.position.set(tmpA.x, tmpA.y + 0.42, tmpA.z)
+      }
+      if (tr.t >= 1) {
+        pos.current = { beam: tr.next.beam, t: tr.next.t, dir: tr.next.dir }
+        transit.current = null
+        state.current = 'walk'
+      }
+      return
+    }
+
     if (state.current === 'goal') return
 
     const b = LEVEL.beams[p.beam]
@@ -228,8 +275,7 @@ function Walker({ params, onState }) {
          */
         const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
         if (land) {
-          pos.current = { beam: land.beam, t: land.t, dir: dirFor(land.beam, screenDir.current) }
-          onState('land')
+          beginTransit(tmpA, { ...land, dir: dirFor(land.beam, screenDir.current) }, 'land')
           return
         }
         state.current = 'fall'
@@ -245,8 +291,8 @@ function Walker({ params, onState }) {
       if (!crossed) continue
       const up = screenRayHit(pointOn(b, pad.t, tmpA), -1, p.beam)
       if (up) {
-        pos.current = { beam: up.beam, t: up.t, dir: dirFor(up.beam, screenDir.current) }
-        onState('jump')
+        p.t = pad.t
+        beginTransit(tmpA, { ...up, dir: dirFor(up.beam, screenDir.current) }, 'jump')
         return
       }
     }
@@ -267,8 +313,7 @@ function Walker({ params, onState }) {
         p.t = atEnd ? 1 : 0
         const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
         if (land) {
-          pos.current = { beam: land.beam, t: land.t, dir: dirFor(land.beam, screenDir.current) }
-          onState('land')
+          beginTransit(tmpA, { ...land, dir: dirFor(land.beam, screenDir.current) }, 'land')
         } else {
           state.current = 'fall'
           onState('fall')
@@ -317,16 +362,26 @@ function Rig({ azimuth, elevation, zoom, onDrag }) {
     camera.updateProjectionMatrix()
   }, [camera, azimuth, elevation, zoom])
 
+  /*
+   * ドラッグの状態は ref に置く。
+   *
+   * effect のクロージャに置くと、**ドラッグが起こす再描画のたびに
+   * 張り直されて直前位置が消える**。1 回動かした時点で以降は無反応になる。
+   * コールバックも ref 越しに読み、購読は要素が変わった時だけにする。
+   */
+  const last = useRef(null)
+  const cb = useRef(onDrag)
+  useEffect(() => { cb.current = onDrag }, [onDrag])
+
   useEffect(() => {
     const el = gl.domElement
-    let last = null
-    const down = (e) => { last = { x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId) }
+    const down = (e) => { last.current = { x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId) }
     const move = (e) => {
-      if (!last) return
-      onDrag(e.clientX - last.x, e.clientY - last.y)
-      last = { x: e.clientX, y: e.clientY }
+      if (!last.current) return
+      cb.current(e.clientX - last.current.x, e.clientY - last.current.y)
+      last.current = { x: e.clientX, y: e.clientY }
     }
-    const up = (e) => { last = null; el.releasePointerCapture?.(e.pointerId) }
+    const up = (e) => { last.current = null; el.releasePointerCapture?.(e.pointerId) }
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', up)
@@ -337,7 +392,7 @@ function Rig({ azimuth, elevation, zoom, onDrag }) {
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)
     }
-  }, [gl, onDrag])
+  }, [gl])
 
   return null
 }
