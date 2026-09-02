@@ -95,6 +95,8 @@ function Stage({ params, onScore, onRestart }) {
    */
   const bump = useRef(0)
   const bumpDir = useRef({ x: 0, y: 0 })
+  // 直前の手で節が増えたか。増えたターンだけ末尾を膨らませる
+  const grew = useRef(false)
 
   useEffect(() => {
     const down = (e) => {
@@ -140,6 +142,7 @@ function Stage({ params, onScore, onRestart }) {
     if (r.moved) {
       anim.current = 0
       sinceStep.current = 0
+      grew.current = !!r.ate
       if (r.ate) eatPop.current = 1
     }
     onScore(game.state.score, !!r.died || game.state.over)
@@ -197,8 +200,12 @@ function Stage({ params, onScore, onRestart }) {
         const px = jump ? cur.x : prev.x + (cur.x - prev.x) * e
         const py = jump ? cur.y : prev.y + (cur.y - prev.y) * e
 
-        // 生えたばかりの節は膨らみながら出る
-        const grow = i === s.snake.length - 1 ? Math.min(1, 0.35 + e * 0.65) : 1
+        /*
+         * 生えたばかりの節だけ膨らみながら出す。
+         * 末尾かどうかだけで判定すると、**毎ターン尻尾が 0 から膨らむ**。
+         * 実際に増えたターンに限る。
+         */
+        const grow = grew.current && i === s.snake.length - 1 ? Math.min(1, 0.35 + e * 0.65) : 1
         // 頭は進行方向へ潰れて伸びる
         const isHead = i === 0
         const squash = isHead ? Math.sin(e * Math.PI) * params.squash : 0
