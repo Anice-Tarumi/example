@@ -3,7 +3,10 @@ import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { bakeGlyphs, COLON_INDEX } from './bake'
-import { pointsVertexShader, pointsFragmentShader } from './glsl/vat'
+import {
+  pointsVertexShader, pointsFragmentShader,
+  streakVertexShader, streakFragmentShader,
+} from './glsl/vat'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
 /*
@@ -53,6 +56,40 @@ function Digits({ params, zoom }) {
   }, [pieces])
   useEffect(() => () => geometry.dispose(), [geometry])
 
+  /*
+   * 光の筋。粒の一部だけに付ける。
+   * 全部に付けると線の束になって、粒の形が読めなくなる。
+   */
+  const streakGeo = useMemo(() => {
+    const per = Math.max(1, Math.round(pieces * 0.22))
+    const counts = KINDS.map((k) => (k === 'c' ? Math.round(per * COLON_RATIO) : per))
+    const n = counts.reduce((a, b) => a + b, 0) * 2
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
+    const piece = new Float32Array(n)
+    const slot = new Float32Array(n)
+    const end = new Float32Array(n)
+    let k = 0
+    for (let sI = 0; sI < SLOTS; sI++) {
+      for (let p = 0; p < counts[sI]; p++) {
+        for (const e of [0, 1]) {
+          // 粒とは別の番号を引く。同じ粒に偏ると筋が固まる
+          piece[k] = (p * 7 + 3) % pieces
+          slot[k] = sI
+          end[k] = e
+          k++
+        }
+      }
+    }
+    geo.setAttribute('aPiece', new THREE.BufferAttribute(piece, 1))
+    geo.setAttribute('aSlot', new THREE.BufferAttribute(slot, 1))
+    geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1))
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 200)
+    return geo
+  }, [pieces])
+  useEffect(() => () => streakGeo.dispose(), [streakGeo])
+
   const uniforms = useMemo(
     () => ({
       tPos: { value: baked.texture },
@@ -67,6 +104,10 @@ function Digits({ params, zoom }) {
       uZoom: { value: 40 },
       uTime: { value: 0 },
       uDrift: { value: DEFAULTS.drift },
+      uWarp: { value: DEFAULTS.warp },
+      uSwirl: { value: DEFAULTS.swirl },
+      uStreak: { value: DEFAULTS.streak },
+      uStreakGain: { value: DEFAULTS.streakGain },
       uArc: { value: DEFAULTS.arc },
       uLag: { value: DEFAULTS.lag },
       uColor: { value: new THREE.Color(DEFAULTS.color) },
@@ -86,6 +127,21 @@ function Digits({ params, zoom }) {
     [uniforms],
   )
   useEffect(() => () => material.dispose(), [material])
+
+  /** 筋は加算合成。重なった所だけ明るくなり、光に見える */
+  const streakMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: streakVertexShader,
+        fragmentShader: streakFragmentShader,
+        uniforms,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [uniforms],
+  )
+  useEffect(() => () => streakMat.dispose(), [streakMat])
 
   /** 桁ごとに「どの字から / どの字へ / どこまで進んだか」だけ持つ */
   const slots = useRef(
@@ -121,7 +177,7 @@ function Digits({ params, zoom }) {
       uniforms.uTo.value[i] = s.to
       uniforms.uMix.value[i] = s.mix
 
-      const w = wide ? params.pitch * 5.2 : params.colonGap + params.pitch * 1.6 // slotWidth と同じ式
+      const w = wide ? params.pitch * 4.1 : params.colonGap + params.pitch * 1.1 // slotWidth と同じ式
       uniforms.uSlotX.value[i] = x + w / 2
       x += w
     }
@@ -144,12 +200,22 @@ function Digits({ params, zoom }) {
     uniforms.uSize.value = params.dot
     uniforms.uZoom.value = zoom
     uniforms.uDrift.value = params.drift
+    uniforms.uWarp.value = params.warp
+    uniforms.uSwirl.value = params.swirl
+    uniforms.uStreak.value = params.streak
+    uniforms.uStreakGain.value = params.streakGain
     uniforms.uArc.value = params.arc
     uniforms.uLag.value = params.lag
     uniforms.uColor.value.set(params.color)
   })
 
-  return <points geometry={geometry} material={material} frustumCulled={false} />
+  return (
+    <>
+      {/* 筋を先に描く。粒より後ろに置くと尾が身体に隠れない */}
+      <lineSegments geometry={streakGeo} material={streakMat} frustumCulled={false} renderOrder={-1} />
+      <points geometry={geometry} material={material} frustumCulled={false} />
+    </>
+  )
 }
 
 function Rig({ scale, span, onZoom }) {
@@ -176,13 +242,15 @@ export default function VatClock() {
 
   const zoom = useRef(40)
   // 並びの実寸。桁とコロンで幅が違うので、式を 1 か所に持つ
-  const slotWidth = (kind, p) => (kind === 'c' ? p.colonGap + p.pitch * 1.6 : p.pitch * 5.2)
+  const slotWidth = (kind, p) => (kind === 'c' ? p.colonGap + p.pitch * 1.1 : p.pitch * 4.1)
 
   const [params, setParams] = useControls(() => ({
     Cloud: folder({
       pieces: { value: DEFAULTS.pieces, min: 1000, max: 40000, step: 1000, label: 'particles' },
       dot: { value: DEFAULTS.dot, min: 0.3, max: 4, step: 0.1, label: 'dot size' },
-      drift: { value: DEFAULTS.drift, min: 0, max: 0.3, step: 0.005, label: 'idle drift' },
+      drift: { value: DEFAULTS.drift, min: 0, max: 0.4, step: 0.005, label: 'idle drift' },
+      swirl: { value: DEFAULTS.swirl, min: 0, max: 0.3, step: 0.005 },
+      warp: { value: DEFAULTS.warp, min: 0, max: 0.8, step: 0.01, label: 'space warp' },
     }),
     Morph: folder({
       swapTime: { value: DEFAULTS.swapTime, min: 0.1, max: 2, step: 0.05, label: 'morph (s)' },
@@ -193,6 +261,10 @@ export default function VatClock() {
       scale: { value: DEFAULTS.scale, min: 0.3, max: 1.6, step: 0.02 },
       pitch: { value: DEFAULTS.pitch, min: 0.7, max: 1.6, step: 0.02, label: 'digit gap' },
       colonGap: { value: DEFAULTS.colonGap, min: 0, max: 4, step: 0.1, label: 'colon gap' },
+    }),
+    Rays: folder({
+      streak: { value: DEFAULTS.streak, min: 0, max: 14, step: 0.2, label: 'length' },
+      streakGain: { value: DEFAULTS.streakGain, min: 0, max: 1.2, step: 0.02, label: 'glow' },
     }),
     Look: folder({
       color: { value: DEFAULTS.color },

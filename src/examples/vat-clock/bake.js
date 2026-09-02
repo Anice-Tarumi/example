@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { insideDistance } from '../../shared/edt'
 
 /**
  * 数字とコロンの「粒の並び」を焼く。
@@ -71,13 +72,29 @@ function glyphPixels(ch, res = 128) {
   }
 
   const px = ctx.getImageData(0, 0, w, res).data
+
+  /*
+   * 縁からの距離も出す。
+   *
+   * どの画素も同じだけ揺らすと、輪郭が均一に太るだけで「崩れた」に見えない。
+   * **縁ほど大きく揺らす**と、芯は残ったまま外側だけがほつれる。
+   */
+  const mask = new Uint8Array(w * res)
+  for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4 + 3] > 128 ? 1 : 0
+  const dist = insideDistance(mask, w, res)
+
   const out = []
+  const edge = []
+  const soft = res * 0.06
   for (let y = 0; y < res; y++) {
     for (let x = 0; x < w; x++) {
-      if (px[(y * w + x) * 4 + 3] > 128) out.push([x, y])
+      const i = y * w + x
+      if (!mask[i]) continue
+      out.push([x, y])
+      edge.push(1 - Math.min(1, dist[i] / soft))
     }
   }
-  return { pixels: out, w, h: res }
+  return { pixels: out, edge, w, h: res }
 }
 
 /**
@@ -108,16 +125,19 @@ export function bakeGlyphs(pieces, seed = 0x2ba7) {
   const data = new Float32Array(TEX_W * height * 4)
 
   GLYPHS.forEach((ch, g) => {
-    const { pixels, w, h } = glyphPixels(ch)
+    const { pixels, edge, w, h } = glyphPixels(ch)
     const n = pixels.length || 1
     for (let p = 0; p < pieces; p++) {
       const row = g * rowsPerGlyph + Math.floor(p / TEX_W)
       const i = (row * TEX_W + (p % TEX_W)) * 4
 
-      const [gx, gy] = pixels[Math.min(n - 1, Math.floor(pick[p] * n))] ?? [w / 2, h / 2]
+      const k = Math.min(n - 1, Math.floor(pick[p] * n))
+      const [gx, gy] = pixels[k] ?? [w / 2, h / 2]
+      // 縁ほど大きく散らす。芯は残して外だけほつれさせる
+      const spread = 1 + (edge[k] ?? 0) * 5.5
       // 画素 → 枠の座標。y は上下が逆
-      data[i] = ((gx + 0.5 + jx[p]) / w - 0.5) * UNIT_W
-      data[i + 1] = (0.5 - (gy + 0.5 + jy[p]) / h) * UNIT_H
+      data[i] = ((gx + 0.5 + jx[p] * spread) / w - 0.5) * UNIT_W
+      data[i + 1] = (0.5 - (gy + 0.5 + jy[p] * spread) / h) * UNIT_H
       data[i + 2] = jz[p]
       data[i + 3] = size[p]
     }
