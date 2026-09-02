@@ -129,3 +129,76 @@ export function autoDirection(game, DIRS) {
   }
   return bestDir
 }
+
+/* ------------------------------------------------------------------ *
+ * 記録
+ * ------------------------------------------------------------------ */
+
+const BOARD_KEY = 'showcase.grid-snake.board.v1'
+export const BOARD_SIZE = 10
+
+/**
+ * 順位表。手数が少ないほど上。
+ *
+ * サーバーは無いので端末内に持つ。**cookie ではなく localStorage** を使う。
+ * cookie は毎リクエストに載るうえ 4KB で、期限も切れる。
+ * 端末に残しておくだけの用途なら localStorage のほうが素直で、消されない限り残る。
+ */
+export function loadBoard() {
+  try {
+    const raw = localStorage.getItem(BOARD_KEY)
+    const v = raw ? JSON.parse(raw) : []
+    return Array.isArray(v) ? v.slice(0, BOARD_SIZE) : []
+  } catch {
+    return []
+  }
+}
+
+export function writeBoard(list) {
+  try {
+    localStorage.setItem(BOARD_KEY, JSON.stringify(list.slice(0, BOARD_SIZE)))
+  } catch {
+    // 保存できない環境でも遊べるようにする
+  }
+}
+
+/** 載るかどうか。同着は先に出したほうが上 */
+export function qualifies(list, turns) {
+  if (!turns) return false
+  if (list.length < BOARD_SIZE) return true
+  return turns < list[list.length - 1].turns
+}
+
+export function insertScore(list, entry) {
+  const next = [...list, entry].sort((a, b) => a.turns - b.turns || a.at - b.at)
+  return next.slice(0, BOARD_SIZE)
+}
+
+/**
+ * 国コード（2 文字）から旗の絵文字。
+ *
+ * 画像を持たずに済む。Regional Indicator Symbol は A→🇦 の並びなので、
+ * コードポイントを 2 つ足すだけ。
+ * Windows の Chrome は旗を合成しないので、その環境では "JP" と出る。
+ */
+export function flagOf(code) {
+  const c = (code || '').trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return '🏳'
+  return String.fromCodePoint(...[...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65))
+}
+
+/** 既定の国。端末の言語から推測する。外していても本人が直せる */
+export function guessCountry() {
+  const tags = navigator.languages?.length ? navigator.languages : [navigator.language || 'en-US']
+  for (const t of tags) {
+    const m = /-([A-Za-z]{2})\b/.exec(t)
+    if (m) return m[1].toUpperCase()
+  }
+  return 'JP'
+}
+
+export const COUNTRY_HINTS = [
+  'JP', 'US', 'GB', 'FR', 'DE', 'IT', 'ES', 'NL', 'SE', 'NO', 'FI', 'DK',
+  'PL', 'CZ', 'TR', 'RU', 'UA', 'CN', 'KR', 'TW', 'HK', 'SG', 'TH', 'VN',
+  'ID', 'IN', 'AU', 'NZ', 'CA', 'MX', 'BR', 'AR', 'CL', 'ZA',
+]

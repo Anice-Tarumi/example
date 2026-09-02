@@ -222,3 +222,124 @@
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
+
+/* タイトル */
+.snk__card--title { padding: 40px 60px 34px; }
+
+.snk__title {
+  margin: 2px 0 6px;
+  font-size: clamp(46px, 7vw, 86px);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  line-height: 1;
+}
+
+.snk__modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 22px;
+  min-width: 220px;
+}
+
+.snk__modes .snk__button { margin-top: 0; }
+
+.snk__button--ghost {
+  background: transparent;
+  color: rgba(244, 244, 242, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.snk__button--ghost:hover { color: #f4f4f2; filter: none; }
+
+/*
+ * 順位表。左上に固定。
+ * 触らせないので pointer-events は切る。盤の操作を食わせない。
+ */
+.snk__lb {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 2;
+  pointer-events: none;
+  color: #f4f4f2;
+  min-width: 208px;
+}
+
+.snk__lb-title {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  opacity: 0.45;
+  margin-bottom: 8px;
+}
+
+.snk__lb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.snk__lb-row {
+  display: grid;
+  grid-template-columns: 16px 20px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.snk__lb-row[data-empty='true'] { opacity: 0.28; }
+
+.snk__lb-rank { opacity: 0.45; font-size: 9px; }
+.snk__lb-flag { font-size: 13px; line-height: 1; }
+.snk__lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snk__lb-turns { opacity: 0.8; }
+
+/* 記録の入力 */
+.snk__entry {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.snk__entry-label {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  opacity: 0.55;
+}
+
+.snk__entry-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.snk__entry-flag { font-size: 18px; line-height: 1; }
+
+.snk__input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f4f2;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.snk__input--cc { flex: 0 0 48px; text-align: center; text-transform: uppercase; }
+.snk__input:focus { outline: none; border-color: rgba(211, 255, 2, 0.7); }

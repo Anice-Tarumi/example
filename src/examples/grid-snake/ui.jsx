@@ -1,4 +1,5 @@
-import { UPGRADES, costOf, RARE_MULTIPLIER } from './modes'
+import { useState } from 'react'
+import { UPGRADES, costOf, RARE_MULTIPLIER, flagOf, COUNTRY_HINTS } from './modes'
 
 /**
  * 盤の上に重ねる表示。
@@ -31,12 +32,62 @@ export function Hud({ mode, score, money, turns, remaining, best }) {
   )
 }
 
+/** 最初の画面。モードを選ばせる */
+export function TitleCard({ onPick }) {
+  return (
+    <div className="snk__over">
+      <div className="snk__card snk__card--title">
+        <span className="snk__over-label">GRID</span>
+        <h1 className="snk__title">SNAKE</h1>
+        <span className="snk__label">ONE PRESS · ONE TURN</span>
+        <div className="snk__modes">
+          <button type="button" className="snk__button" onClick={() => onPick('time')} autoFocus>
+            TIME ATTACK
+          </button>
+          <button type="button" className="snk__button" onClick={() => onPick('idle')}>
+            INCREMENTAL
+          </button>
+          <button type="button" className="snk__button snk__button--ghost" onClick={() => onPick('classic')}>
+            FREE PLAY
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 順位表。左上に置く。触らせないので pointer-events は切る */
+export function Leaderboard({ list }) {
+  return (
+    <div className="snk__lb">
+      <span className="snk__lb-title">FEWEST TURNS</span>
+      <ol className="snk__lb-list">
+        {Array.from({ length: 10 }, (_, i) => {
+          const e = list[i]
+          return (
+            <li key={i} className="snk__lb-row" data-empty={e ? 'false' : 'true'}>
+              <span className="snk__lb-rank">{i + 1}</span>
+              <span className="snk__lb-flag">{e ? flagOf(e.country) : ''}</span>
+              <span className="snk__lb-name">{e ? e.name : '—'}</span>
+              <span className="snk__lb-turns">{e ? e.turns : ''}</span>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 /** 決着の板。モードごとに見せる数字が違う */
-export function ResultCard({ mode, reason, score, turns, elapsed, best, onRestart }) {
+export function ResultCard({
+  mode, reason, score, turns, elapsed, best, canRecord, defaults, onSubmit, onRestart, onTitle,
+}) {
+  const [name, setName] = useState(defaults?.name ?? '')
+  const [country, setCountry] = useState(defaults?.country ?? 'JP')
+  const [sent, setSent] = useState(false)
+
   const filled = reason === 'filled'
-  const title = mode === 'time'
-    ? (filled ? 'BOARD FILLED' : 'NO MOVES LEFT')
-    : 'NO MOVES LEFT'
+  const title = mode === 'time' ? (filled ? 'BOARD FILLED' : 'NO MOVES LEFT') : 'NO MOVES LEFT'
 
   return (
     <div className="snk__over">
@@ -49,9 +100,45 @@ export function ResultCard({ mode, reason, score, turns, elapsed, best, onRestar
             {elapsed.toFixed(1)}s{best ? ` · BEST ${best} TURNS` : ''}
           </span>
         )}
-        <button type="button" className="snk__button" onClick={onRestart} autoFocus>
-          RESTART
-        </button>
+
+        {canRecord && !sent && (
+          <form
+            className="snk__entry"
+            onSubmit={(e) => {
+              e.preventDefault()
+              onSubmit({ name: name.trim().slice(0, 12) || 'ANON', country: country.toUpperCase() })
+              setSent(true)
+            }}
+          >
+            <span className="snk__entry-label">TOP 10 — ENTER YOUR NAME</span>
+            <div className="snk__entry-row">
+              <span className="snk__entry-flag">{flagOf(country)}</span>
+              <input
+                className="snk__input snk__input--cc"
+                value={country}
+                onChange={(e) => setCountry(e.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2))}
+                list="snk-countries"
+                aria-label="country code"
+              />
+              <input
+                className="snk__input"
+                value={name}
+                placeholder="NAME"
+                maxLength={12}
+                onChange={(e) => setName(e.target.value)}
+                aria-label="name"
+                autoFocus
+              />
+              <button type="submit" className="snk__buy">SAVE</button>
+            </div>
+            <datalist id="snk-countries">
+              {COUNTRY_HINTS.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </form>
+        )}
+
+        <button type="button" className="snk__button" onClick={onRestart}>RESTART</button>
+        <button type="button" className="snk__button snk__button--ghost" onClick={onTitle}>TITLE</button>
         <span className="snk__over-hint">OR PRESS R</span>
       </div>
     </div>
@@ -64,7 +151,7 @@ export function ResultCard({ mode, reason, score, turns, elapsed, best, onRestar
  * 買えないものも並べる。**次に何を目指すかが見えていないと、
  * 貯める動機が生まれない。**
  */
-export function Shop({ money, levels, earned, onBuy, onStart }) {
+export function Shop({ money, levels, earned, onBuy, onStart, onTitle }) {
   return (
     <div className="snk__over">
       <div className="snk__card snk__card--shop">
@@ -103,6 +190,7 @@ export function Shop({ money, levels, earned, onBuy, onStart }) {
         <button type="button" className="snk__button" onClick={onStart} autoFocus>
           NEXT RUN
         </button>
+        <button type="button" className="snk__button snk__button--ghost" onClick={onTitle}>TITLE</button>
         <span className="snk__over-hint">OR PRESS R</span>
       </div>
     </div>

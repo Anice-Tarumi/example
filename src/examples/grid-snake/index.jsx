@@ -7,10 +7,11 @@ import * as THREE from 'three'
 import { ENV_MAPS } from '../../shared/env'
 import { createGame, DIRS } from './game'
 import {
-  MODE_OPTIONS, boardFor, UPGRADES, costOf, derive, loadSave, writeSave,
+  boardFor, UPGRADES, costOf, derive, loadSave, writeSave,
   autoDirection, RARE_MULTIPLIER,
+  loadBoard, writeBoard, qualifies, insertScore, guessCountry,
 } from './modes'
-import { Hud, ResultCard, Shop, StartCard } from './ui'
+import { Hud, ResultCard, Shop, StartCard, TitleCard, Leaderboard } from './ui'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 import './styles.css'
 
@@ -409,13 +410,15 @@ export default function GridSnake() {
   })
 
   const [save, setSave] = useState(() => loadSave())
-  const [phase, setPhase] = useState('run')
+  const [lb, setLb] = useState(() => loadBoard())
+  // 最初はタイトル。モードは leva ではなくここで選ばせる（二重管理を避ける）
+  const [mode, setMode] = useState('classic')
+  const [phase, setPhase] = useState('title')
   const [stats, setStats] = useState({ score: 0, turns: 0, earned: 0, elapsed: 0, remaining: 10 })
   const [reason, setReason] = useState(null)
   const [resetKey, setResetKey] = useState(0)
 
   const [params, setParams] = useControls(() => ({
-    mode: { value: 'classic', options: MODE_OPTIONS },
     Board: folder({
       size: { value: DEFAULTS.size, min: 6, max: 20, step: 1, label: 'grid (classic)' },
       fruitCount: { value: DEFAULTS.fruitCount, min: 1, max: 8, step: 1, label: 'fruits (classic)' },
@@ -451,7 +454,6 @@ export default function GridSnake() {
     if (preset) setParams(preset.params)
   }, [variant, setParams])
 
-  const mode = params.mode
   const derived = useMemo(() => derive(save.levels), [save.levels])
 
   // classic は leva の盤、それ以外はモードと強化が決める
@@ -477,12 +479,15 @@ export default function GridSnake() {
    * classic は待たせない。時間制と周回は、始める前に条件を読ませる。
    * いきなり走り出すと、盤を見る前に持ち時間が減る。
    */
-  useEffect(() => {
+  const pickMode = useCallback((m) => {
+    setMode(m)
     setReason(null)
     setStats({ score: 0, turns: 0, earned: 0, elapsed: 0, remaining: derived.runSeconds })
     setResetKey((k) => k + 1)
-    setPhase(mode === 'classic' ? 'run' : 'ready')
-  }, [mode, derived.runSeconds])
+    setPhase(m === 'classic' ? 'run' : 'ready')
+  }, [derived.runSeconds])
+
+  const goTitle = useCallback(() => setPhase('title'), [])
 
   const onEnd = useCallback((why, snap) => {
     setPhase((p) => {
@@ -502,6 +507,22 @@ export default function GridSnake() {
       return 'over'
     })
   }, [mode])
+
+  /** 順位表への登録。名前と国は次回のために残す */
+  const submitScore = useCallback(({ name, country }) => {
+    setLb((prev) => {
+      const next = insertScore(prev, {
+        name, country, turns: stats.turns, seconds: stats.elapsed, at: Date.now(),
+      })
+      writeBoard(next)
+      return next
+    })
+    setSave((prev) => {
+      const next = { ...prev, name, country }
+      writeSave(next)
+      return next
+    })
+  }, [stats.turns, stats.elapsed])
 
   const buy = useCallback((id) => {
     setSave((prev) => {
@@ -557,6 +578,8 @@ export default function GridSnake() {
         <Rig size={board.size} tilt={params.tilt} />
       </Canvas>
 
+      {mode === 'time' && phase !== 'title' && <Leaderboard list={lb} />}
+
       {phase === 'run' && (
         <Hud
           mode={mode}
@@ -568,10 +591,19 @@ export default function GridSnake() {
         />
       )}
 
+      {phase === 'title' && <TitleCard onPick={pickMode} />}
+
       {phase === 'ready' && <StartCard mode={mode} seconds={derived.runSeconds} onStart={start} />}
 
       {phase === 'over' && mode === 'idle' && (
-        <Shop money={save.money ?? 0} levels={save.levels} earned={stats.earned} onBuy={buy} onStart={start} />
+        <Shop
+          money={save.money ?? 0}
+          levels={save.levels}
+          earned={stats.earned}
+          onBuy={buy}
+          onStart={start}
+          onTitle={goTitle}
+        />
       )}
 
       {phase === 'over' && mode !== 'idle' && (
@@ -582,7 +614,11 @@ export default function GridSnake() {
           turns={stats.turns}
           elapsed={stats.elapsed}
           best={mode === 'time' ? (save.bestTurns ?? 0) : (save.best ?? 0)}
+          canRecord={mode === 'time' && reason === 'filled' && qualifies(lb, stats.turns)}
+          defaults={{ name: save.name ?? '', country: save.country ?? guessCountry() }}
+          onSubmit={submitScore}
           onRestart={start}
+          onTitle={goTitle}
         />
       )}
 
