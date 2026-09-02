@@ -8,7 +8,7 @@ import { ENV_MAPS } from '../../shared/env'
 import { createGame, DIRS } from './game'
 import {
   boardFor, UPGRADES, costOf, derive, loadSave, writeSave,
-  autoDirection, RARE_MULTIPLIER,
+  autoDirection, wanderDirection, RARE_MULTIPLIER,
   loadBoard, writeBoard, qualifies, insertScore, guessCountry,
 } from './modes'
 import { Hud, ResultCard, Shop, StartCard, TitleCard, Leaderboard } from './ui'
@@ -221,9 +221,7 @@ function Stage({ mode, board, derived, params, phase, onStats, onEnd, onRestart 
       autoTimer.current += dt
       if (autoTimer.current >= derived.stepDelay && anim.current >= 1) {
         autoTimer.current = 0
-        const dir = derived.steer
-          ? autoDirection(game, DIRS)
-          : (game.probe(s.dir).blocked ? autoDirection(game, DIRS) : s.dir)
+        const dir = derived.steer ? autoDirection(game, DIRS) : wanderDirection(game, DIRS)
         if (dir) applyResult(game.step(dir))
       }
     }

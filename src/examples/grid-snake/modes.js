@@ -100,21 +100,81 @@ export function writeSave(save) {
 }
 
 /**
+ * ある地点から届く空きマスの数。
+ *
+ * 貪欲だけで動かすと袋小路へ入って自分で詰む。**その一手のあとに
+ * どれだけ動ける余地が残るか**を数えて、体の長さより狭い方向を捨てる。
+ * 完全な解法ではないので、盤が埋まってくれば結局詰む。そこは残す。
+ */
+function reachable(state, sx, sy, limit) {
+  const n = state.size
+  // 尻尾は動くので障害物から外す。ここを塞ぐと自分の後ろを追えなくなる
+  const body = new Set(state.snake.slice(0, -1).map((c) => c.y * n + c.x))
+  const seen = new Uint8Array(n * n)
+  const stack = [sy * n + sx]
+  let count = 0
+
+  while (stack.length) {
+    const i = stack.pop()
+    if (seen[i] || body.has(i)) continue
+    seen[i] = 1
+    count++
+    if (count >= limit) return count
+
+    const x = i % n
+    const y = (i / n) | 0
+    const push = (nx, ny) => {
+      if (state.wrap) { nx = (nx + n) % n; ny = (ny + n) % n }
+      else if (nx < 0 || ny < 0 || nx >= n || ny >= n) return
+      const j = ny * n + nx
+      if (!seen[j] && !body.has(j)) stack.push(j)
+    }
+    push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1)
+  }
+  return count
+}
+
+/**
  * 自動操縦。
  *
- * 経路探索まではしない。**進める方向のうち、一番近い果物へ寄る**だけ。
- * 完全な解法にすると詰まなくなって、盤面の強化を買う理由が消える。
+ * 経路探索はしない。**進める方向のうち、一番近い果物へ寄る**だけ。
+ * ただし「入ったら出られない方向」は先に捨てる。これが無いと、
+ * 速度を上げるほど早く詰んでランが終わり、強化を買うほど収入が減る。
  */
-export function autoDirection(game, DIRS) {
+export function autoDirection(game, DIRS, { safe = true } = {}) {
   const s = game.state
   const head = s.snake[0]
   const legal = Object.values(DIRS).filter((d) => !game.probe(d).blocked)
   if (!legal.length) return null
-  if (!s.fruits.length) return legal[0]
 
-  let bestDir = legal[0]
+  let pool = legal
+  if (safe && legal.length > 1) {
+    const need = s.snake.length
+    const roomy = legal.filter((d) => {
+      const nx = s.wrap ? (head.x + d.x + s.size) % s.size : head.x + d.x
+      const ny = s.wrap ? (head.y + d.y + s.size) % s.size : head.y + d.y
+      return reachable(s, nx, ny, need) >= need
+    })
+    // 全部狭いなら、一番広い方へ逃げる
+    if (roomy.length) pool = roomy
+    else {
+      let best = legal[0]
+      let bestRoom = -1
+      for (const d of legal) {
+        const nx = s.wrap ? (head.x + d.x + s.size) % s.size : head.x + d.x
+        const ny = s.wrap ? (head.y + d.y + s.size) % s.size : head.y + d.y
+        const room = reachable(s, nx, ny, s.size * s.size)
+        if (room > bestRoom) { bestRoom = room; best = d }
+      }
+      return best
+    }
+  }
+
+  if (!s.fruits.length) return pool[0]
+
+  let bestDir = pool[0]
   let bestScore = Infinity
-  for (const d of legal) {
+  for (const d of pool) {
     const nx = head.x + d.x
     const ny = head.y + d.y
     for (const f of s.fruits) {
@@ -128,6 +188,30 @@ export function autoDirection(game, DIRS) {
     }
   }
   return bestDir
+}
+
+/**
+ * 操舵を買う前の自動。
+ *
+ * まっすぐ進んで塞がったら折れるだけだと、ほとんど果物に当たらない。
+ * 実測で 50 手 0.4 個。これでは解禁を買っても何も起きない。
+ * **隣に果物があれば取る**程度の目は持たせて、あとは詰まない方へ歩かせる。
+ */
+export function wanderDirection(game, DIRS) {
+  const s = game.state
+  const head = s.snake[0]
+  const legal = Object.values(DIRS).filter((d) => !game.probe(d).blocked)
+  if (!legal.length) return null
+
+  for (const d of legal) {
+    if (s.fruits.some((f) => f.x === head.x + d.x && f.y === head.y + d.y)) return d
+  }
+  // 今の向きが空いていればそのまま。曲がるのは塞がった時だけ
+  if (legal.includes(s.dir) || !game.probe(s.dir).blocked) {
+    const straight = legal.find((d) => d.x === s.dir.x && d.y === s.dir.y)
+    if (straight) return straight
+  }
+  return autoDirection(game, DIRS, { safe: true })
 }
 
 /* ------------------------------------------------------------------ *
