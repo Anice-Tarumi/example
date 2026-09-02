@@ -10,6 +10,8 @@ const BASE = {
   repeatDelay: 0.26,
   repeatInterval: 0.1,
   squash: 0.22,
+  shake: 0.22,
+  blockColor: '#ff2d3f',
   tilt: 52,
   snakeColor: '#eef2f6',
   headColor: '#d3ff02',

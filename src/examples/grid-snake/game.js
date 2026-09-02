@@ -84,44 +84,56 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     return state
   }
 
-  /** 首へ戻る入力は無効。押し間違いで自滅させない */
-  function canTurn(dir) {
-    if (state.snake.length < 2) return true
+  /**
+   * その方向へ進めるか。進めないなら理由を返す。
+   *
+   * 食べないターンは尻尾が 1 マス進むので、**尻尾のマスへは入れる**。
+   * ここを厳しくすると、ぐるぐる回っているだけで理不尽に詰む。
+   */
+  function probe(dir) {
     const head = state.snake[0]
-    const neck = state.snake[1]
-    return !(head.x + dir.x === neck.x && head.y + dir.y === neck.y)
-  }
-
-  function step(dir) {
-    if (state.over) return { moved: false }
-    if (dir && canTurn(dir)) state.dir = dir
-
-    const head = state.snake[0]
-    let nx = head.x + state.dir.x
-    let ny = head.y + state.dir.y
+    let nx = head.x + dir.x
+    let ny = head.y + dir.y
 
     if (state.wrap) {
       nx = (nx + state.size) % state.size
       ny = (ny + state.size) % state.size
     } else if (nx < 0 || ny < 0 || nx >= state.size || ny >= state.size) {
-      state.over = true
-      return { moved: false, died: 'wall' }
+      return { blocked: 'wall' }
     }
 
-    const next = { x: nx, y: ny }
     const fruitIndex = state.fruits.findIndex((f) => f.x === nx && f.y === ny)
     const ate = fruitIndex >= 0
+    const body = ate ? state.snake : state.snake.slice(0, -1)
+    if (body.some((c) => c.x === nx && c.y === ny)) return { blocked: 'self' }
+
+    return { blocked: null, next: { x: nx, y: ny }, fruitIndex, ate }
+  }
+
+  /** 進める方向が 1 つでもあるか。無ければ詰み */
+  function anyMove() {
+    return Object.values(DIRS).some((d) => !probe(d).blocked)
+  }
+
+  function step(dir) {
+    if (state.over) return { moved: false }
+
+    const want = dir ?? state.dir
+    const p = probe(want)
 
     /*
-     * 自分との衝突。
-     * 食べないターンは尻尾が 1 マス進むので、**尻尾のマスへは入れる**。
-     * ここを厳しくすると、ぐるぐる回っているだけで理不尽に死ぬ。
+     * **自分の体へは進ませない。死なせもしない。**
+     * 入力を弾いて、描画側に「跳ねて赤く光る」を出させる。
+     * 首へ戻る入力もここで弾かれるので、逆走の特別扱いは要らない。
      */
-    const body = ate ? state.snake : state.snake.slice(0, -1)
-    if (body.some((c) => c.x === nx && c.y === ny)) {
+    if (p.blocked === 'self') return { moved: false, blocked: 'self', dir: want }
+    if (p.blocked === 'wall') {
       state.over = true
-      return { moved: false, died: 'self' }
+      return { moved: false, died: 'wall', dir: want }
     }
+
+    state.dir = want
+    const { next, fruitIndex, ate } = p
 
     state.prev = state.snake.map((c) => ({ ...c }))
     state.snake.unshift(next)
@@ -138,10 +150,16 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     state.lastAte = ate ? next : null
     while (state.fruits.length < state.fruitCount) if (!spawnFruit()) break
 
+    // 四方すべて塞がったら詰み。弾き続けても打つ手がない
+    if (!anyMove()) {
+      state.over = true
+      return { moved: true, ate, died: 'trapped' }
+    }
+
     return { moved: true, ate }
   }
 
   reset()
 
-  return { state, step, reset, spawnFruit }
+  return { state, step, reset, spawnFruit, probe }
 }

@@ -68,6 +68,7 @@ function Stage({ params, onScore }) {
   const bodyMesh = useRef(null)
   const fruitMesh = useRef(null)
 
+  const blockColor = useMemo(() => new THREE.Color(), [])
   const bodyGeo = useMemo(() => new RoundedBoxGeometry(0.86, 0.86, 0.86, 4, 0.22), [])
   const fruitGeo = useMemo(() => new THREE.IcosahedronGeometry(0.3, 2), [])
   useEffect(() => () => { bodyGeo.dispose(); fruitGeo.dispose() }, [bodyGeo, fruitGeo])
@@ -87,6 +88,13 @@ function Stage({ params, onScore }) {
   const repeats = useRef(0)
   const anim = useRef(1)
   const eatPop = useRef(0)
+  /*
+   * 進めなかったときの手応え。
+   * その方向へ小さく跳ねて戻り、赤く光って減衰する。
+   * 0 に落ちきる前は撃ち直さない。押しっぱなしだと震えっぱなしになる。
+   */
+  const bump = useRef(0)
+  const bumpDir = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     const down = (e) => {
@@ -117,14 +125,23 @@ function Stage({ params, onScore }) {
     const name = queue.current.shift() ?? held.current
     if (!name) return false
     const r = game.step(DIRS[name])
+
+    if (r.blocked) {
+      // 揺れが収まる前に撃ち直さない
+      if (bump.current < 0.4) {
+        bump.current = 1
+        bumpDir.current = DIRS[name]
+      }
+      sinceStep.current = 0
+      return false
+    }
+
     if (r.moved) {
       anim.current = 0
       sinceStep.current = 0
       if (r.ate) eatPop.current = 1
-      onScore(game.state.score, false)
-    } else if (r.died) {
-      onScore(game.state.score, true)
     }
+    onScore(game.state.score, !!r.died || game.state.over)
     return r.moved
   }
 
@@ -144,6 +161,16 @@ function Stage({ params, onScore }) {
     }
 
     eatPop.current = Math.max(0, eatPop.current - dt * 4)
+    bump.current = Math.max(0, bump.current - dt / 0.34)
+
+    /*
+     * 減衰する振動。位相を (1 - bump) で進めると、最初が速く最後が遅くなり、
+     * ぶつかって収まる感触になる。等速だとブザーのように見える。
+     */
+    blockColor.set(params.blockColor)
+    const wig = Math.sin((1 - bump.current) * Math.PI * 5) * bump.current * params.shake
+    const bx = bumpDir.current.x * wig
+    const by = bumpDir.current.y * wig
 
     // --- 体 ---
     const t = anim.current
@@ -176,7 +203,9 @@ function Stage({ params, onScore }) {
         const squash = isHead ? Math.sin(e * Math.PI) * params.squash : 0
         const along = Math.abs(s.dir.x) > 0 ? 'x' : 'z'
 
-        dummy.position.set(px - half, 0.45, -(py - half))
+        // 頭ほど大きく揺れる。全部同じだと盤ごと動いたように見える
+        const fall = 1 / (1 + i * 0.6)
+        dummy.position.set(px - half + bx * fall, 0.45, -(py - half) - by * fall)
         dummy.scale.set(1, 1, 1).multiplyScalar(grow * (1 + (isHead ? eatPop.current * 0.25 : 0)))
         if (along === 'x') { dummy.scale.x *= 1 + squash; dummy.scale.z *= 1 - squash * 0.6 }
         else { dummy.scale.z *= 1 + squash; dummy.scale.x *= 1 - squash * 0.6 }
@@ -188,6 +217,8 @@ function Stage({ params, onScore }) {
         tmpColor.set(isHead ? params.headColor : params.snakeColor)
         // 尾へ行くほどわずかに沈める。長さが読める
         if (!isHead) tmpColor.multiplyScalar(1 - Math.min(0.35, i * 0.012))
+        // 進めなかったときは赤へ寄せる。頭ほど強く
+        if (bump.current > 0) tmpColor.lerp(blockColor, Math.min(1, bump.current * fall * 1.4))
         body.setColorAt(i, tmpColor)
       }
       body.instanceMatrix.needsUpdate = true
@@ -311,11 +342,13 @@ export default function GridSnake() {
       repeatDelay: { value: DEFAULTS.repeatDelay, min: 0.05, max: 0.6, step: 0.01, label: 'hold delay' },
       repeatInterval: { value: DEFAULTS.repeatInterval, min: 0.04, max: 0.4, step: 0.01, label: 'hold rate' },
       squash: { value: DEFAULTS.squash, min: 0, max: 0.5, step: 0.02 },
+      shake: { value: DEFAULTS.shake, min: 0, max: 0.6, step: 0.02, label: 'blocked shake' },
     }),
     Look: folder({
       snakeColor: { value: DEFAULTS.snakeColor, label: 'body' },
       headColor: { value: DEFAULTS.headColor, label: 'head' },
       fruitColor: { value: DEFAULTS.fruitColor, label: 'fruit' },
+      blockColor: { value: DEFAULTS.blockColor, label: 'blocked' },
       cellColor: { value: DEFAULTS.cellColor, label: 'cells' },
       boardColor: { value: DEFAULTS.boardColor, label: 'board' },
       background: { value: DEFAULTS.background, label: 'bg' },
