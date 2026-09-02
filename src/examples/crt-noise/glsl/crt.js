@@ -1,3 +1,5 @@
+import { SIGNAL } from '../../../shared/glsl/signal'
+
 /**
  * ブラウン管の画面。
  *
@@ -82,6 +84,7 @@ export const crtVertexShader = /* glsl */`
 
 export const crtFragmentShader = /* glsl */`
   precision highp float;
+  ${SIGNAL}
 
   uniform float uTime;
   uniform sampler2D uRandom;
@@ -106,32 +109,6 @@ export const crtFragmentShader = /* glsl */`
   varying float vSwitch;
   varying float vInvert;
   varying float vFade;
-
-  /*
-   * sin ベースの hash は座標が大きいと（画素座標は数百〜数千）
-   * sin の引数が桁あふれして精度が落ち、乱数ではなく滑らかな関数になる。
-   * 画素座標を直接入れるので、大きい入力に耐える hash を使う。
-   */
-  float hash(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-  }
-
-  /*
-   * 砂嵐は uv ではなく**画素**を種にする。
-   * uv に固定周波数を掛けると、画面が遠いほど 1 画素に何粒も入って
-   * 折り返し、渦（モアレ）になる。画素座標なら距離に関係なく
-   * 常に 1 画素 1 粒。近づいても遠ざかってもざらつきが保たれる。
-   */
-  float staticNoise(vec2 frag, float t) {
-    return hash(frag + floor(t * 24.0) * 71.13);
-  }
-
-  float bandNoise(vec2 frag, float t) {
-    // 横に伸びたノイズ。電波の乱れは走査線方向に尾を引く
-    return hash(vec2(floor(frag.y), floor(t * 18.0)) * 3.7);
-  }
 
   /*
    * 画面に映す中身。チャンネルで切り替える。
@@ -196,8 +173,7 @@ export const crtFragmentShader = /* glsl */`
      * 4. ローリングバー。垂直同期がずれると、明るい帯がゆっくり流れる。
      *    帯の内側では画が少し横に飛ぶ。
      */
-    float roll = fract(uv.y + t * 0.11);
-    float bar = smoothstep(0.10, 0.0, roll) + smoothstep(0.9, 1.0, roll);
+    float bar = rollingBar(uv.y, t, 0.11);
     uv.x += bar * 0.012 * uRoll + vFade * 0.03;
 
     /*
@@ -298,7 +274,7 @@ export const crtFragmentShader = /* glsl */`
      * 時間だけの明滅では画面全体が一様に点滅して蛍光灯に見える。
      * **粗い横帯が高速で流れる**成分を足すと、走査しているものに見える。
      */
-    col *= 1.0 + (hash(vec2(floor(t * 20.0), 3.7)) - 0.5) * uFlicker;
+    col *= 1.0 + (signalHash(vec2(floor(t * 20.0), 3.7)) - 0.5) * uFlicker;
     col *= mix(1.0, step(0.0, sin(uv.y * 5.0 - t * 80.0)) * 0.05 + 0.95,
                clamp(uFlicker * 4.0, 0.0, 1.0));
 
