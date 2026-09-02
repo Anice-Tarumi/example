@@ -46,6 +46,12 @@ function buildKernel(n) {
   return { k, r, size }
 }
 
+/**
+ * 青ノイズを焼く。
+ *
+ * **返す `data` は 0〜255 の `Uint8Array`。0〜1 ではない。**
+ * 0..1 のつもりで係数に掛けると 255 倍になる。使う側で 255 で割ること。
+ */
 export function generateBlueNoise(n = 64, seed = 0x1f3b) {
   const rand = makeRandom(seed)
   const total = n * n

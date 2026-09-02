@@ -34,7 +34,8 @@ function buildDelays(cols, rows, order) {
       else if (order === 'column') d = x / Math.max(1, cols - 1)
       else if (order === 'diagonal') d = (x + y) / Math.max(1, cols + rows - 2)
       else if (order === 'radial') d = Math.hypot(x - (cols - 1) / 2, y - (rows - 1) / 2) / (maxD * 0.5)
-      else d = noise.data[(y % noise.size) * noise.size + (x % noise.size)]
+      // data は 0..255。割らないと clamp で全部 1 になり「全部いちばん最後」になる
+      else d = noise.data[(y % noise.size) * noise.size + (x % noise.size)] / 255
       delay[i] = Math.min(1, Math.max(0, d))
     }
   }

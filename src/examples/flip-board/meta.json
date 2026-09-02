@@ -1,0 +1,16 @@
+{
+  "title": "Flip Board",
+  "description": "1 枚のフリップドット盤で 3 つ遊ぶ。写真を 1 ビットに落として出す・ライフゲームを進める・拍を鳴らす。共通しているのは「0/1 の格子が物理的に裏返る」ことだけで、違うのはビットの作り方。画像は秩序ディザを使う。誤差拡散はフレーム間で結果が安定せず、静止画なのに散発的にパタパタして壊れて見える。",
+  "emoji": "🔲",
+  "category": "interaction",
+  "tags": ["instancing", "interaction", "simulation", "audio", "3d"],
+  "variants": [
+    { "id": "photo", "label": "Photo" },
+    { "id": "life", "label": "Life" },
+    { "id": "seq", "label": "Sequencer" },
+    { "id": "amber", "label": "Amber" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "AudioContext は最初の操作まで作らない。読み込んだだけで作るとブラウザに止められ、あとから鳴らしても無音のまま"
+}

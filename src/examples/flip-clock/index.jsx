@@ -62,7 +62,8 @@ function Board({ params }) {
     if (params.order === 'radial') {
       return Math.hypot(x - (cols - 1) / 2, y - (rows - 1) / 2) / (Math.hypot(cols, rows) * 0.5)
     }
-    return noise.data[(y % noise.size) * noise.size + (x % noise.size)]
+    // data は 0..255。0..1 のつもりで掛けると 255 倍の待ちになる
+    return noise.data[(y % noise.size) * noise.size + (x % noise.size)] / 255
   }
 
   const lastText = useRef('')
