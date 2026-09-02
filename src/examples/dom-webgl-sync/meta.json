@@ -1,0 +1,16 @@
+{
+  "title": "DOM ↔ WebGL Sync",
+  "description": "DOM のレイアウトに WebGL の板を重ね、3D の頂点に HTML の札を貼る。1 world = 1 px の正射影にすれば倍率が要らない。矩形は毎フレーム測るが、全部測ってから全部動かす。1 枚ずつ測って動かすと、そのたびにレイアウトが走る。",
+  "emoji": "🧷",
+  "category": "dom-webgl",
+  "tags": ["dom-webgl", "shader", "mouse", "transition"],
+  "variants": [
+    { "id": "sync", "label": "Sync" },
+    { "id": "debug", "label": "Debug" },
+    { "id": "desync", "label": "Desync" },
+    { "id": "soft", "label": "Soft" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "キャンバスは pointer-events: none。当たり判定は DOM に任せる"
+}

@@ -45,6 +45,19 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `strand-orb` | materials | per-strand 属性 + ループ閾値 + discard リビール + 流体結合（BlueYard） |
 | `custom-cursor` | interaction | 状態スタック + canvas 2D 手描き輪郭 + SVG パスモーフ（makemepulse 2019） |
 | `debris-assembly` | geometry | 着地点を絵から逆算して順方向に落とし、積もった山が絵になる |
+| `crt-noise` | materials | junni 採用サイトの砂嵐切替 + ブラウン管の物理 7 種 |
+| `relief-field` | interaction | カーソルで隆起する高さ場と、そこへ落ちる金属球（2D 物理） |
+| `logo-relief` | interaction | 距離変換で面取りしたロゴが中央に浮き上がる |
+| `cursor-trail` | interaction | シフトレジスタ FBO（N×1 の位置履歴）で引く軌跡 |
+| `day-night-cycle` | lighting | キーフレーム補間の昼夜 + 二色グラデーションフォグ |
+| `tile-flip` | transitions | junni HP イントロのタイルめくり（WebGL / インスタンス） |
+| `dom-tile-flip` | transitions | 同じものを CSS 3D だけで組む。DOM 版との使い分け |
+| `grid-snake` | interaction | 3D のスネーク。タイムアタックとインクリメンタルの 2 モード |
+| `impossible-walk` | interaction | 無限回廊。画面上の見た目で道が繋がる |
+| `flip-clock` | typography | フリップドット盤 + ライフゲーム + シーケンサー |
+| `vat-clock` | geometry | 宇宙空間で字から字へ直接寄る粒の時計 + 周回する流れ星 |
+| `hologram-globe` | materials | 投影されたホログラムの地球儀。CRT の信号劣化を 3D へ |
+| `dom-webgl-sync` | dom-webgl | DOM の矩形に板を重ね、3D の頂点に HTML の札を貼る |
 
 ---
 
@@ -70,7 +83,6 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 - `procedural-noise` — テクスチャ: `手続きノイズのRTTベイク（voronoi・perlin・hash）` / `ブルーノイズによるバンディング除去`
 - `instancing-scale` — geometry: `InstancedGroup` / `エリア単位フラスタムカリング` / `detect-gpuによる品質ティア分岐`（パフォーマンス系は「見せる」のが難しい。FPS 表示と併せる形なら成立）
 - `spatial-audio` — audio: `Web空間オーディオ設計` / `操作・スクロール連動の音トリガー`（音が出る example の扱いを決める必要あり。ミュート既定必須）
-- `dom-webgl-sync` — dom-webgl: `DOM と WebGL の座標同期` / `3D点に追従するHTMLラベル`
 
 ---
 
@@ -371,3 +383,24 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 
 39. **leva に登録していないキーをプリセットに置かない。** `set` した瞬間に
    未登録のパスを引いて落ちる。leva で触らせない値は定数として外に出す。
+
+40. **頂点シェーダーで「まだ見えない部分」を画面外へ逃がすな。**
+   帯や線を頭から伸ばすとき、可視判定を頂点で行って `gl_Position` を飛ばすと、
+   境界をまたぐ三角形は片方の角だけが飛んで引き伸ばされる。先端が曲がり、
+   頭は刻みの数でしか進まないのでかくつく。**判定はフラグメントへ。**
+   頂点で逃がしてよいのは、判定に頂点ごとの値（`t` や `uv`）が入らないとき、
+   つまりインスタンスまるごと消えるときだけ。
+
+41. **正射影で `lookAt(0,0,0)` はカメラのオフセットを打ち消す。**
+   leva に覆われるぶん像を横へ寄せようとカメラを動かしても、原点を向かせると
+   その角度ぶん戻る。**注視点も同じだけずらす。**
+
+42. **焼いたデータと実行時の座標変換は、符号まで合わせる。**
+   `hologram-globe` では点群の経度を `atan2(z, x)`、海岸線を
+   `-cos(lat) sin(lng)` で作っていて、東西が反転して重ならなかった。
+   焼く側は**実行時の逆写像をそのまま書く**。
+
+43. **文字列置換でシェーダーを書き換えたら、当たったか検証する。**
+   `str.replace` は一致しなければ黙って何もしない。古い本体が残って未宣言の
+   varying を参照し、コンパイルが落ちて**その材質だけ描かれなくなる**。
+   three のシェーダーエラーは例外にならないので、画面が静かに欠ける。

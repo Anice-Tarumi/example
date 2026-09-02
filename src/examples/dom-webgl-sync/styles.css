@@ -1,0 +1,154 @@
+/*
+ * DOM が上、キャンバスが下。**キャンバスは操作を受けない。**
+ * 受けさせるとスクロールもホバーも奪われる。当たり判定は DOM に任せる。
+ */
+
+.dws {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #05070b;
+  color: #e8eef7;
+  font-family: system-ui, sans-serif;
+}
+
+.dws__canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dws__scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 2;
+  /* 慣性を切る。GL 側は毎フレーム測るので、OS の補間が入ると挙動が読めない */
+  overscroll-behavior: contain;
+}
+
+.dws__article {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12vh 24px 40vh;
+}
+
+.dws__kicker {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: #7dd3fc;
+}
+
+.dws__head h1 {
+  margin: 0 0 16px;
+  font-size: clamp(28px, 5vw, 48px);
+  letter-spacing: -0.02em;
+}
+
+.dws__lead,
+.dws__foot {
+  margin: 0;
+  max-width: 46em;
+  font-size: 14px;
+  line-height: 1.9;
+  color: #9fb0c4;
+}
+
+.dws__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin: 48px 0;
+}
+
+/*
+ * 板の中身は WebGL が描く。**DOM 側は文字と当たり判定だけ持つ。**
+ * 背景を敷くと、下のキャンバスが隠れて二重に見える。
+ */
+.dws__tile {
+  position: relative;
+  min-height: 190px;
+  padding: 20px;
+  border-radius: 14px;
+  background: transparent;
+  transition: transform 0.25s ease;
+}
+
+.dws__tile:hover { transform: translateY(-6px); }
+
+.dws__tile h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dws__tile p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: #cfe0f2;
+}
+
+.dws__anchor {
+  display: grid;
+  place-items: end center;
+  height: 340px;
+  margin: 64px 0 48px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  color: #8ea3ba;
+}
+
+/* 枠を出す。板と DOM がずれていれば、ここが露出して分かる */
+.dws.is-debug .dws__tile,
+.dws.is-debug .dws__anchor {
+  outline: 1px dashed rgba(125, 211, 252, 0.55);
+  outline-offset: 0;
+}
+
+.dws__labels {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/*
+ * 札は左上を原点に translate で置く。**top / left は使わない。**
+ * 毎フレーム書くとそのつどレイアウトが走る。
+ */
+.dws__label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 4px;
+  border: 1px solid rgba(255, 211, 155, 0.35);
+  border-radius: 999px;
+  background: rgba(6, 10, 16, 0.72);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  transition: opacity 0.12s linear;
+  will-change: transform;
+}
+
+.dws__label-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffd39b;
+}
+
+.dws__label-name { color: #ffd39b; }
+.dws__label-xy { color: #7f8ea1; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  .dws__grid { grid-template-columns: 1fr; }
+}
