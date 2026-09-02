@@ -2,12 +2,18 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useControls, folder } from 'leva'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { bakeDigits } from './bake'
+import { bakeGlyphs, COLON_INDEX } from './bake'
 import { pointsVertexShader, pointsFragmentShader } from './glsl/vat'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
-/** 時分秒の 6 桁。コロンは点滅だけなので焼かない */
-const SLOTS = 6
+/*
+ * 桁とコロンを同じ仕組みで並べる。
+ * コロンだけ別の物体にすると、粒の質感が揃わず貼り付けたように見える。
+ */
+const KINDS = ['d', 'd', 'c', 'd', 'd', 'c', 'd', 'd']
+const SLOTS = KINDS.length
+/** コロンは面積が小さいので、同じ密度だと白い塊になる */
+const COLON_RATIO = 0.12
 const two = (n) => String(n).padStart(2, '0')
 
 /**
@@ -19,20 +25,24 @@ const two = (n) => String(n).padStart(2, '0')
  */
 function Digits({ params, zoom }) {
   const pieces = Math.round(params.pieces)
-  const baked = useMemo(() => bakeDigits(pieces), [pieces])
+  const baked = useMemo(() => bakeGlyphs(pieces), [pieces])
   useEffect(() => () => baked.texture.dispose(), [baked])
 
   const geometry = useMemo(() => {
-    const n = SLOTS * pieces
+    // 桁は全粒、コロンは間引く。面積が違うので同じ数だと密度が揃わない
+    const counts = KINDS.map((k) => (k === 'c' ? Math.max(80, Math.round(pieces * COLON_RATIO)) : pieces))
+    const n = counts.reduce((a, b) => a + b, 0)
+
     const geo = new THREE.BufferGeometry()
     // 位置は頂点シェーダーが決めるので、中身は使わない
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
     const piece = new Float32Array(n)
     const slot = new Float32Array(n)
+    let k = 0
     for (let s = 0; s < SLOTS; s++) {
-      for (let p = 0; p < pieces; p++) {
-        piece[s * pieces + p] = p
-        slot[s * pieces + p] = s
+      for (let p = 0; p < counts[s]; p++, k++) {
+        piece[k] = p
+        slot[k] = s
       }
     }
     geo.setAttribute('aPiece', new THREE.BufferAttribute(piece, 1))
@@ -47,7 +57,7 @@ function Digits({ params, zoom }) {
     () => ({
       tPos: { value: baked.texture },
       uTexSize: { value: new THREE.Vector2(baked.width, baked.height) },
-      uRowsPerDigit: { value: baked.rowsPerDigit },
+      uRowsPerGlyph: { value: baked.rowsPerGlyph },
       uFrom: { value: new Float32Array(8) },
       uTo: { value: new Float32Array(8) },
       uMix: { value: new Float32Array(8) },
@@ -77,32 +87,43 @@ function Digits({ params, zoom }) {
   )
   useEffect(() => () => material.dispose(), [material])
 
-  /** 桁ごとに「どの数字から / どの数字へ / どこまで進んだか」だけ持つ */
-  const slots = useRef(Array.from({ length: SLOTS }, () => ({ from: 0, to: 0, mix: 1 })))
+  /** 桁ごとに「どの字から / どの字へ / どこまで進んだか」だけ持つ */
+  const slots = useRef(
+    KINDS.map((k) => (k === 'c'
+      ? { from: COLON_INDEX, to: COLON_INDEX, mix: 1 }
+      : { from: 0, to: 0, mix: 1 })),
+  )
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 20)
     const now = new Date()
     const text = `${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`
 
+    // 桁の並び。コロンは幅を詰める
+    let x = 0
+    let digit = 0
     for (let i = 0; i < SLOTS; i++) {
       const s = slots.current[i]
-      const want = Number(text[i])
+      const wide = KINDS[i] !== 'c'
 
-      // 混ぜ終わっている桁だけ、次の数字へ向かわせる
-      if (s.mix >= 1 && want !== s.to) {
-        s.from = s.to
-        s.to = want
-        s.mix = 0
+      if (wide) {
+        const want = Number(text[digit++])
+        // 混ぜ終わっている桁だけ、次の字へ向かわせる
+        if (s.mix >= 1 && want !== s.to) {
+          s.from = s.to
+          s.to = want
+          s.mix = 0
+        }
+        if (s.mix < 1) s.mix = Math.min(1, s.mix + dt / Math.max(0.05, params.swapTime))
       }
-      if (s.mix < 1) s.mix = Math.min(1, s.mix + dt / Math.max(0.05, params.swapTime))
 
       uniforms.uFrom.value[i] = s.from
       uniforms.uTo.value[i] = s.to
       uniforms.uMix.value[i] = s.mix
 
-      const gap = params.pitch * 5.6
-      uniforms.uSlotX.value[i] = i * gap + Math.floor(i / 2) * params.colonGap
+      const w = wide ? params.pitch * 5.2 : params.colonGap + params.pitch * 1.6 // slotWidth と同じ式
+      uniforms.uSlotX.value[i] = x + w / 2
+      x += w
     }
 
     /*
@@ -131,47 +152,20 @@ function Digits({ params, zoom }) {
   return <points geometry={geometry} material={material} frustumCulled={false} />
 }
 
-/** コロン。焼く価値がないので小さな点を 4 つ置いて点滅させる */
-function Colons({ params }) {
-  const ref = useRef(null)
-  const geo = useMemo(() => new THREE.SphereGeometry(0.3, 16, 12), [])
-  useEffect(() => () => geo.dispose(), [geo])
-
-  useFrame(() => {
-    if (ref.current) ref.current.visible = Math.floor(performance.now() / 500) % 2 === 0
-  })
-
-  // 桁の並びと同じ式から出す。ずれると時計に見えない
-  const gap = params.pitch * 5.6
-  const at = (i) => i * gap + Math.floor(i / 2) * params.colonGap
-  const mid = (at(0) + at(SLOTS - 1)) / 2
-  const xs = [(at(1) + at(2)) / 2 - mid, (at(3) + at(4)) / 2 - mid]
-
-  return (
-    <group ref={ref}>
-      {xs.map((x, i) => [1.2, -1.2].map((y, j) => (
-        <mesh key={`${i}-${j}`} geometry={geo} position={[x * params.scale, y * params.scale, 0]}>
-          <meshBasicMaterial color={params.color} />
-        </mesh>
-      )))}
-    </group>
-  )
-}
-
-function Rig({ scale, pitch, onZoom }) {
+function Rig({ scale, span, onZoom }) {
   const camera = useThree((s) => s.camera)
   const viewport = useThree((s) => s.size)
   useEffect(() => {
-    const w = (pitch * 5.6 * 6 + 8) * scale
+    const w = (span + 2) * scale
     const h = 13 * scale
     // 右端は leva に覆われるので、余白を多めに取る
-    const zoom = Math.min(viewport.width / w, viewport.height / h) * 0.84
+    const zoom = Math.min(viewport.width / w, viewport.height / h) * 0.7
     camera.zoom = zoom
     camera.position.set(0, 0, 40)
     camera.lookAt(0, 0, 0)
     camera.updateProjectionMatrix()
     onZoom(zoom)
-  }, [camera, scale, pitch, viewport.width, viewport.height, onZoom])
+  }, [camera, scale, span, viewport.width, viewport.height, onZoom])
   return null
 }
 
@@ -181,6 +175,8 @@ export default function VatClock() {
   })
 
   const zoom = useRef(40)
+  // 並びの実寸。桁とコロンで幅が違うので、式を 1 か所に持つ
+  const slotWidth = (kind, p) => (kind === 'c' ? p.colonGap + p.pitch * 1.6 : p.pitch * 5.2)
 
   const [params, setParams] = useControls(() => ({
     Cloud: folder({
@@ -209,6 +205,8 @@ export default function VatClock() {
     if (preset) setParams(preset.params)
   }, [variant, setParams])
 
+  const span = KINDS.reduce((a, k) => a + slotWidth(k, params), 0)
+
   return (
     <Canvas
       orthographic
@@ -217,8 +215,7 @@ export default function VatClock() {
     >
       <color attach="background" args={[params.background]} />
       <Digits params={params} zoom={zoom.current} />
-      <Colons params={params} />
-      <Rig scale={params.scale} pitch={params.pitch} onZoom={(z) => { zoom.current = z }} />
+      <Rig scale={params.scale} span={span} onZoom={(z) => { zoom.current = z }} />
     </Canvas>
   )
 }

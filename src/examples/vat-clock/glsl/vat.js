@@ -17,7 +17,7 @@ export const pointsVertexShader = /* glsl */`
 
   uniform sampler2D tPos;
   uniform vec2  uTexSize;      // テクスチャの幅と高さ
-  uniform float uRowsPerDigit;  // 数字 1 つが使う行数
+  uniform float uRowsPerGlyph;  // 字 1 つが使う行数
   uniform float uFrom[8];
   uniform float uTo[8];
   uniform float uMix[8];
@@ -43,7 +43,7 @@ export const pointsVertexShader = /* glsl */`
   vec4 fetchDigit(float digit) {
     // 粒は折り返して詰めてある。列と行に分けて引く
     float col = mod(aPiece, uTexSize.x);
-    float row = digit * uRowsPerDigit + floor(aPiece / uTexSize.x);
+    float row = digit * uRowsPerGlyph + floor(aPiece / uTexSize.x);
     // テクセルの中心を突く。境界を踏むと隣の粒や隣の数字を拾う
     return texture2D(tPos, vec2((col + 0.5) / uTexSize.x, (row + 0.5) / uTexSize.y));
   }
