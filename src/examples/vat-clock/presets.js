@@ -1,35 +1,30 @@
 /** variant プリセット。キーは meta.json の variants[].id と対応する。 */
 
 const BASE = {
-  // 散らして組み直すのに片道いくらか。往復でこの倍かかる
-  swapTime: 0.26,
+  // 点群なので数万でも描ける。volume-particles と同じ桁
+  pieces: 12000,
+  dot: 1.4,
+  // 止まっている桁も微かに漂わせる。完全な静止は点を打った絵に見える
+  drift: 0.045,
+  swapTime: 0.55,
+  // 進む向きと直交する膨らみ。直線で滑ると組み直った感じが出ない
+  arc: 0.7,
+  lag: 0.5,
   scale: 0.9,
-  // 粒 1 つの大きさ。上げると塊、下げると砂になる
-  dot: 0.26,
-  // 散らばり。上げるほど大きく崩れるが、字が読めなくなる
-  spread: 0.8,
   pitch: 1.0,
   colonGap: 1.2,
   color: '#e8e6e1',
-  metalness: 0.15,
-  roughness: 0.42,
   background: '#0e0f12',
 }
 
 export const PRESETS = {
-  stone: { label: 'Stone', params: { ...BASE } },
-  chrome: {
-    label: 'Chrome',
-    params: { ...BASE, color: '#dfe4ea', metalness: 1, roughness: 0.16, background: '#0a0c10' },
-  },
-  ink: {
-    label: 'Ink',
-    params: { ...BASE, color: '#1c1d21', metalness: 0, roughness: 0.85, background: '#eceae4' },
-  },
-  slow: { label: 'Slow Motion', params: { ...BASE, swapTime: 0.9, scale: 1.05, dot: 0.2, spread: 1.4 } },
+  dust: { label: 'Dust', params: { ...BASE } },
+  dense: { label: 'Dense', params: { ...BASE, pieces: 30000, dot: 1.0, drift: 0.03, arc: 0.5 } },
+  loose: { label: 'Loose', params: { ...BASE, pieces: 6000, dot: 2.2, arc: 1.4, lag: 0.7, swapTime: 0.9 } },
+  ink: { label: 'Ink', params: { ...BASE, color: '#1c1d21', background: '#eceae4' } },
 }
 
-export const DEFAULT_PRESET = 'stone'
+export const DEFAULT_PRESET = 'dust'
 export const DEFAULTS = PRESETS[DEFAULT_PRESET].params
 
 export const PRESET_OPTIONS = Object.fromEntries(

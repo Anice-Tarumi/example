@@ -2,25 +2,19 @@ import * as THREE from 'three'
 import { glyphCells, GLYPH_W, GLYPH_H } from '../../shared/bitFont'
 
 /**
- * 数字 0〜9 の「散った状態 → その数字の形」を焼く。
+ * 数字 0〜9 の「粒の並び」を焼く。
  *
- * 桁が変わるたびに物理を回すやり方だと、桁数を増やしただけ費用が増える。
- * 時計は同じ変形を延々と繰り返すので、**焼いて再生する**のが噛み合う。
- * 再生は頂点シェーダーがテクスチャを引くだけなので、桁を増やしても変わらない。
+ * 焼くのは**到達点だけ**。途中の経過は焼かない。
  *
- * **散った状態は全数字で共通にする。** 数字ごとに別々の散り方を焼くと、
- * 逆再生から順再生へ移る瞬間に破片が飛ぶ。
+ * 経過まで焼くと「散った状態 → その数字」しか再生できず、桁が変わるたびに
+ * 一度バラバラになる。**数字から数字へ直接寄せたい**なら、両端の並びを持って
+ * 頂点シェーダーで混ぜるほうが素直で、テクスチャも 10 行で済む。
  */
 
 export const DIGITS = 10
-export const FRAMES = 48
-/**
- * 1 桁あたりの粒子数。
- *
- * 点灯セルは最大 19 個しかないが、**1 セルに 1 個だとブロックの寄せ集め**に
- * しか見えない。セルの中へ何十個も散らして初めて「粒が集まって字になる」。
- */
-export const PIECES = 288
+
+/** 1 桁あたりの粒子数。点群なので数万でも描ける */
+export const DEFAULT_PIECES = 12000
 
 function makeRandom(seed) {
   let s = seed >>> 0
@@ -31,107 +25,62 @@ function makeRandom(seed) {
 }
 
 /**
- * 粒子が散った状態。数字をまたいで共通。
+ * テクスチャの横幅。
  *
- * **遠くへ飛ばさない。** 環状に散らすと切り替えのたびに字が消えて、
- * 時計として読めなくなる。字の枠より少しだけ広い箱の中に散らす程度にすると、
- * 崩れている最中も「その桁に何かある」ことが保たれる。
- *
- * 粒ごとに大きさと遅れも持たせる。全部が同じ速さで同じ大きさだと、
- * 集まる瞬間が一枚の板に見えて雲にならない。
+ * 粒を横一列に並べると、数万個で幅が上限を超えてテクスチャの生成が黙って
+ * 失敗する。全部が原点に落ちて、桁ごとに 1 点しか見えなくなる。
+ * **折り返して 2 次元に詰める。**
  */
-function scatterPose(rand, spread = 1) {
-  const out = []
-  // 字の枠は 5×7。そこへ余白を少し足した箱に収める
-  const bx = (GLYPH_W / 2 + 0.9) * spread
-  const by = (GLYPH_H / 2 + 0.7) * spread
-  for (let i = 0; i < PIECES; i++) {
-    out.push({
-      pos: new THREE.Vector3(
-        (rand() - 0.5) * 2 * bx,
-        (rand() - 0.5) * 2 * by,
-        (rand() - 0.5) * 2.2 * spread,
-      ),
-      quat: new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(rand() * 7, rand() * 7, rand() * 7),
-      ),
-      size: 0.6 + rand() * 0.7,
-      lag: rand() * 0.3,
-      // セルの中のどこへ入るか。粒ごとに固定しないと毎フレーム震える
-      jx: (rand() - 0.5) * 0.86,
-      jy: (rand() - 0.5) * 0.86,
-    })
-  }
-  return out
-}
-
-const easeOut = (t) => 1 - (1 - t) ** 3
+export const TEX_W = 512
 
 /**
- * 位置と姿勢を 2 枚のテクスチャへ。
+ * 位置をテクスチャへ。数字ごとに `ceil(粒数 / 幅)` 行を使う。
  *
- * 横 = 破片、縦 = 数字 × フレーム。
- * 位置のアルファに「この破片が使われているか」を入れる。数字ごとに
- * 点灯セルの数が違うので、余った破片は畳んでおく必要がある。
+ * 粒ごとの「セル内のどこに入るか」は**数字をまたいで固定**する。
+ * 数字ごとに振り直すと、混ぜている最中に粒が入れ替わってざわつく。
  */
-export function bakeDigits(spread = 1, seed = 0x2ba7) {
+export function bakeDigits(pieces = DEFAULT_PIECES, seed = 0x2ba7) {
   const rand = makeRandom(seed)
-  const scatter = scatterPose(rand, spread)
 
-  const rowCount = DIGITS * FRAMES
-  const pos = new Float32Array(PIECES * rowCount * 4)
-  const rot = new Float32Array(PIECES * rowCount * 4)
+  const jitter = []
+  for (let i = 0; i < pieces; i++) {
+    jitter.push({
+      x: (rand() - 0.5) * 0.92,
+      y: (rand() - 0.5) * 0.92,
+      z: (rand() - 0.5) * 0.5,
+      size: 0.6 + rand() * 0.8,
+    })
+  }
 
-  const tmpQ = new THREE.Quaternion()
-  const idQ = new THREE.Quaternion()
+  const rowsPerDigit = Math.ceil(pieces / TEX_W)
+  const height = rowsPerDigit * DIGITS
+  const data = new Float32Array(TEX_W * height * 4)
 
   for (let d = 0; d < DIGITS; d++) {
     const cells = glyphCells(String(d))
-    for (let f = 0; f < FRAMES; f++) {
-      const t = FRAMES > 1 ? f / (FRAMES - 1) : 1
-      const row = d * FRAMES + f
-
-      for (let p = 0; p < PIECES; p++) {
-        const i = (row * PIECES + p) * 4
-        const s = scatter[p]
-
-        /*
-         * 粒は点灯セルへ**巡回で割り当てる**。
-         * セル数は数字ごとに違う（8 は 17、1 は 10）が、巡回なら
-         * どの数字でも全部の粒が使われ、密度も自然に揃う。
-         */
-        const cell = cells[p % cells.length]
-        // 目標は文字の点灯セル。左上原点なので y を反転して中央へ寄せる
-        const tx = cell[0] - (GLYPH_W - 1) / 2 + s.jx
-        const ty = (GLYPH_H - 1) / 2 - cell[1] + s.jy
-
-        // 粒ごとに遅れる。全部が同時に着くと一枚の板に見える
-        const local = Math.min(1, Math.max(0, (t - s.lag) / (1 - s.lag)))
-        const le = easeOut(local)
-
-        // 弧を描いて寄る。直線だと束になって刺さるように見える
-        const arc = Math.sin(local * Math.PI) * 0.35 * spread
-        pos[i] = s.pos.x + (tx - s.pos.x) * le
-        pos[i + 1] = s.pos.y + (ty - s.pos.y) * le + arc
-        pos[i + 2] = s.pos.z + (0 - s.pos.z) * le
-        // 大きさを w に持たせる。散っている間は少し小さく
-        pos[i + 3] = s.size * (0.65 + 0.35 * le)
-
-        // 姿勢は散った向きから正面へ
-        tmpQ.copy(s.quat).slerp(idQ, le)
-        rot[i] = tmpQ.x; rot[i + 1] = tmpQ.y; rot[i + 2] = tmpQ.z; rot[i + 3] = tmpQ.w
-      }
+    for (let p = 0; p < pieces; p++) {
+      const row = d * rowsPerDigit + Math.floor(p / TEX_W)
+      const i = (row * TEX_W + (p % TEX_W)) * 4
+      const j = jitter[p]
+      /*
+       * 粒はセルへ**巡回で割り当てる**。セル数は数字ごとに違う
+       * （8 は 17、1 は 10）が、巡回ならどの数字でも全部の粒が使われ、
+       * 密度も揃う。余らせて畳む処理も要らない。
+       */
+      const cell = cells[p % cells.length]
+      data[i] = cell[0] - (GLYPH_W - 1) / 2 + j.x
+      // 字形は左上原点。y を反転して中央へ寄せる
+      data[i + 1] = (GLYPH_H - 1) / 2 - cell[1] + j.y
+      data[i + 2] = j.z
+      data[i + 3] = j.size
     }
   }
 
-  const make = (data) => {
-    const tex = new THREE.DataTexture(data, PIECES, rowCount, THREE.RGBAFormat, THREE.FloatType)
-    // 破片もフレームも段で持つ。補間させると隣の数字と混ざる
-    tex.minFilter = tex.magFilter = THREE.NearestFilter
-    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
-    tex.needsUpdate = true
-    return tex
-  }
+  const tex = new THREE.DataTexture(data, TEX_W, height, THREE.RGBAFormat, THREE.FloatType)
+  // 粒も数字も段で持つ。補間させると隣の粒や隣の数字と混ざる
+  tex.minFilter = tex.magFilter = THREE.NearestFilter
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.needsUpdate = true
 
-  return { position: make(pos), rotation: make(rot), pieces: PIECES, frames: FRAMES, digits: DIGITS }
+  return { texture: tex, pieces, digits: DIGITS, width: TEX_W, height, rowsPerDigit }
 }

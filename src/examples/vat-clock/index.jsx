@@ -1,12 +1,9 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, ContactShadows } from '@react-three/drei'
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { useControls, folder } from 'leva'
-import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { ENV_MAPS } from '../../shared/env'
-import { bakeDigits, PIECES, FRAMES } from './bake'
-import { vatVertexHead, vatBeginVertex, vatBeginNormal } from './glsl/vat'
+import { bakeDigits } from './bake'
+import { pointsVertexShader, pointsFragmentShader } from './glsl/vat'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
 /** 時分秒の 6 桁。コロンは点滅だけなので焼かない */
@@ -14,83 +11,76 @@ const SLOTS = 6
 const two = (n) => String(n).padStart(2, '0')
 
 /**
- * 焼いた変形で桁を組み替える時計。
+ * 粒が数字から数字へ直接寄る時計。
  *
- * 桁が変わったら、今の数字を**逆再生して散らし**、次の数字を**順再生して組む**。
- * 散った状態は全数字で共通なので、切り替わりの瞬間に破片が飛ばない。
+ * 焼いてあるのは 10 個の到達点だけで、経過は頂点シェーダーが作る。
+ * 経過まで焼くと「散った状態 → その数字」しか再生できず、桁が変わるたびに
+ * 一度バラバラになってしまう。
  */
-function Digits({ params }) {
-  // 散らばりを変えたら焼き直す。288 × 480 なので数十ミリ秒で済む
-  const baked = useMemo(() => bakeDigits(params.spread), [params.spread])
-  useEffect(() => () => { baked.position.dispose(); baked.rotation.dispose() }, [baked])
+function Digits({ params, zoom }) {
+  const pieces = Math.round(params.pieces)
+  const baked = useMemo(() => bakeDigits(pieces), [pieces])
+  useEffect(() => () => baked.texture.dispose(), [baked])
 
   const geometry = useMemo(() => {
-    // 粒は小さいので面数を落とす。288 × 6 桁で 1728 個ある
-    const base = new RoundedBoxGeometry(1, 1, 1, 2, 0.24)
-    const geo = new THREE.InstancedBufferGeometry()
-    geo.index = base.index
-    geo.attributes.position = base.attributes.position
-    geo.attributes.normal = base.attributes.normal
-    geo.attributes.uv = base.attributes.uv
-
-    const n = SLOTS * PIECES
+    const n = SLOTS * pieces
+    const geo = new THREE.BufferGeometry()
+    // 位置は頂点シェーダーが決めるので、中身は使わない
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
     const piece = new Float32Array(n)
     const slot = new Float32Array(n)
     for (let s = 0; s < SLOTS; s++) {
-      for (let p = 0; p < PIECES; p++) {
-        piece[s * PIECES + p] = p
-        slot[s * PIECES + p] = s
+      for (let p = 0; p < pieces; p++) {
+        piece[s * pieces + p] = p
+        slot[s * pieces + p] = s
       }
     }
-    geo.setAttribute('aPiece', new THREE.InstancedBufferAttribute(piece, 1))
-    geo.setAttribute('aSlot', new THREE.InstancedBufferAttribute(slot, 1))
-    geo.instanceCount = n
+    geo.setAttribute('aPiece', new THREE.BufferAttribute(piece, 1))
+    geo.setAttribute('aSlot', new THREE.BufferAttribute(slot, 1))
     // 頂点が動くので、three が計算した範囲は当てにならない
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 60)
-    base.dispose()
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 200)
     return geo
-  }, [])
+  }, [pieces])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  const extra = useMemo(
+  const uniforms = useMemo(
     () => ({
-      tPos: { value: baked.position },
-      tRot: { value: baked.rotation },
-      uTexSize: { value: new THREE.Vector2(PIECES, FRAMES * 10) },
-      uFrames: { value: FRAMES },
-      uRow: { value: new Float32Array(8) },
+      tPos: { value: baked.texture },
+      uTexSize: { value: new THREE.Vector2(baked.width, baked.height) },
+      uRowsPerDigit: { value: baked.rowsPerDigit },
+      uFrom: { value: new Float32Array(8) },
+      uTo: { value: new Float32Array(8) },
+      uMix: { value: new Float32Array(8) },
       uSlotX: { value: new Float32Array(8) },
       uScale: { value: DEFAULTS.scale },
-      uDot: { value: DEFAULTS.dot },
+      uSize: { value: DEFAULTS.dot },
+      uZoom: { value: 40 },
+      uTime: { value: 0 },
+      uDrift: { value: DEFAULTS.drift },
+      uArc: { value: DEFAULTS.arc },
+      uLag: { value: DEFAULTS.lag },
+      uColor: { value: new THREE.Color(DEFAULTS.color) },
     }),
     [baked],
   )
 
-  const material = useMemo(() => {
-    const mat = new THREE.MeshStandardMaterial()
-    mat.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, extra)
-      shader.vertexShader = vatVertexHead + shader.vertexShader
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <beginnormal_vertex>', vatBeginNormal)
-        .replace('#include <begin_vertex>', vatBeginVertex)
-    }
-    // onBeforeCompile を差し替えたら key を変えないと古い program を使い回す
-    mat.customProgramCacheKey = () => 'vat-clock'
-    return mat
-  }, [extra])
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: pointsVertexShader,
+        fragmentShader: pointsFragmentShader,
+        uniforms,
+        transparent: true,
+        depthWrite: false,
+      }),
+    [uniforms],
+  )
   useEffect(() => () => material.dispose(), [material])
 
-  /*
-   * 桁ごとの状態。
-   *   digit … いま組み上がっている数字
-   *   phase … 'hold' / 'out'（逆再生で散らす）/ 'in'（順再生で組む）
-   */
-  const slots = useRef(
-    Array.from({ length: SLOTS }, () => ({ digit: 0, next: 0, phase: 'hold', t: 1 })),
-  )
+  /** 桁ごとに「どの数字から / どの数字へ / どこまで進んだか」だけ持つ */
+  const slots = useRef(Array.from({ length: SLOTS }, () => ({ from: 0, to: 0, mix: 1 })))
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 20)
     const now = new Date()
     const text = `${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`
@@ -99,33 +89,20 @@ function Digits({ params }) {
       const s = slots.current[i]
       const want = Number(text[i])
 
-      // 組み上がっている桁が変わったら、散らしにかかる
-      if (s.phase === 'hold' && want !== s.digit) {
-        s.next = want
-        s.phase = 'out'
-        s.t = 1
+      // 混ぜ終わっている桁だけ、次の数字へ向かわせる
+      if (s.mix >= 1 && want !== s.to) {
+        s.from = s.to
+        s.to = want
+        s.mix = 0
       }
+      if (s.mix < 1) s.mix = Math.min(1, s.mix + dt / Math.max(0.05, params.swapTime))
 
-      const speed = dt / Math.max(0.05, params.swapTime)
-      if (s.phase === 'out') {
-        s.t -= speed
-        if (s.t <= 0) { s.t = 0; s.digit = s.next; s.phase = 'in' }
-      } else if (s.phase === 'in') {
-        s.t += speed
-        if (s.t >= 1) { s.t = 1; s.phase = 'hold' }
-      }
+      uniforms.uFrom.value[i] = s.from
+      uniforms.uTo.value[i] = s.to
+      uniforms.uMix.value[i] = s.mix
 
-      /*
-       * 行 = 数字 × フレーム数 + フレーム。
-       * 散らす側も組む側も同じクリップで、進む向きが違うだけ。
-       */
-      const shown = s.phase === 'out' ? s.digit : s.digit
-      const frame = Math.min(FRAMES - 1, Math.max(0, Math.round(s.t * (FRAMES - 1))))
-      extra.uRow.value[i] = shown * FRAMES + frame
-
-      // 桁の並び。時分秒の間だけ広げる。中央寄せはあとでまとめてやる
       const gap = params.pitch * 5.6
-      extra.uSlotX.value[i] = i * gap + Math.floor(i / 2) * params.colonGap
+      uniforms.uSlotX.value[i] = i * gap + Math.floor(i / 2) * params.colonGap
     }
 
     /*
@@ -135,32 +112,33 @@ function Digits({ params }) {
     let lo = Infinity
     let hi = -Infinity
     for (let i = 0; i < SLOTS; i++) {
-      lo = Math.min(lo, extra.uSlotX.value[i])
-      hi = Math.max(hi, extra.uSlotX.value[i])
+      lo = Math.min(lo, uniforms.uSlotX.value[i])
+      hi = Math.max(hi, uniforms.uSlotX.value[i])
     }
     const mid = (lo + hi) / 2
-    for (let i = 0; i < SLOTS; i++) extra.uSlotX.value[i] -= mid
+    for (let i = 0; i < SLOTS; i++) uniforms.uSlotX.value[i] -= mid
 
-    extra.uScale.value = params.scale
-    extra.uDot.value = params.dot
-    material.color.set(params.color)
-    material.metalness = params.metalness
-    material.roughness = params.roughness
+    uniforms.uTime.value = state.clock.elapsedTime
+    uniforms.uScale.value = params.scale
+    uniforms.uSize.value = params.dot
+    uniforms.uZoom.value = zoom
+    uniforms.uDrift.value = params.drift
+    uniforms.uArc.value = params.arc
+    uniforms.uLag.value = params.lag
+    uniforms.uColor.value.set(params.color)
   })
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} castShadow receiveShadow />
+  return <points geometry={geometry} material={material} frustumCulled={false} />
 }
 
-/** コロン。焼く価値がないので普通の球を 4 つ置いて点滅させる */
+/** コロン。焼く価値がないので小さな点を 4 つ置いて点滅させる */
 function Colons({ params }) {
   const ref = useRef(null)
-  const geo = useMemo(() => new THREE.SphereGeometry(0.34, 20, 14), [])
+  const geo = useMemo(() => new THREE.SphereGeometry(0.3, 16, 12), [])
   useEffect(() => () => geo.dispose(), [geo])
 
   useFrame(() => {
-    if (!ref.current) return
-    const on = Math.floor(performance.now() / 500) % 2 === 0
-    ref.current.visible = on
+    if (ref.current) ref.current.visible = Math.floor(performance.now() / 500) % 2 === 0
   })
 
   // 桁の並びと同じ式から出す。ずれると時計に見えない
@@ -168,29 +146,32 @@ function Colons({ params }) {
   const at = (i) => i * gap + Math.floor(i / 2) * params.colonGap
   const mid = (at(0) + at(SLOTS - 1)) / 2
   const xs = [(at(1) + at(2)) / 2 - mid, (at(3) + at(4)) / 2 - mid]
+
   return (
     <group ref={ref}>
-      {xs.map((x, i) => [1.1, -1.1].map((y, j) => (
+      {xs.map((x, i) => [1.2, -1.2].map((y, j) => (
         <mesh key={`${i}-${j}`} geometry={geo} position={[x * params.scale, y * params.scale, 0]}>
-          <meshStandardMaterial color={params.color} metalness={params.metalness} roughness={params.roughness} />
+          <meshBasicMaterial color={params.color} />
         </mesh>
       )))}
     </group>
   )
 }
 
-function Rig({ scale, pitch }) {
+function Rig({ scale, pitch, onZoom }) {
   const camera = useThree((s) => s.camera)
   const viewport = useThree((s) => s.size)
   useEffect(() => {
     const w = (pitch * 5.6 * 6 + 8) * scale
     const h = 13 * scale
     // 右端は leva に覆われるので、余白を多めに取る
-    camera.zoom = Math.min(viewport.width / w, viewport.height / h) * 0.84
+    const zoom = Math.min(viewport.width / w, viewport.height / h) * 0.84
+    camera.zoom = zoom
     camera.position.set(0, 0, 40)
     camera.lookAt(0, 0, 0)
     camera.updateProjectionMatrix()
-  }, [camera, scale, pitch, viewport.width, viewport.height])
+    onZoom(zoom)
+  }, [camera, scale, pitch, viewport.width, viewport.height, onZoom])
   return null
 }
 
@@ -199,19 +180,26 @@ export default function VatClock() {
     variant: { value: DEFAULT_PRESET, options: PRESET_OPTIONS, label: 'Variant' },
   })
 
+  const zoom = useRef(40)
+
   const [params, setParams] = useControls(() => ({
-    Motion: folder({
-      swapTime: { value: DEFAULTS.swapTime, min: 0.08, max: 1.2, step: 0.02, label: 'swap (s)' },
+    Cloud: folder({
+      pieces: { value: DEFAULTS.pieces, min: 1000, max: 40000, step: 1000, label: 'particles' },
+      dot: { value: DEFAULTS.dot, min: 0.3, max: 4, step: 0.1, label: 'dot size' },
+      drift: { value: DEFAULTS.drift, min: 0, max: 0.3, step: 0.005, label: 'idle drift' },
+    }),
+    Morph: folder({
+      swapTime: { value: DEFAULTS.swapTime, min: 0.1, max: 2, step: 0.05, label: 'morph (s)' },
+      arc: { value: DEFAULTS.arc, min: 0, max: 2.5, step: 0.05, label: 'bulge' },
+      lag: { value: DEFAULTS.lag, min: 0, max: 0.9, step: 0.02, label: 'stagger' },
+    }),
+    Layout: folder({
       scale: { value: DEFAULTS.scale, min: 0.3, max: 1.6, step: 0.02 },
-      dot: { value: DEFAULTS.dot, min: 0.05, max: 0.6, step: 0.01, label: 'grain' },
-      spread: { value: DEFAULTS.spread, min: 0.3, max: 2.4, step: 0.05, label: 'scatter' },
       pitch: { value: DEFAULTS.pitch, min: 0.7, max: 1.6, step: 0.02, label: 'digit gap' },
       colonGap: { value: DEFAULTS.colonGap, min: 0, max: 4, step: 0.1, label: 'colon gap' },
     }),
     Look: folder({
       color: { value: DEFAULTS.color },
-      metalness: { value: DEFAULTS.metalness, min: 0, max: 1, step: 0.02 },
-      roughness: { value: DEFAULTS.roughness, min: 0.05, max: 1, step: 0.02 },
       background: { value: DEFAULTS.background, label: 'bg' },
     }),
   }))
@@ -224,24 +212,13 @@ export default function VatClock() {
   return (
     <Canvas
       orthographic
-      shadows
       camera={{ position: [0, 0, 40], zoom: 40, near: -200, far: 400 }}
       dpr={[1, 2]}
-      gl={{ toneMapping: THREE.ACESFilmicToneMapping }}
     >
       <color attach="background" args={[params.background]} />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[6, 10, 14]} intensity={1.7} castShadow />
-      <directionalLight position={[-8, -4, 6]} intensity={0.35} />
-
-      <Suspense fallback={null}>
-        <Environment files={ENV_MAPS.studio.url} />
-        <Digits params={params} />
-        <Colons params={params} />
-      </Suspense>
-
-      <ContactShadows position={[0, -5 * params.scale, 0]} opacity={0.35} scale={40} blur={2.6} far={8} />
-      <Rig scale={params.scale} pitch={params.pitch} />
+      <Digits params={params} zoom={zoom.current} />
+      <Colons params={params} />
+      <Rig scale={params.scale} pitch={params.pitch} onZoom={(z) => { zoom.current = z }} />
     </Canvas>
   )
 }
