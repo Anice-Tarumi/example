@@ -156,21 +156,47 @@ function Tiles({ params }) {
    */
   const target = useRef(new Float32Array(0))
   const lastTile = useRef(-1)
+  const prevUv = useRef(null)
 
   useEffect(() => {
     target.current = new Float32Array(cols * rows)
     lastTile.current = -1
   }, [cols, rows])
 
-  const onMove = (e) => {
-    if (params.mode !== 'hover' || !e.uv) return
-    const x = Math.min(cols - 1, Math.floor(e.uv.x * cols))
-    const y = Math.min(rows - 1, Math.floor(e.uv.y * rows))
+  const flipAt = (u, v) => {
+    const x = Math.min(cols - 1, Math.max(0, Math.floor(u * cols)))
+    const y = Math.min(rows - 1, Math.max(0, Math.floor(v * rows)))
     const i = y * cols + x
     if (i === lastTile.current) return
     lastTile.current = i
     const t = target.current
     if (i < t.length) t[i] = t[i] > 0.5 ? 0 : 1
+  }
+
+  /*
+   * 判定は**別に置いた板**で取る。
+   *
+   * タイルのジオメトリは原点にある 1×1 の板 1 枚で、格子への配置は全部
+   * 頂点シェーダーの中。レイキャストは CPU 側のジオメトリを見るので、
+   * このメッシュを直接触らせると原点の 1 ユニット四方しか当たらず、
+   * uv も格子と対応しない。
+   *
+   * 通り道も補間する。pointermove は軌跡を全点くれないので、速く動かすと
+   * 横切ったタイルの大半が素通りになる。
+   */
+  const onMove = (e) => {
+    if (params.mode !== 'hover' || !e.uv) return
+    const cur = { x: e.uv.x, y: e.uv.y }
+    const prev = prevUv.current ?? cur
+    prevUv.current = cur
+
+    const step = Math.min(1 / cols, 1 / rows) * 0.5
+    const dist = Math.hypot(cur.x - prev.x, cur.y - prev.y)
+    const n = Math.min(48, Math.max(1, Math.ceil(dist / step)))
+    for (let k = 1; k <= n; k++) {
+      const t = k / n
+      flipAt(prev.x + (cur.x - prev.x) * t, prev.y + (cur.y - prev.y) * t)
+    }
   }
 
   useFrame((_, delta) => {
@@ -220,7 +246,22 @@ function Tiles({ params }) {
     coverScale(back, uniforms.uBackScale.value)
   })
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} onPointerMove={onMove} />
+  return (
+    <>
+      <mesh geometry={geometry} material={material} frustumCulled={false} />
+
+      {/* 判定用。描かないが当たる板。格子と同じ大きさに合わせる */}
+      <mesh
+        scale={[size.x, size.y, 1]}
+        position={[0, 0, 0.002]}
+        onPointerMove={onMove}
+        onPointerOut={() => { lastTile.current = -1; prevUv.current = null }}
+      >
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
+    </>
+  )
 }
 
 export default function TileFlip() {
