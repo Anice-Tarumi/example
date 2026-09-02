@@ -240,7 +240,13 @@ function Traveler({ shared, params }) {
     const dt = Math.max(1 / 240, Math.min(delta, 1 / 20))
     const s = state.current
 
-    const i = shared.hover.current
+    /*
+     * 離れても**直前のカードを追い続ける**。追従先を捨てると world 座標に
+     * 留まり、カメラが動かないぶん画面に貼り付いて見える。カードは
+     * スクロールで動くので、印だけ取り残される。
+     */
+    const active = shared.hover.current >= 0
+    const i = active ? shared.hover.current : shared.last.current
     const target = i >= 0 ? rects[i] : null
     if (target && !s.chain) {
       // 最初の 1 回だけ跳ばずに置く。原点から飛んでくると何が起きたか分からない
@@ -248,7 +254,8 @@ function Traveler({ shared, params }) {
       s.y = target.y
       s.chain = Array.from({ length: TRAIL }, () => ({ x: s.x, y: s.y }))
     }
-    if (!s.chain) { m.visible = false; return }
+    // 追う先が画面の外なら描かない。宙に浮いた点だけが残る
+    if (!s.chain || (target && !target.visible)) { m.visible = false; return }
     m.visible = true
 
     /*
@@ -256,7 +263,8 @@ function Traveler({ shared, params }) {
      * 弱いと届くまでに間延びし、強いと瞬間移動して道筋が見えない。
      */
     if (target) {
-      const k = params.orbSpeed * 60
+      // 離れているときは硬く追う。スクロール中に遅れると置いていかれる
+      const k = params.orbSpeed * 60 * (active ? 1 : 3)
       const damp = 2 * Math.sqrt(k) * 0.85
       s.vx += ((target.x - s.x) * k - s.vx * damp) * dt
       s.vy += ((target.y - s.y) * k - s.vy * damp) * dt
@@ -268,7 +276,7 @@ function Traveler({ shared, params }) {
     s.y += s.vy * dt
 
     // 触れていない間は縮んで待つ。消すと、次に現れたとき出所が分からない
-    const want = (target ? Math.min(target.w, target.h) * 0.42 : 14) * params.orbSize
+    const want = (active && target ? Math.min(target.w, target.h) * 0.42 : 14) * params.orbSize
     s.size += (want - s.size) * Math.min(1, dt * 8)
 
     // 鎖。前の節へ寄る。頭が速いほど間隔が開いて尾が伸びる
@@ -296,7 +304,7 @@ function Traveler({ shared, params }) {
       dummy.updateMatrix()
       m.setMatrixAt(n, dummy.matrix)
       // r = 濃さ / g = 頭かどうか
-      color.setRGB((1 - t) * (1 - t) * (target ? 1 : 0.45), n === 0 ? 1 : 0, 0)
+      color.setRGB((1 - t) * (1 - t) * (active ? 1 : 0.45), n === 0 ? 1 : 0, 0)
       m.setColorAt(n, color)
     }
     m.instanceMatrix.needsUpdate = true
@@ -322,6 +330,8 @@ export default function DomWebglSync() {
     rects: { current: [] },
     labels: { current: [] },
     hover: { current: -1 },
+    // 直前に触れていたカード。離れても居場所を失わないように覚えておく
+    last: { current: -1 },
     scroll: { current: 0 },
     vel: { current: 0 },
   }), [])
@@ -378,7 +388,7 @@ export default function DomWebglSync() {
                 key={t.title}
                 className="dws__tile"
                 ref={(el) => { shared.items.current[i] = { el } }}
-                onPointerEnter={() => { shared.hover.current = i }}
+                onPointerEnter={() => { shared.hover.current = i; shared.last.current = i }}
                 onPointerLeave={() => { shared.hover.current = -1 }}
               >
                 <h2>{t.title}</h2>
