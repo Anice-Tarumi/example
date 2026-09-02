@@ -6,6 +6,11 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import * as THREE from 'three'
 import { ENV_MAPS } from '../../shared/env'
 import { createGame, DIRS } from './game'
+import {
+  MODE_OPTIONS, boardFor, UPGRADES, costOf, derive, loadSave, writeSave,
+  autoDirection, RARE_MULTIPLIER,
+} from './modes'
+import { Hud, ResultCard, Shop, StartCard } from './ui'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 import './styles.css'
 
@@ -57,18 +62,24 @@ function Board({ size, params }) {
  * ロジックは 1 ターンずつしか動かない。見た目はその間を補間する。
  * 補間しないと駒が瞬間移動して、いくら質感を上げても安っぽく見える。
  */
-function Stage({ params, onScore, onRestart }) {
-  const size = Math.round(params.size)
+function Stage({ mode, board, derived, params, phase, onStats, onEnd, onRestart }) {
+  const size = board.size
   const game = useMemo(
-    () => createGame({ size, fruits: Math.round(params.fruitCount), wrap: params.wrap }),
-    // 盤の条件が変わったら作り直す
-    [size, params.fruitCount, params.wrap],
+    () => createGame({
+      size,
+      fruits: board.fruitCount,
+      wrap: board.wrap,
+      growth: board.growth,
+      rareChance: board.rareChance,
+    }),
+    [size, board.fruitCount, board.wrap, board.growth, board.rareChance],
   )
 
   const bodyMesh = useRef(null)
   const fruitMesh = useRef(null)
 
   const blockColor = useMemo(() => new THREE.Color(), [])
+  const rareColor = useMemo(() => new THREE.Color('#ffd54a'), [])
   const bodyGeo = useMemo(() => new RoundedBoxGeometry(0.86, 0.86, 0.86, 4, 0.22), [])
   const fruitGeo = useMemo(() => new THREE.IcosahedronGeometry(0.3, 2), [])
   useEffect(() => () => { bodyGeo.dispose(); fruitGeo.dispose() }, [bodyGeo, fruitGeo])
@@ -98,12 +109,25 @@ function Stage({ params, onScore, onRestart }) {
   // 直前の手で節が増えたか。増えたターンだけ末尾を膨らませる
   const grew = useRef(false)
 
+  /*
+   * 集計。毎フレーム親へ渡すと再描画が走り続けるので、間引く。
+   * 表示の滑らかさは 10Hz で足りる。
+   */
+  const turns = useRef(0)
+  const earned = useRef(0)
+  const elapsed = useRef(0)
+  const remaining = useRef(derived.runSeconds)
+  const report = useRef(0)
+  const autoTimer = useRef(0)
+
+  useEffect(() => { remaining.current = derived.runSeconds }, [derived.runSeconds, phase])
+
   useEffect(() => {
     const down = (e) => {
       const name = KEYS[e.code]
       if (!name) {
-        // 終了時の再開はキーでもボタンでも同じ経路にする
-        if (e.code === 'KeyR' || ((e.code === 'Enter' || e.code === 'Space') && game.state.over)) onRestart()
+        // 再開はキーでもボタンでも同じ経路にする
+        if (e.code === 'KeyR' || e.code === 'Enter' || e.code === 'Space') onRestart()
         return
       }
       e.preventDefault()
@@ -122,46 +146,91 @@ function Stage({ params, onScore, onRestart }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [game, onScore, onRestart])
+  }, [onRestart])
 
-  const advance = () => {
-    const name = queue.current.shift() ?? held.current
-    if (!name) return false
-    const r = game.step(DIRS[name])
+  const snapshot = () => ({
+    score: game.state.score,
+    turns: turns.current,
+    earned: Math.round(earned.current),
+    elapsed: elapsed.current,
+    remaining: Math.max(0, remaining.current),
+  })
 
+  const applyResult = (r) => {
     if (r.blocked) {
       // 揺れが収まる前に撃ち直さない
       if (bump.current < 0.4) {
         bump.current = 1
-        bumpDir.current = DIRS[name]
+        bumpDir.current = r.dir
       }
       sinceStep.current = 0
       return false
     }
-
     if (r.moved) {
       anim.current = 0
       sinceStep.current = 0
+      turns.current += 1
       grew.current = !!r.ate
-      if (r.ate) eatPop.current = 1
+      if (r.ate) {
+        eatPop.current = 1
+        earned.current += derived.fruitValue * (r.eaten?.rare ? RARE_MULTIPLIER : 1)
+      }
     }
-    onScore(game.state.score, !!r.died || game.state.over)
+    if (r.died) onEnd(r.died, snapshot())
     return r.moved
   }
 
   useFrame((_, delta) => {
     const s = game.state
+    /*
+     * 演出の刻みは頭打ちにする。フレームが飛んだときに補間が吹き飛ぶため。
+     * **時計は頭打ちにしない。** 実時間で数えるものに上限を掛けると、
+     * 描画が重い環境で持ち時間が伸びてしまう。
+     */
     const dt = Math.min(delta, 1 / 20)
+    const clock = delta
+    const live = phase === 'run' && !s.over
 
-    // 補間が終わっていて、入力が溜まっているか押しっぱなしなら次の手へ
     anim.current = Math.min(1, anim.current + dt / Math.max(0.02, params.stepDuration))
     sinceStep.current += dt
 
-    if (anim.current >= 1 && !s.over) {
+    if (live) {
+      elapsed.current += clock
+      if (mode === 'idle') {
+        remaining.current -= clock
+        if (remaining.current <= 0) onEnd('time', snapshot())
+      }
+    }
+
+    // 手動。入力が溜まっているか、押しっぱなしなら次の手へ
+    if (live && anim.current >= 1) {
       const wait = repeats.current === 0 ? 0 : (repeats.current === 1 ? params.repeatDelay : params.repeatInterval)
       if (queue.current.length || (held.current && sinceStep.current >= wait)) {
-        if (advance()) repeats.current += 1
+        const name = queue.current.shift() ?? held.current
+        if (name && applyResult(game.step(DIRS[name]))) repeats.current += 1
       }
+    }
+
+    /*
+     * 自動。解禁されている間は入力が無くても一定間隔で進む。
+     * 操舵が無いうちは今の向きへ進み、塞がったら通れる方へ折れるだけ。
+     * 完全な経路探索にすると詰まなくなって、盤面の強化を買う理由が消える。
+     */
+    if (live && mode === 'idle' && derived.auto) {
+      autoTimer.current += dt
+      if (autoTimer.current >= derived.stepDelay && anim.current >= 1) {
+        autoTimer.current = 0
+        const dir = derived.steer
+          ? autoDirection(game, DIRS)
+          : (game.probe(s.dir).blocked ? autoDirection(game, DIRS) : s.dir)
+        if (dir) applyResult(game.step(dir))
+      }
+    }
+
+    report.current += dt
+    if (report.current > 0.08) {
+      report.current = 0
+      onStats(snapshot())
     }
 
     eatPop.current = Math.max(0, eatPop.current - dt * 4)
@@ -205,7 +274,9 @@ function Stage({ params, onScore, onRestart }) {
          * 末尾かどうかだけで判定すると、**毎ターン尻尾が 0 から膨らむ**。
          * 実際に増えたターンに限る。
          */
-        const grow = grew.current && i === s.snake.length - 1 ? Math.min(1, 0.35 + e * 0.65) : 1
+        const grow = grew.current && i >= s.snake.length - board.growth
+          ? Math.min(1, 0.35 + e * 0.65)
+          : 1
         // 頭は進行方向へ潰れて伸びる
         const isHead = i === 0
         const squash = isHead ? Math.sin(e * Math.PI) * params.squash : 0
@@ -245,13 +316,17 @@ function Stage({ params, onScore, onRestart }) {
           dummy.scale.setScalar(0.0001)
         } else {
           dummy.position.set(f.x - half, 0.5 + Math.sin(now * 2.4 + i) * 0.08, -(f.y - half))
-          dummy.scale.setScalar(1)
+          // レアは大きく金色に。数字を見なくても価値が分かる
+          dummy.scale.setScalar(f.rare ? 1.45 : 1)
         }
         dummy.rotation.set(now * 0.6 + i, now * 0.9 + i, 0)
         dummy.updateMatrix()
         fruit.setMatrixAt(i, dummy.matrix)
+        tmpColor.set(f?.rare ? rareColor : params.fruitColor)
+        fruit.setColorAt(i, tmpColor)
       }
       fruit.instanceMatrix.needsUpdate = true
+      if (fruit.instanceColor) fruit.instanceColor.needsUpdate = true
     }
   })
 
@@ -263,14 +338,13 @@ function Stage({ params, onScore, onRestart }) {
         <meshStandardMaterial roughness={0.32} metalness={0.1} />
       </instancedMesh>
 
-      <instancedMesh ref={fruitMesh} args={[fruitGeo, undefined, Math.max(1, Math.round(params.fruitCount))]} castShadow>
-        <meshStandardMaterial
-          color={params.fruitColor}
-          emissive={params.fruitColor}
-          emissiveIntensity={0.55}
-          roughness={0.25}
-          metalness={0}
-        />
+      <instancedMesh
+        ref={fruitMesh}
+        args={[fruitGeo, undefined, Math.max(1, board.fruitCount)]}
+        castShadow
+        key={`f${board.fruitCount}`}
+      >
+        <meshStandardMaterial emissiveIntensity={0.5} roughness={0.25} metalness={0} />
       </instancedMesh>
 
       {/* 盤の下敷き。縁を作ると盤が浮いて見える */}
@@ -334,20 +408,17 @@ export default function GridSnake() {
     variant: { value: DEFAULT_PRESET, options: PRESET_OPTIONS, label: 'Variant' },
   })
 
-  const [score, setScore] = useState(0)
-  const [over, setOver] = useState(false)
+  const [save, setSave] = useState(() => loadSave())
+  const [phase, setPhase] = useState('run')
+  const [stats, setStats] = useState({ score: 0, turns: 0, earned: 0, elapsed: 0, remaining: 10 })
+  const [reason, setReason] = useState(null)
   const [resetKey, setResetKey] = useState(0)
 
-  const restart = useCallback(() => {
-    setResetKey((k) => k + 1)
-    setScore(0)
-    setOver(false)
-  }, [])
-
   const [params, setParams] = useControls(() => ({
+    mode: { value: 'classic', options: MODE_OPTIONS },
     Board: folder({
-      size: { value: DEFAULTS.size, min: 6, max: 20, step: 1, label: 'grid' },
-      fruitCount: { value: DEFAULTS.fruitCount, min: 1, max: 8, step: 1, label: 'fruits' },
+      size: { value: DEFAULTS.size, min: 6, max: 20, step: 1, label: 'grid (classic)' },
+      fruitCount: { value: DEFAULTS.fruitCount, min: 1, max: 8, step: 1, label: 'fruits (classic)' },
       wrap: { value: DEFAULTS.wrap, label: 'wrap edges' },
       tilt: { value: DEFAULTS.tilt, min: 20, max: 85, step: 1, label: 'camera tilt' },
     }),
@@ -368,7 +439,11 @@ export default function GridSnake() {
       background: { value: DEFAULTS.background, label: 'bg' },
       shadows: { value: DEFAULTS.shadows },
     }),
-    Restart: button(() => restart()),
+    'Wipe save': button(() => {
+      const fresh = { money: 0, levels: {}, best: 0, bestTurns: 0 }
+      setSave(fresh)
+      writeSave(fresh)
+    }),
   }))
 
   useEffect(() => {
@@ -376,10 +451,70 @@ export default function GridSnake() {
     if (preset) setParams(preset.params)
   }, [variant, setParams])
 
-  const onScore = (s, dead) => {
-    setScore(s)
-    setOver(dead)
-  }
+  const mode = params.mode
+  const derived = useMemo(() => derive(save.levels), [save.levels])
+
+  // classic は leva の盤、それ以外はモードと強化が決める
+  const board = useMemo(
+    () => boardFor(mode, derived) ?? {
+      size: Math.round(params.size),
+      fruitCount: Math.round(params.fruitCount),
+      wrap: params.wrap,
+      growth: 1,
+      rareChance: 0,
+    },
+    [mode, derived, params.size, params.fruitCount, params.wrap],
+  )
+
+  const start = useCallback(() => {
+    setReason(null)
+    setStats({ score: 0, turns: 0, earned: 0, elapsed: 0, remaining: derived.runSeconds })
+    setResetKey((k) => k + 1)
+    setPhase('run')
+  }, [derived.runSeconds])
+
+  /*
+   * classic は待たせない。時間制と周回は、始める前に条件を読ませる。
+   * いきなり走り出すと、盤を見る前に持ち時間が減る。
+   */
+  useEffect(() => {
+    setReason(null)
+    setStats({ score: 0, turns: 0, earned: 0, elapsed: 0, remaining: derived.runSeconds })
+    setResetKey((k) => k + 1)
+    setPhase(mode === 'classic' ? 'run' : 'ready')
+  }, [mode, derived.runSeconds])
+
+  const onEnd = useCallback((why, snap) => {
+    setPhase((p) => {
+      if (p !== 'run') return p
+      setReason(why)
+      setStats(snap)
+      setSave((prev) => {
+        const next = { ...prev }
+        if (mode === 'idle') next.money = (prev.money ?? 0) + snap.earned
+        if (mode === 'classic') next.best = Math.max(prev.best ?? 0, snap.score)
+        if (mode === 'time' && why === 'filled') {
+          next.bestTurns = prev.bestTurns ? Math.min(prev.bestTurns, snap.turns) : snap.turns
+        }
+        writeSave(next)
+        return next
+      })
+      return 'over'
+    })
+  }, [mode])
+
+  const buy = useCallback((id) => {
+    setSave((prev) => {
+      const u = UPGRADES.find((x) => x.id === id)
+      const level = prev.levels[id] ?? 0
+      const cost = costOf(u, level)
+      if (level >= u.max || (prev.money ?? 0) < cost) return prev
+      if (u.needs && !(prev.levels[u.needs] > 0)) return prev
+      const next = { ...prev, money: prev.money - cost, levels: { ...prev.levels, [id]: level + 1 } }
+      writeSave(next)
+      return next
+    })
+  }, [])
 
   return (
     <div className="snk">
@@ -396,45 +531,62 @@ export default function GridSnake() {
           intensity={1.6}
           castShadow={params.shadows}
           shadow-mapSize={[1024, 1024]}
-          shadow-camera-left={-14}
-          shadow-camera-right={14}
-          shadow-camera-top={14}
-          shadow-camera-bottom={-14}
+          shadow-camera-left={-16}
+          shadow-camera-right={16}
+          shadow-camera-top={16}
+          shadow-camera-bottom={-16}
           shadow-bias={-0.0006}
         />
 
         <Suspense fallback={null}>
           <Environment files={ENV_MAPS.studio.url} />
-          <Stage key={resetKey} params={params} onScore={onScore} onRestart={restart} />
+          <Stage
+            key={resetKey}
+            mode={mode}
+            board={board}
+            derived={derived}
+            params={params}
+            phase={phase}
+            onStats={setStats}
+            onEnd={onEnd}
+            onRestart={start}
+          />
         </Suspense>
 
-        <ContactShadows position={[0, -0.32, 0]} opacity={0.45} scale={params.size * 2} blur={2.6} far={4} />
-        <Rig size={params.size} tilt={params.tilt} />
+        <ContactShadows position={[0, -0.32, 0]} opacity={0.45} scale={board.size * 2} blur={2.6} far={4} />
+        <Rig size={board.size} tilt={params.tilt} />
       </Canvas>
 
-      {/* 進行中のスコア。終了したら中央の板に譲る */}
-      {!over && (
-        <div className="snk__hud">
-          <span className="snk__score">{score}</span>
-          <span className="snk__label">FRUITS</span>
-        </div>
+      {phase === 'run' && (
+        <Hud
+          mode={mode}
+          score={stats.score}
+          money={(save.money ?? 0) + (mode === 'idle' ? stats.earned : 0)}
+          turns={stats.turns}
+          remaining={stats.remaining}
+          best={save.best ?? 0}
+        />
       )}
 
-      {over && (
-        <div className="snk__over">
-          <div className="snk__card">
-            <span className="snk__over-label">NO MOVES LEFT</span>
-            <span className="snk__over-score">{score}</span>
-            <span className="snk__label">FRUITS EATEN</span>
-            <button type="button" className="snk__button" onClick={restart} autoFocus>
-              RESTART
-            </button>
-            <span className="snk__over-hint">OR PRESS R</span>
-          </div>
-        </div>
+      {phase === 'ready' && <StartCard mode={mode} seconds={derived.runSeconds} onStart={start} />}
+
+      {phase === 'over' && mode === 'idle' && (
+        <Shop money={save.money ?? 0} levels={save.levels} earned={stats.earned} onBuy={buy} onStart={start} />
       )}
 
-      {!over && <div className="snk__hint">ARROWS OR WASD — ONE PRESS, ONE TURN</div>}
+      {phase === 'over' && mode !== 'idle' && (
+        <ResultCard
+          mode={mode}
+          reason={reason}
+          score={stats.score}
+          turns={stats.turns}
+          elapsed={stats.elapsed}
+          best={mode === 'time' ? (save.bestTurns ?? 0) : (save.best ?? 0)}
+          onRestart={start}
+        />
+      )}
+
+      {phase === 'run' && <div className="snk__hint">ARROWS OR WASD — ONE PRESS, ONE TURN</div>}
     </div>
   )
 }

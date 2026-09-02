@@ -23,13 +23,16 @@ function makeRandom(seed) {
   }
 }
 
-export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 } = {}) {
+export function createGame({ size = 10, fruits = 1, wrap = false, rareChance = 0, growth = 1, seed = 0x9e37 } = {}) {
   let rand = makeRandom(seed)
 
   const state = {
     size,
     wrap,
     fruitCount: fruits,
+    rareChance,
+    /** 果物 1 個で伸びる節の数。タイムアタックでは増やして周回を短くする */
+    growth,
     snake: [],
     prev: [],
     fruits: [],
@@ -56,6 +59,8 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     }
     if (!free.length) return null
     const c = free[Math.floor(rand() * free.length)]
+    // レアかどうかは湧いた時に決める。取る時に決めると見た目と食い違う
+    c.rare = rand() < state.rareChance
     state.fruits.push(c)
     return c
   }
@@ -64,6 +69,8 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     if (opts.size) state.size = opts.size
     if (opts.fruitCount) state.fruitCount = opts.fruitCount
     if (opts.wrap !== undefined) state.wrap = opts.wrap
+    if (opts.rareChance !== undefined) state.rareChance = opts.rareChance
+    if (opts.growth) state.growth = opts.growth
     rand = makeRandom(seed + state.turns)
 
     const mid = Math.floor(state.size / 2)
@@ -135,11 +142,16 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
 
     state.prev = state.snake.map((c) => ({ ...c }))
     state.snake.unshift(next)
+    let eaten = null
     if (ate) {
+      eaten = state.fruits[fruitIndex]
       state.fruits.splice(fruitIndex, 1)
       state.score += 1
       // 伸びた節は前の尻尾の位置から生えるので、補間の始点をそこに置く
-      state.prev.push({ ...state.prev[state.prev.length - 1] })
+      for (let k = 0; k < state.growth; k++) {
+        state.prev.push({ ...state.prev[state.prev.length - 1] })
+        if (k > 0) state.snake.push({ ...state.snake[state.snake.length - 1] })
+      }
     } else {
       state.snake.pop()
     }
@@ -149,12 +161,17 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     while (state.fruits.length < state.fruitCount) if (!spawnFruit()) break
 
     // 四方すべて塞がったら詰み。弾き続けても打つ手がない
+    // 盤が体で埋まったら、それも終了。タイムアタックの目標条件
+    if (state.snake.length >= state.size * state.size) {
+      state.over = true
+      return { moved: true, ate, eaten, died: 'filled' }
+    }
     if (!anyMove()) {
       state.over = true
-      return { moved: true, ate, died: 'trapped' }
+      return { moved: true, ate, eaten, died: 'trapped' }
     }
 
-    return { moved: true, ate }
+    return { moved: true, ate, eaten }
   }
 
   reset()
