@@ -1,5 +1,5 @@
 import { useControls, folder } from 'leva'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import frontUrl from '../../assets/photos/scene-a.jpg'
 import backUrl from '../../assets/photos/scene-b.jpg'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
@@ -99,97 +99,37 @@ export default function DomTileFlip() {
 
   const rootRef = useRef(null)
   const gridRef = useRef(null)
-  const rect = useRef(null)
-  const lastHit = useRef(-1)
-  const prevPos = useRef(null)
-
-  /*
-   * 格子の矩形はキャッシュする。
-   *
-   * `getBoundingClientRect` は同期的にレイアウトを確定させる。pointermove
-   * ごとに呼ぶと、カーソルを速く動かしたときだけ反応が重くなる。
-   * 変わるのは寸法かパラメータが変わったときだけなので、その時に取り直す。
-   */
-  const measure = useCallback(() => {
-    rect.current = gridRef.current?.getBoundingClientRect() ?? null
-  }, [])
+  const timers = useRef(new Set())
 
   useEffect(() => {
-    measure()
-    const ro = new ResizeObserver(measure)
-    if (rootRef.current) ro.observe(rootRef.current)
-    return () => ro.disconnect()
-  }, [measure, cols, rows, params.inset, params.gap, params.perspective, params.depth])
+    const set = timers.current
+    return () => { for (const t of set) clearTimeout(t); set.clear() }
+  }, [])
 
   /*
-   * ひとめくりは transition ではなく animation。
+   * めくりの判定は**ブラウザのヒットテストに任せる**。
    *
-   * 回っている最中でも**必ず頭から回し直す**。「もう回っているから無視」に
-   * すると、animationend を取りこぼした瞬間にそのタイルが二度と反応しなく
-   * なる。属性を落として強制的にレイアウトを読み、立て直すと再生し直せる。
+   * 座標から割り出す方式は使えない。回転中の面は透視で射影され、隣のマスを
+   * 覆う。そのときカーソルの下に見えているのは隣の面なのに、座標計算は下の
+   * パネルを指すので、見た目と違うタイルがめくれる。
+   *
+   * リスナーは**面**に付ける。`currentTarget.parentElement` を引けば、
+   * いま実際にカーソルの下にある面の持ち主がそのまま取れる。
+   *
+   * `mouseover` を使うのは、子から子へ移ったときも発火してほしいため。
+   * `mouseenter` は入れ子で発火しない。
    */
-  const spin = (el) => {
-    if (!el) return
-    el.dataset.spin = 'false'
-    // 読むだけで再計算が走り、アニメーションの再適用が別の変化として扱われる
-    void el.offsetWidth
-    el.dataset.spin = 'true'
-  }
-
-  const onAnimationEnd = (e) => {
+  const onFaceOver = (e) => {
+    if (params.mode !== 'hover') return
     const panel = e.currentTarget.parentElement
-    if (panel?.dataset.spin === 'true') panel.dataset.spin = 'false'
-  }
-
-  /*
-   * どのタイルの上にいるかは**射影後の矩形から計算する**。
-   *
-   * 判定用の板を重ねる手は使えない。格子は `translateZ` されていて
-   * `perspective` で縮んで描かれるので、変形しない板とは必ずずれる。
-   * `getBoundingClientRect` は射影後の矩形を返すので、そこから割れば
-   * 見えている位置とそのまま一致する。z を変えても追従する。
-   */
-  /** 位置 → タイル番号。格子の外なら -1 */
-  const indexAt = (clientX, clientY) => {
-    const r = rect.current
-    if (!r) return -1
-    const fx = (clientX - r.x) / r.width
-    const fy = (clientY - r.y) / r.height
-    if (fx < 0 || fx >= 1 || fy < 0 || fy >= 1) return -1
-    return Math.min(rows - 1, Math.floor(fy * rows)) * cols + Math.min(cols - 1, Math.floor(fx * cols))
-  }
-
-  const onMove = (e) => {
-    if (params.mode !== 'hover' || !gridRef.current) return
-    const r = rect.current
-    if (!r) return
-
-    /*
-     * **通り道を全部めくる。**
-     *
-     * `pointermove` はカーソルの軌跡を全点くれるわけではない。速く動かすと
-     * 1 イベントで数セル飛ぶので、サンプルされた点のセルだけ回していると
-     * 横切ったタイルの大半が素通りになる。前の位置と結んで、その線上の
-     * セルを順に発火させる。
-     *
-     * 刻みはセルの短辺の半分。粗いと角を斜めに横切ったとき抜ける。
-     */
-    const cur = { x: e.clientX, y: e.clientY }
-    const prev = prevPos.current ?? cur
-    prevPos.current = cur
-
-    const step = Math.max(4, Math.min(r.width / cols, r.height / rows) * 0.5)
-    const dist = Math.hypot(cur.x - prev.x, cur.y - prev.y)
-    const n = Math.min(64, Math.max(1, Math.ceil(dist / step)))
-
-    for (let k = 1; k <= n; k++) {
-      const t = k / n
-      const i = indexAt(prev.x + (cur.x - prev.x) * t, prev.y + (cur.y - prev.y) * t)
-      if (i < 0) { lastHit.current = -1; continue }
-      if (i === lastHit.current) continue
-      lastHit.current = i
-      spin(gridRef.current.children[i])
-    }
+    if (!panel || panel.dataset.spin === 'true') return
+    panel.dataset.spin = 'true'
+    // 解除は animationend ではなく時間で。取りこぼすと二度と反応しなくなる
+    const id = setTimeout(() => {
+      panel.dataset.spin = 'false'
+      timers.current.delete(id)
+    }, params.duration * 1000 + 120)
+    timers.current.add(id)
   }
 
   // 自動掃き。順番どおりに表裏を往復する
@@ -225,7 +165,8 @@ export default function DomTileFlip() {
       el.dataset.flipped = 'false'
       el.dataset.spin = 'false'
     }
-    lastHit.current = -1
+    for (const t of timers.current) clearTimeout(t)
+    timers.current.clear()
   }, [params.mode, cols, rows])
 
   const style = {
@@ -254,8 +195,6 @@ export default function DomTileFlip() {
       style={style}
       data-axis={params.axis}
       data-mode={params.mode}
-      onPointerMove={onMove}
-      onPointerLeave={() => { lastHit.current = -1; prevPos.current = null }}
     >
       <div className="dtf__stage">
         <div className="dtf__grid" ref={gridRef}>
@@ -264,9 +203,13 @@ export default function DomTileFlip() {
               <div
                 className="dtf__face dtf__face--front"
                 style={faceStyle('front', col, row)}
-                onAnimationEnd={onAnimationEnd}
+                onMouseOver={onFaceOver}
               />
-              <div className="dtf__face dtf__face--back" style={faceStyle('back', col, row)} />
+              <div
+                className="dtf__face dtf__face--back"
+                style={faceStyle('back', col, row)}
+                onMouseOver={onFaceOver}
+              />
             </div>
           ))}
         </div>

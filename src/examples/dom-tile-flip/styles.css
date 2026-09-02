@@ -43,8 +43,10 @@
   transform-style: preserve-3d;
   /* 数十枚を同時に回すので、合成レイヤーを先に確保しておく */
   will-change: transform;
-  /* 判定は親の pointermove で座標から割り出す。面には触らせない */
-  pointer-events: none;
+  /*
+   * 判定はブラウザのヒットテストに任せる。面が自分で mouseover を受ける。
+   * 座標から割り出すと、回転中の面が隣を覆ったときに見た目とずれる。
+   */
 }
 
 .dtf__face {
