@@ -29,7 +29,9 @@ function Beam({ b, color, edge }) {
         <meshBasicMaterial color={color} />
       </mesh>
       {/* 輪郭。白い面だけだと角が読めない */}
-      <lineSegments>
+      {/* 輪郭。**遮蔽の判定から外す。** 線もレイに当たるので、
+          太さの閾値ぶん誤検出して「隠れている」と誤判定する */}
+      <lineSegments raycast={() => null}>
         <edgesGeometry args={[new THREE.BoxGeometry(0.9, 0.22, p.len)]} />
         <lineBasicMaterial color={edge} />
       </lineSegments>
@@ -45,7 +47,7 @@ function Pillar({ pos, size, color, edge }) {
       <mesh geometry={geo}>
         <meshBasicMaterial color={color} />
       </mesh>
-      <lineSegments>
+      <lineSegments raycast={() => null}>
         <edgesGeometry args={[geo]} />
         <lineBasicMaterial color={edge} />
       </lineSegments>
@@ -97,10 +99,11 @@ function Walker({ params, onState }) {
       t: 0,
       // 跳ぶほうは上へ膨らませる。落ちるほうは真っ直ぐ
       arc: kind === 'jump' ? Math.max(1.2, (to.y - fromPoint.y) * 0.35 + 1.2) : 0,
-      dur: kind === 'jump' ? 0.5 : 0.38,
+      dur: kind === 'jump' ? 0.5 : kind === 'link' ? 0.09 : 0.38,
     }
     state.current = 'transit'
-    onState(kind)
+    // 乗り換えは日常の動きなので、表示は変えない
+    if (kind !== 'link') onState(kind)
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reset, [])
@@ -129,10 +132,23 @@ function Walker({ params, onState }) {
         if (i === fromBeam && t === (atEnd ? 1 : 0)) continue
         const p = toScreen(pointOn(b, t, tmpB), { x: 0, y: 0 })
         const d = Math.hypot(p.x - here.x, p.y - here.y)
-        if (d < bestD) {
-          bestD = d
-          best = { beam: i, t, dir: t === 0 ? 1 : -1 }
-        }
+        if (d >= bestD) continue
+
+        /*
+         * **画面上で引き返す向きの候補は捨てる。**
+         * 端が重なっていても、そこから戻る形にしか繋がらないなら、
+         * 見た目には急に反転したようにしか映らない。
+         */
+        const dir = t === 0 ? 1 : -1
+        const { p0, p1 } = beamOnScreen(i)
+        const vx = (p1.x - p0.x) * dir
+        const vy = (p1.y - p0.y) * dir
+        const len = Math.hypot(vx, vy) || 1
+        const cont = (vx / len) * screenDir.current.x + (vy / len) * screenDir.current.y
+        if (cont < -0.2) continue
+
+        bestD = d
+        best = { beam: i, t, dir }
       }
     })
     return best
@@ -241,7 +257,7 @@ function Walker({ params, onState }) {
        * 落ちるほうは加速、跳ぶほうは頂点で減速。
        * 同じイージングを使うと、落下が浮いて見える。
        */
-      const e = tr.kind === 'land' ? tr.t * tr.t : tr.t * (2 - tr.t)
+      const e = tr.kind === 'land' ? tr.t * tr.t : tr.kind === 'link' ? tr.t : tr.t * (2 - tr.t)
       if (ref.current) {
         tmpA.copy(tr.from).lerp(tr.to, e)
         // 弧。両端で 0 になる山
@@ -259,9 +275,29 @@ function Walker({ params, onState }) {
     if (state.current === 'goal') return
 
     const b = LEVEL.beams[p.beam]
-    const len = b.a.distanceTo(b.b)
+    /*
+     * 進む速さは**画面上で一定**にする。
+     *
+     * 世界の長さで割ると、カメラの方を向いた梁は射影が短くなり、同じ時間で
+     * 短い距離しか進まないのに、次の梁で急に速くなったように見える。
+     * この作品は見えているものが真実なので、速さも見えている量で決める。
+     */
+    const { p0, p1 } = beamOnScreen(p.beam)
+    const lenPx = Math.max(24, Math.hypot(p1.x - p0.x, p1.y - p0.y))
+    /*
+     * 乗り換えた先がすでに穴の中、という場合がある。
+     * 「またいだ瞬間」しか見ていないと、そこだけ素通りしてしまう。
+     */
+    const standing = b.holes.find((h) => p.t > h[0] && p.t < h[1])
+    if (standing && !isCovered(b, standing)) {
+      const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
+      if (land) beginTransit(tmpA, { ...land, dir: dirFor(land.beam, screenDir.current) }, 'land')
+      else { state.current = 'fall'; onState('fall') }
+      return
+    }
+
     const before = p.t
-    p.t += (p.dir * params.speed * dt) / len
+    p.t += (p.dir * params.speedPx * dt) / lenPx
 
     // --- 穴 ---
     for (const hole of b.holes) {
@@ -308,8 +344,17 @@ function Walker({ params, onState }) {
       }
       const link = findLink(p.beam, atEnd)
       if (link) {
-        pos.current = { beam: link.beam, t: link.t, dir: link.dir }
-      } else {
+        /*
+         * 端どうしが完全には重なっていないので、そのまま入れ替えると
+         * 閾値ぶん（数〜十数 px）飛ぶ。**短い遷移で埋める。**
+         */
+        const from = pointOn(b, p.t, tmpA).clone()
+        const to = pointOn(LEVEL.beams[link.beam], link.t, tmpB)
+        if (from.distanceTo(to) > 0.02) beginTransit(from, link, 'link')
+        else pos.current = { beam: link.beam, t: link.t, dir: link.dir }
+        return
+      }
+      {
         p.t = atEnd ? 1 : 0
         const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
         if (land) {
@@ -431,8 +476,8 @@ export default function ImpossibleWalk() {
 
   const [params, setParams] = useControls(() => ({
     Rule: folder({
-      speed: { value: DEFAULTS.speed, min: 0.4, max: 4, step: 0.1, label: 'walk speed' },
-      snapPx: { value: DEFAULTS.snapPx, min: 2, max: 60, step: 1, label: 'snap (px)' },
+      speedPx: { value: DEFAULTS.speedPx, min: 40, max: 420, step: 10, label: 'walk (px/s)' },
+      snapPx: { value: DEFAULTS.snapPx, min: 2, max: 40, step: 1, label: 'snap (px)' },
     }),
     View: folder({
       zoom: { value: DEFAULTS.zoom, min: 20, max: 140, step: 1 },
