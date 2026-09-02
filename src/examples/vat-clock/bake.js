@@ -26,9 +26,16 @@ export const COLON_INDEX = 10
  */
 export const TEX_W = 512
 
-/** 字を置く枠。以前のビットフォントと同じ大きさに合わせてある */
-const UNIT_W = 5
-const UNIT_H = 7
+/**
+ * 字を置く枠。縦長にする。
+ *
+ * 幅を詰めるだけだと字が潰れるので、**描くときも水平に圧縮**する。
+ * 枠だけ狭めると、字の方は元の比率のまま入りきらずに切れる。
+ */
+const UNIT_W = 3.6
+const UNIT_H = 7.6
+/** 描画時の水平圧縮。1 未満で縦長になる */
+const CONDENSE = 0.66
 
 function makeRandom(seed) {
   let s = seed >>> 0
@@ -60,15 +67,19 @@ function glyphPixels(ch, res = 128) {
      * 書体によって四角い点だったり細かったりして、環境ごとに形が変わる。
      * 2 つの丸は自分で描いたほうが確実。
      */
-    const r = res * 0.075
+    const r = res * 0.062
     for (const cy of [res * 0.36, res * 0.66]) {
       ctx.beginPath()
       ctx.arc(w / 2, cy, r, 0, Math.PI * 2)
       ctx.fill()
     }
   } else {
-    ctx.font = `600 ${Math.round(res * 0.82)}px "Helvetica Neue", Arial, sans-serif`
-    ctx.fillText(ch, w / 2, res * 0.52)
+    ctx.font = `600 ${Math.round(res * 0.9)}px "Helvetica Neue", Arial, sans-serif`
+    ctx.save()
+    ctx.translate(w / 2, res * 0.52)
+    ctx.scale(CONDENSE, 1)
+    ctx.fillText(ch, 0, 0)
+    ctx.restore()
   }
 
   const px = ctx.getImageData(0, 0, w, res).data

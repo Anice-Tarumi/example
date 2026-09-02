@@ -1,20 +1,18 @@
 /**
- * 字から字へ直接寄る点群と、それに纏わる光の筋。
+ * 字から字へ直接寄る点群。
  *
  * 焼いてあるのは両端の並びだけ。**経過はここで作る。**
  *
- * 見せたいのは「少し歪んだ次元の中で進み続ける時計」なので、
- * 三つを重ねる。
+ * 見せたいのは「宇宙空間の中で進み続ける時計」なので、動きを三つ重ねる。
  *
  *   1. ドメインワープ … 空間そのものをゆっくり歪ませる
- *   2. 渦            … 字の中心まわりに微かに回す
- *   3. 光の筋        … 粒の進む向きへ尾を引かせる
+ *   2. 渦            … 字の中心まわりに回す
+ *   3. 漂い          … 止まっていても消えない揺れ
  *
- * どれも**振れ幅を小さく保つ**。派手にすると時刻が読めなくなり、
+ * どれも**字が崩れきらない範囲に収める**。派手にすると時刻が読めなくなり、
  * 時計として成立しない。
  */
 
-/** 位置の計算。点と筋で同じものを使う。ずれると尾が身体から外れる */
 const COMMON = /* glsl */`
   attribute float aPiece;
   attribute float aSlot;
@@ -60,7 +58,6 @@ const COMMON = /* glsl */`
 
   struct Sample {
     vec3 pos;    // いまの位置
-    vec3 vel;    // 進む向き（長さは速さ）
     float size;
     float m;     // この粒の進み具合
   };
@@ -88,14 +85,24 @@ const COMMON = /* glsl */`
     pos.xy += perp * side * bulge;
     pos.z += bulge * 0.6 * side;
 
-    // 止まっていても漂う。完全な静止は点を打った絵に見える
+    /*
+     * 止まっていても漂う。完全な静止は点を打った絵に見える。
+     *
+     * **速さの違う二段を重ねる。** 一段だと粒が揃って呼吸しているように
+     * 見え、群れではなく一枚の膜に見えてしまう。
+     */
     float ph = hash11(aPiece + 3.1) * 6.2831;
-    vec3 drift = vec3(
+    vec3 slow = vec3(
       sin(uTime * 0.9 + ph),
       cos(uTime * 1.13 + ph * 1.7),
       sin(uTime * 0.7 + ph * 2.3) * 1.6
-    ) * uDrift;
-    pos += drift;
+    );
+    vec3 fast = vec3(
+      sin(uTime * 3.7 + ph * 5.1),
+      cos(uTime * 4.3 + ph * 3.3),
+      sin(uTime * 3.1 + ph * 7.9) * 1.4
+    ) * 0.35;
+    pos += (slow + fast) * uDrift;
 
     // 字の中心まわりに微かに回す
     float ang = uSwirl * sin(uTime * 0.35 + ph * 0.4);
@@ -105,17 +112,9 @@ const COMMON = /* glsl */`
 
     pos = warp(pos, uTime);
 
-    /*
-     * 速さは差分から出す。時間で微分せずに、
-     * 「寄せの勢い（6m(1-m)）」と漂いの速さを足して近似する。
-     */
-    vec3 vel = (b.xyz - a.xyz) * (6.0 * m * (1.0 - m)) * 0.16;
-    vel += vec3(cos(uTime * 0.9 + ph), -sin(uTime * 1.13 + ph * 1.7), 0.0) * uDrift * 1.2;
-
     Sample s;
     s.pos = pos * uScale;
     s.pos.x += uSlotX[slot];
-    s.vel = vel * uScale;
     s.size = mix(a.w, b.w, e);
     s.m = m;
     return s;
@@ -153,54 +152,10 @@ export const pointsFragmentShader = /* glsl */`
     vec2 c = gl_PointCoord - 0.5;
     float d = dot(c, c);
     if (d > 0.25) discard;
-    float edge = smoothstep(0.25, 0.16, d);
-    gl_FragColor = vec4(uColor * vShade, edge);
-    #include <colorspace_fragment>
-  }
-`
-
-/**
- * 光の筋。
- *
- * 粒 1 つにつき線分 1 本。**根元は粒の位置、先は進んできた向きへ後ろ**。
- * 尾なので前ではなく後ろへ伸ばす。前へ伸ばすと粒が線の途中に埋まって、
- * 何が本体か分からなくなる。
- */
-export const streakVertexShader = /* glsl */`
-  precision highp float;
-  ${COMMON}
-
-  attribute float aEnd;   // 0 = 根元 / 1 = 先
-
-  uniform float uStreak;
-
-  varying float vFade;
-
-  void main() {
-    Sample s = sampleParticle();
-
-    float speed = length(s.vel);
-    // 遅いときは出さない。常時光っていると砂が光る絵になる
-    float len = uStreak * speed;
-    vec3 dir = speed > 1e-5 ? s.vel / speed : vec3(0.0);
-
-    vec3 p = s.pos - dir * len * aEnd;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-
-    // 先へ行くほど消える。根元だけ明るいと粒と地続きに見える
-    vFade = (1.0 - aEnd) * clamp(speed * 6.0, 0.0, 1.0);
-  }
-`
-
-export const streakFragmentShader = /* glsl */`
-  precision highp float;
-
-  uniform vec3 uColor;
-  uniform float uStreakGain;
-  varying float vFade;
-
-  void main() {
-    gl_FragColor = vec4(uColor * uStreakGain, vFade * uStreakGain);
+    // 芯のまわりに淡い暈。硬い円だけだと砂を撒いた絵で、光に見えない
+    float core = smoothstep(0.09, 0.02, d);
+    float halo = smoothstep(0.25, 0.0, d) * 0.45;
+    gl_FragColor = vec4(uColor * vShade, core + halo);
     #include <colorspace_fragment>
   }
 `
