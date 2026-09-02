@@ -95,7 +95,11 @@ for (let i = 0; i < SAMPLES; i++) {
   const z = Math.sin(th) * r
 
   const lat = (Math.asin(y) * 180) / Math.PI
-  const lng = (Math.atan2(z, x) * 180) / Math.PI
+  /*
+   * 経度の符号は `latLngToVec3` の逆写像に合わせる。**片方だけ符号が違うと、
+   * 点と海岸線が東西反転して重ならない。** あちらは z = -cos(lat) sin(lng)。
+   */
+  const lng = (Math.atan2(-z, x) * 180) / Math.PI
   if (!inside(rings, lng, lat)) continue
   pts.push([x, y, z])
 }

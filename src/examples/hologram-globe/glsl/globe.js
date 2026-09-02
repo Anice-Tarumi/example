@@ -32,7 +32,9 @@ export const dotVertexShader = /* glsl */`
     float back = smoothstep(-0.15, 0.35, facing);
 
     float scan = holoScan(position.y);
-    vDim = (0.35 + back * 0.65) * (1.0 + scan * uScanGain) * holoFlicker(position.y);
+    // 点ごとに明るさを振る。全点が同じだと安定した模型に見える
+    float jitter = 0.6 + 0.4 * signalHash(vec2(dot(position, vec3(12.9, 78.2, 37.7)), floor(uTime * 22.0)));
+    vDim = (0.35 + back * 0.65) * (1.0 + scan * uScanGain) * holoFlicker(position.y) * jitter;
 
     gl_PointSize = uSize * uProj * 0.01 / max(0.001, -mv.z);
   }
@@ -40,7 +42,8 @@ export const dotVertexShader = /* glsl */`
 
 export const dotFragmentShader = /* glsl */`
   precision highp float;
-  uniform vec3 uTint;
+  ${HOLO}
+
   uniform float uGain;
   varying float vDim;
 
@@ -49,7 +52,7 @@ export const dotFragmentShader = /* glsl */`
     float d = dot(c, c);
     if (d > 0.25) discard;
     float a = smoothstep(0.25, 0.05, d);
-    gl_FragColor = vec4(uTint * vDim * uGain * a, 1.0);
+    gl_FragColor = vec4(uTint * vDim * uGain * a * holoGrain(gl_FragCoord.xy), 1.0);
     #include <colorspace_fragment>
   }
 `
@@ -75,11 +78,12 @@ export const lineVertexShader = /* glsl */`
 
 export const lineFragmentShader = /* glsl */`
   precision highp float;
-  uniform vec3 uTint;
+  ${HOLO}
+
   uniform float uGain;
   varying float vDim;
   void main() {
-    gl_FragColor = vec4(uTint * vDim * uGain, 1.0);
+    gl_FragColor = vec4(uTint * vDim * uGain * holoGrain(gl_FragCoord.xy), 1.0);
     #include <colorspace_fragment>
   }
 `
@@ -116,7 +120,7 @@ export const shellFragmentShader = /* glsl */`
 
   void main() {
     float f = holoFresnel(vNormal, vView, uPower);
-    float a = f * uGain * (1.0 + holoScan(vObjY) * uScanGain * 0.5) * holoFlicker(vObjY);
+    float a = f * uGain * (1.0 + holoScan(vObjY) * uScanGain * 0.5) * holoFlicker(vObjY) * holoGrain(gl_FragCoord.xy);
     gl_FragColor = vec4(uTint * a, 1.0);
     #include <colorspace_fragment>
   }
@@ -159,7 +163,7 @@ export const coneFragmentShader = /* glsl */`
     float fall = smoothstep(1.0, 0.0, vUv.y);
     // 埃を照らしている感じ。細かい横縞をゆっくり流す
     float dust = 0.75 + 0.25 * sin(vUv.y * 60.0 - uTime * 2.0);
-    float a = rim * fall * dust * uGain * holoFlicker(vUv.y);
+    float a = rim * fall * dust * uGain * holoFlicker(vUv.y) * holoGrain(gl_FragCoord.xy);
     gl_FragColor = vec4(uTint * a, 1.0);
     #include <colorspace_fragment>
   }

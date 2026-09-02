@@ -16,7 +16,7 @@ import coastUrl from './assets/coastlines.json?url'
 
 const GLOBE_R = 2.2
 /** 弧を刻む数。粗いと大圏が折れ線に見える */
-const ARC_SEG = 44
+const ARC_SEG = 72
 
 /** 焼いた素材を読む。点は Int16 なので 1/32767 で戻す */
 function useGlobeData() {
@@ -314,6 +314,7 @@ function Scene({ params, proj }) {
     uScanGain: { value: DEFAULTS.scanGain },
     uGlitch: { value: DEFAULTS.glitch },
     uFlicker: { value: DEFAULTS.flicker },
+    uGrain: { value: DEFAULTS.grain },
     uRadius: { value: GLOBE_R },
   }), [])
 
@@ -349,6 +350,7 @@ function Scene({ params, proj }) {
     holo.uScanGain.value = params.scanGain
     holo.uGlitch.value = params.glitch
     holo.uFlicker.value = params.flicker
+    holo.uGrain.value = params.grain
     dotU.uSize.value = params.dot
     lineU.uGain.value = params.lineGain
     shellU.uGain.value = params.shellGain
@@ -398,6 +400,7 @@ export default function HologramGlobe() {
       scanGain: { value: DEFAULTS.scanGain, min: 0, max: 2, step: 0.05, label: 'scan gain' },
       glitch: { value: DEFAULTS.glitch, min: 0, max: 0.6, step: 0.01 },
       flicker: { value: DEFAULTS.flicker, min: 0, max: 0.6, step: 0.01 },
+      grain: { value: DEFAULTS.grain, min: 0, max: 1.2, step: 0.02 },
     }),
     Volume: folder({
       shellGain: { value: DEFAULTS.shellGain, min: 0, max: 2, step: 0.05, label: 'rim' },

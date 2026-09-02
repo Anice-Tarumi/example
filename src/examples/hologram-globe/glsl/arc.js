@@ -26,8 +26,10 @@ export const arcVertexShader = /* glsl */`
   uniform float uDuration;
   uniform float uTail;      // 尾の長さ（弧に対する割合）
 
-  varying float vAlpha;
+  varying float vT;
   varying float vHead;
+  varying float vAge;
+  varying float vBright;
 
   vec3 bezier(float t) {
     float u = 1.0 - t;
@@ -50,18 +52,22 @@ export const arcVertexShader = /* glsl */`
     float age = (uTime - aBirth) / uDuration;
     // 頭の位置。1 を越えたら着いていて、そこから尾が追いつくのを待つ
     float head = clamp(age, 0.0, 1.0);
+    vT = t;
     vHead = head;
+    vAge = age;
+    vBright = 0.55 + 0.45 * fract(aSeed * 0.618);
 
     /*
-     * 見えるのは頭の後ろ uTail ぶんだけ。
-     * 全長を一度に出すと、都市の間に線が置かれただけで、飛んで見えない。
+     * どこまで見えるかは**フラグメントで決める**。
+     *
+     * ここで頂点を画面外へ逃がすと、頭をまたぐ三角形は片方の角だけが
+     * 飛んで引き伸ばされ、先端が曲がる。刻みの数でしか頭が進まないので
+     * 動きもかくつく。
+     *
+     * 逃がしてよいのは**帯 1 本まるごと**消えているときだけ。その判定は
+     * t を含まないので、三角形が裂けない。
      */
-    float body = smoothstep(head - uTail, head, t) * step(t, head);
-    // 着いたあと全体が消える。消えないと画面が線で埋まる
-    float out_ = 1.0 - smoothstep(1.0, 1.0 + uTail * 2.5, age);
-    vAlpha = body * out_ * (0.55 + 0.45 * fract(aSeed * 0.618));
-    if (age < 0.0 || vAlpha <= 0.001) {
-      // 画面の外へ逃がす。discard より安い
+    if (age < 0.0 || age > 1.0 + uTail * 2.5) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       return;
     }
@@ -83,17 +89,36 @@ export const arcVertexShader = /* glsl */`
 
 export const arcFragmentShader = /* glsl */`
   precision highp float;
-  uniform vec3 uTint;
+  ${HOLO}
+
   uniform vec3 uHeadTint;
   uniform float uGain;
+  uniform float uTail;
 
-  varying float vAlpha;
+  varying float vT;
   varying float vHead;
+  varying float vAge;
+  varying float vBright;
 
   void main() {
+    /*
+     * 見えるのは頭の後ろ uTail ぶんだけ。全長を一度に出すと、都市の間に
+     * 線が置かれただけで、飛んで見えない。
+     *
+     * 頂点ではなく**ここで切る**。刻みに縛られないので、頭が連続に進む。
+     */
+    float body = smoothstep(vHead - uTail, vHead, vT);
+    // 頭の先は落とす。硬く切ると階段が出るので、わずかにぼかす
+    body *= 1.0 - smoothstep(vHead - 0.003, vHead + 0.003, vT);
+    // 着いたあと全体が消える。消えないと画面が線で埋まる
+    body *= 1.0 - smoothstep(1.0, 1.0 + uTail * 2.5, vAge);
+
+    float a = body * vBright;
+    if (a <= 0.002) discard;
+
     // 頭だけ色を変える。同じ色だと、どちらへ進んでいるのか読めない
-    vec3 col = mix(uTint, uHeadTint, smoothstep(0.4, 1.0, vAlpha));
-    gl_FragColor = vec4(col * vAlpha * uGain, 1.0);
+    vec3 col = mix(uTint, uHeadTint, smoothstep(0.4, 1.0, a));
+    gl_FragColor = vec4(col * a * uGain * holoGrain(gl_FragCoord.xy), 1.0);
     #include <colorspace_fragment>
   }
 `

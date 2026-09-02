@@ -12,7 +12,9 @@ const BASE = {
   scanSpeed: 0.28,
   scanGain: 0.7,
   glitch: 0.06,
-  flicker: 0.1,
+  flicker: 0.14,
+  // 画素ごとの粒と走査線の帯。止まっている像は模型に見える
+  grain: 0.45,
 
   // --- 体積 ---
   shellGain: 0.5,
@@ -42,7 +44,7 @@ export const PRESETS = {
   unstable: {
     label: 'Unstable',
     params: {
-      ...BASE, glitch: 0.28, flicker: 0.34, scanFreq: 14, scanGain: 1.2,
+      ...BASE, glitch: 0.28, flicker: 0.34, grain: 0.8, scanFreq: 14, scanGain: 1.2,
       shellGain: 0.75, arcs: 22, tint: '#7fd4ff',
     },
   },

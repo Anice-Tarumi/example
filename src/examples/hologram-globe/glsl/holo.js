@@ -25,6 +25,7 @@ export const HOLO = /* glsl */`
   uniform float uScanGain;
   uniform float uGlitch;      // 切片のずれの強さ
   uniform float uFlicker;
+  uniform float uGrain;       // ジリジリ
 
   /**
    * 走査帯。**物体空間の高さ**で数える。
@@ -44,7 +45,13 @@ export const HOLO = /* glsl */`
    * 出ている間だけ、帯ごとに違う量だけずらす。
    */
   vec3 holoGlitch(vec3 p) {
-    // 発生の窓。時間の粗い乱数が高いときだけ開く
+    /*
+     * 常に少し揺らす。**止まっている像は投影ではなく模型に見える。**
+     * 細かい帯を毎フレーム振り直す。振れ幅は目に留まらない程度。
+     */
+    p.x += (signalHash(vec2(floor(p.y * 90.0), floor(uTime * 26.0))) - 0.5) * 0.012;
+
+    // 大きく飛ぶのは、時間の粗い乱数が高いときだけ
     float gate = smoothstep(0.86, 0.98, signalHash(vec2(floor(uTime * 2.3), 7.1)));
     if (gate <= 0.0) return p;
     float slice = floor(p.y * 26.0 + uTime * 3.0);
@@ -58,6 +65,22 @@ export const HOLO = /* glsl */`
   /** 視線に寝た面ほど明るい。ホログラムらしさの大半はここ */
   float holoFresnel(vec3 normal, vec3 viewDir, float power) {
     return pow(1.0 - abs(dot(normalize(normal), normalize(viewDir))), power);
+  }
+
+  /**
+   * ジリジリ。
+   *
+   * 画素ごとの粒と、走査線ごとの帯を毎フレーム振り直す。
+   * **画素座標を種にする。** uv だと像が遠いほど 1 画素に何粒も入って
+   * 折り返し、渦になる。
+   *
+   * 粒だけだと砂を撒いた絵、帯だけだと縞。混ぜると走査している物に見える。
+   */
+  float holoGrain(vec2 frag) {
+    float g = staticNoise(frag, uTime);
+    float b = bandNoise(frag, uTime);
+    float n = mix(g, b, 0.45);
+    return 1.0 + (n - 0.5) * uGrain * 2.0;
   }
 
   /** 投影の途切れ。粗い横帯が流れる成分を混ぜる */
