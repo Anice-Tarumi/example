@@ -20,11 +20,13 @@ const two = (n) => String(n).padStart(2, '0')
  * 散った状態は全数字で共通なので、切り替わりの瞬間に破片が飛ばない。
  */
 function Digits({ params }) {
-  const baked = useMemo(() => bakeDigits(), [])
+  // 散らばりを変えたら焼き直す。288 × 480 なので数十ミリ秒で済む
+  const baked = useMemo(() => bakeDigits(params.spread), [params.spread])
   useEffect(() => () => { baked.position.dispose(); baked.rotation.dispose() }, [baked])
 
   const geometry = useMemo(() => {
-    const base = new RoundedBoxGeometry(0.86, 0.86, 0.86, 3, 0.16)
+    // 粒は小さいので面数を落とす。288 × 6 桁で 1728 個ある
+    const base = new RoundedBoxGeometry(1, 1, 1, 2, 0.24)
     const geo = new THREE.InstancedBufferGeometry()
     geo.index = base.index
     geo.attributes.position = base.attributes.position
@@ -59,6 +61,7 @@ function Digits({ params }) {
       uRow: { value: new Float32Array(8) },
       uSlotX: { value: new Float32Array(8) },
       uScale: { value: DEFAULTS.scale },
+      uDot: { value: DEFAULTS.dot },
     }),
     [baked],
   )
@@ -139,6 +142,7 @@ function Digits({ params }) {
     for (let i = 0; i < SLOTS; i++) extra.uSlotX.value[i] -= mid
 
     extra.uScale.value = params.scale
+    extra.uDot.value = params.dot
     material.color.set(params.color)
     material.metalness = params.metalness
     material.roughness = params.roughness
@@ -199,6 +203,8 @@ export default function VatClock() {
     Motion: folder({
       swapTime: { value: DEFAULTS.swapTime, min: 0.08, max: 1.2, step: 0.02, label: 'swap (s)' },
       scale: { value: DEFAULTS.scale, min: 0.3, max: 1.6, step: 0.02 },
+      dot: { value: DEFAULTS.dot, min: 0.05, max: 0.6, step: 0.01, label: 'grain' },
+      spread: { value: DEFAULTS.spread, min: 0.3, max: 2.4, step: 0.05, label: 'scatter' },
       pitch: { value: DEFAULTS.pitch, min: 0.7, max: 1.6, step: 0.02, label: 'digit gap' },
       colonGap: { value: DEFAULTS.colonGap, min: 0, max: 4, step: 0.1, label: 'colon gap' },
     }),

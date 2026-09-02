@@ -1,16 +1,33 @@
 {
   "title": "VAT Clock",
-  "description": "数字 0〜9 それぞれの「破片が散った状態 → その数字の形」を焼いて再生する。桁が変わったら今の数字を逆再生して散らし、次の数字を順再生して組む。散った状態は全数字で共通なので、切り替わりの瞬間に破片が飛ばない。CPU が毎フレーム触るのは桁ごとの再生位置だけで、位置も姿勢も頂点シェーダーがテクスチャから引く。",
+  "description": "桁ごとに 288 個の粒が数字の形へ集まる。数字 0〜9 それぞれの「散った状態 → その数字」を焼いておき、桁が変わったら逆再生して崩し、順再生して組む。散った状態は全数字で共通なので切り替わりに飛ばない。遠くへ散らすと切り替えのたびに字が消えるので、字の枠より少し広い箱の中に留める。",
   "emoji": "⏳",
   "category": "geometry",
-  "tags": ["bake", "instancing", "3d", "typography"],
+  "tags": [
+    "bake",
+    "instancing",
+    "3d",
+    "typography"
+  ],
   "variants": [
-    { "id": "stone", "label": "Stone" },
-    { "id": "chrome", "label": "Chrome" },
-    { "id": "ink", "label": "Ink" },
-    { "id": "slow", "label": "Slow Motion" }
+    {
+      "id": "stone",
+      "label": "Stone"
+    },
+    {
+      "id": "chrome",
+      "label": "Chrome"
+    },
+    {
+      "id": "ink",
+      "label": "Ink"
+    },
+    {
+      "id": "slow",
+      "label": "Slow Motion"
+    }
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "散った状態を数字ごとに焼くと、逆再生から順再生へ移る瞬間に破片が飛ぶ。共通にする"
+  "note": "1 セルに 1 個だとブロックの寄せ集めに見える。セルの中へ何十個も散らして初めて粒が集まって字になる"
 }

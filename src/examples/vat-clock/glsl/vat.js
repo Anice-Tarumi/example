@@ -19,8 +19,7 @@ export const vatVertexHead = /* glsl */`
   uniform float uRow[8];    // 桁ごとの行（数字 × フレーム数 + フレーム）
   uniform float uSlotX[8];
   uniform float uScale;
-
-  varying float vActive;
+  uniform float uDot;      // 粒 1 つの大きさ
 
   vec3 applyQuat(vec3 v, vec4 q) {
     return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
@@ -39,10 +38,9 @@ export const vatBeginVertex = /* glsl */`
 
   vec4 pos = vatFetch(tPos, row);
   vec4 rot = vatFetch(tRot, row);
-  vActive = pos.w;
 
-  // 使わない破片は畳む。0 にすると法線が壊れるので極小にする
-  float s = uScale * mix(0.0001, 1.0, step(0.5, pos.w));
+  // w は粒の大きさ。散っている間は小さく、揃うと大きくなる
+  float s = uScale * uDot * pos.w;
 
   vec3 transformed = applyQuat(position * s, rot) + pos.xyz * uScale;
   transformed.x += uSlotX[slot];
