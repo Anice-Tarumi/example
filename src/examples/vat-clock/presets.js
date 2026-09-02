@@ -16,44 +16,49 @@ const BASE = {
   lag: 0.5,
   scale: 0.9,
   pitch: 1.0,
-  colonGap: 1.2,
+  colonGap: 0.5,
 
   // --- 宇宙 ---
   nebula: 0.42,
   stars: 0.85,
-  rayGain: 0.2,
-  rayWidth: 0.045,
   dust: 1400,
   dustSpeed: 0.9,
+
+  // --- 時計を周回する流れ星 ---
+  comets: 20,
+  cometSpeed: 1.1,
+  cometTail: 0.55,
+  cometGain: 1.9,
+  cometRadius: 1.25,
 
   color: '#e9edff',
   deep: '#04050c',
   nebulaA: '#26377d',
   nebulaB: '#7a2f86',
-  rayColor: '#9fc2ff',
+  cometColor: '#a8d4ff',
 }
 
 export const PRESETS = {
   dust: { label: 'Nebula', params: { ...BASE } },
   dense: {
     label: 'Dense',
-    params: { ...BASE, pieces: 30000, dot: 1.0, drift: 0.09, arc: 0.5, nebula: 0.35, stars: 0.6 },
+    params: { ...BASE, pieces: 30000, dot: 1.0, drift: 0.09, arc: 0.5, nebula: 0.35, stars: 0.6, comets: 12 },
   },
   loose: {
     label: 'Void',
     params: {
       ...BASE,
       pieces: 6000, dot: 2.2, arc: 1.4, lag: 0.7, swapTime: 0.9, warp: 0.34, drift: 0.18,
-      nebula: 0.15, stars: 1.1, rayGain: 0.08, dust: 2400,
-      nebulaA: '#123044', nebulaB: '#1b2f6b', rayColor: '#8fe6ff',
+      nebula: 0.15, stars: 1.1, dust: 2400, comets: 26, cometSpeed: 1.5, cometTail: 0.8,
+      nebulaA: '#123044', nebulaB: '#1b2f6b', cometColor: '#8fe6ff',
     },
   },
   ink: {
     label: 'Ember',
     params: {
       ...BASE,
-      color: '#ffe9cf', nebulaA: '#7a2a1e', nebulaB: '#b0562a', rayColor: '#ffb469',
-      deep: '#0b0503', nebula: 0.7, stars: 0.5, rayGain: 0.22, dustSpeed: 0.5,
+      color: '#ffe9cf', nebulaA: '#7a2a1e', nebulaB: '#b0562a', cometColor: '#ffb469',
+      deep: '#0b0503', nebula: 0.7, stars: 0.5, dustSpeed: 0.5, cometSpeed: 0.7, comets: 10,
     },
   },
 }

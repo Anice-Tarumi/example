@@ -5,11 +5,13 @@
  * 遠近が出ずに「手前に散った粒」にしか見えない。**画面に直接描いて**、
  * 層ごとに流れる速さを変えるほうが奥行きが出る。
  *
- * 三層を重ねる。
+ * 二層を重ねる。
  *
  *   1. 星雲 … 二段の値ノイズ。ゆっくり流し、色を二色の間で振る
  *   2. 星   … 速さの違う三層。速い層ほど手前に見える
- *   3. 光条 … 斜めに流れる細い帯。時間が空間ごと進んでいる印象を作る
+ *
+ * 光の筋はここには描かない。画面に引いた斜線は背景の模様にしか見えず、
+ * 時計と同じ空間にいる感じが出ない。**周回する彗星として 3D に置く。**
  */
 
 const NOISE = /* glsl */`
@@ -62,11 +64,8 @@ export const spaceFragmentShader = /* glsl */`
   uniform vec3  uDeep;      // 空の底の色
   uniform vec3  uNebulaA;   // 星雲の色 1
   uniform vec3  uNebulaB;   // 星雲の色 2
-  uniform vec3  uRay;       // 光条の色
   uniform float uNebula;
   uniform float uStars;
-  uniform float uRayGain;
-  uniform float uRayWidth;
 
   varying vec2 vUv;
 
@@ -93,12 +92,6 @@ export const spaceFragmentShader = /* glsl */`
     return (core + halo) * tw * (h - thr) / (1.0 - thr);
   }
 
-  /** 1 本の光条。中心からの距離で落とす */
-  float beam(float x, float center, float width) {
-    float d = (x - center) / max(1e-4, width);
-    return exp(-d * d);
-  }
-
   void main() {
     vec2 p = vUv - 0.5;
     p.x *= uAspect;
@@ -121,24 +114,6 @@ export const spaceFragmentShader = /* glsl */`
     s += starLayer(p,  8.0, 0.980, 0.020, t) * 1.20;
     col += vec3(0.85, 0.9, 1.0) * s * uStars;
 
-    // --- 光条 ---
-    // 斜めに倒した軸へ射影する。この値が帯を横切る座標になる
-    const float tilt = 1.02;
-    float axis = p.x * cos(tilt) + p.y * sin(tilt);
-    float rays = 0.0;
-    for (int i = 0; i < 6; i++) {
-      float fi = float(i);
-      float seed = hash21(vec2(fi * 12.7, 4.2));
-      // 速さも太さも本ごとに変える。揃えると縞に見える
-      float speed = 0.012 + seed * 0.05;
-      float width = uRayWidth * (0.3 + hash21(vec2(fi * 3.3, 1.1)) * 1.7);
-      float center = fract(seed + t * speed) * 2.8 - 1.4;
-      rays += beam(axis, center, width) * (0.3 + hash21(vec2(fi * 7.1, 9.4)) * 0.9);
-    }
-    // 縦にも落とす。上下に抜けきる帯は板の縁が見えてしまう
-    rays *= smoothstep(0.85, 0.1, abs(p.y) * 1.3);
-    col += uRay * rays * uRayGain;
-
     // 中心をわずかに持ち上げる。字が座る場所を作る
     col += uNebulaA * 0.06 * smoothstep(0.7, 0.0, length(p * vec2(0.55, 1.0)));
 
@@ -158,23 +133,26 @@ export const dustVertexShader = /* glsl */`
 
   attribute vec3 aSeed;   // 位置の種
   uniform float uTime;
-  uniform float uZoom;
+  uniform float uProj;
   uniform float uSpread;
   uniform float uSpeed;
 
   varying float vDim;
 
   void main() {
-    vec3 p = aSeed * uSpread;
+    // 種は 0..1。x だけ巻き戻すので、y と z は中心を跨がせる
+    vec3 p = vec3(aSeed.x * uSpread, (aSeed.y - 0.5) * uSpread * 0.5, (aSeed.z - 0.5) * uSpread * 0.4);
 
     // 奥ほどゆっくり流れる。同じ速さだと一枚の膜に見える
-    float depth = aSeed.z * 0.5 + 0.5;
+    float depth = aSeed.z;
     float sp = mix(0.25, 1.0, depth) * uSpeed;
     p.x = mod(p.x + uTime * sp + uSpread * 0.5, uSpread) - uSpread * 0.5;
     p.y += sin(uTime * 0.3 + aSeed.x * 9.0) * 0.4;
 
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-    gl_PointSize = mix(0.8, 2.4, depth) * uZoom * 0.02;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    // 遠近が付くので距離で割る
+    gl_PointSize = mix(1.6, 4.0, depth) * uProj * 0.02 / max(0.001, -mv.z);
     vDim = mix(0.12, 0.5, depth);
   }
 `

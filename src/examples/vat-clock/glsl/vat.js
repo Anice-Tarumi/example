@@ -126,7 +126,7 @@ export const pointsVertexShader = /* glsl */`
   ${COMMON}
 
   uniform float uSize;
-  uniform float uZoom;
+  uniform float uProj;
 
   varying float vShade;
 
@@ -136,8 +136,8 @@ export const pointsVertexShader = /* glsl */`
     gl_Position = projectionMatrix * mv;
     // 奥ほど暗く。平面的な点の集まりに見えないようにする
     vShade = 0.7 + 0.3 * clamp(s.pos.z * 0.5 + 0.5, 0.0, 1.0);
-    // 正射影なので距離では割らない。ズームに比例させる
-    gl_PointSize = uSize * s.size * uZoom * 0.02;
+    // 遠近が付くので距離で割る。奥の桁が手前と同じ大きさだと立体に見えない
+    gl_PointSize = uSize * s.size * uProj * 0.02 / max(0.001, -mv.z);
   }
 `
 
@@ -155,7 +155,13 @@ export const pointsFragmentShader = /* glsl */`
     // 芯のまわりに淡い暈。硬い円だけだと砂を撒いた絵で、光に見えない
     float core = smoothstep(0.09, 0.02, d);
     float halo = smoothstep(0.25, 0.0, d) * 0.45;
-    gl_FragColor = vec4(uColor * vShade, core + halo);
+    float a = core + halo;
+    /*
+     * 薄い所は捨てる。**この点群は深度を書く**ので、ほとんど透明な暈まで
+     * 書き込むと、そのうしろを通る流れ星が見えない矩形の穴に隠れる。
+     */
+    if (a < 0.12) discard;
+    gl_FragColor = vec4(uColor * vShade, a);
     #include <colorspace_fragment>
   }
 `

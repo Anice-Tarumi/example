@@ -8,6 +8,7 @@ import {
   spaceVertexShader, spaceFragmentShader,
   dustVertexShader, dustFragmentShader,
 } from './glsl/space'
+import { cometVertexShader, cometFragmentShader } from './glsl/comets'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 
 /*
@@ -27,7 +28,7 @@ const two = (n) => String(n).padStart(2, '0')
  * 経過まで焼くと「散った状態 → その数字」しか再生できず、桁が変わるたびに
  * 一度バラバラになってしまう。
  */
-function Digits({ params, zoom }) {
+function Digits({ params, proj }) {
   const pieces = Math.round(params.pieces)
   const baked = useMemo(() => bakeGlyphs(pieces), [pieces])
   useEffect(() => () => baked.texture.dispose(), [baked])
@@ -68,7 +69,7 @@ function Digits({ params, zoom }) {
       uSlotX: { value: new Float32Array(8) },
       uScale: { value: DEFAULTS.scale },
       uSize: { value: DEFAULTS.dot },
-      uZoom: { value: 40 },
+      uProj: { value: 800 },
       uTime: { value: 0 },
       uDrift: { value: DEFAULTS.drift },
       uWarp: { value: DEFAULTS.warp },
@@ -87,7 +88,11 @@ function Digits({ params, zoom }) {
         fragmentShader: pointsFragmentShader,
         uniforms,
         transparent: true,
-        depthWrite: false,
+        /*
+         * 深度を書く。**書かないと、字の裏を通る流れ星が字の上に描かれて**
+         * どちらが手前か分からなくなる。薄い画素は捨ててあるので穴は開かない。
+         */
+        depthWrite: true,
       }),
     [uniforms],
   )
@@ -127,7 +132,7 @@ function Digits({ params, zoom }) {
       uniforms.uTo.value[i] = s.to
       uniforms.uMix.value[i] = s.mix
 
-      const w = wide ? params.pitch * 4.1 : params.colonGap + params.pitch * 1.1 // slotWidth と同じ式
+      const w = wide ? params.pitch * 3.2 : params.colonGap + params.pitch * 0.9 // slotWidth と同じ式
       uniforms.uSlotX.value[i] = x + w / 2
       x += w
     }
@@ -148,7 +153,7 @@ function Digits({ params, zoom }) {
     uniforms.uTime.value = state.clock.elapsedTime
     uniforms.uScale.value = params.scale
     uniforms.uSize.value = params.dot
-    uniforms.uZoom.value = zoom
+    uniforms.uProj.value = proj
     uniforms.uDrift.value = params.drift
     uniforms.uWarp.value = params.warp
     uniforms.uSwirl.value = params.swirl
@@ -213,7 +218,7 @@ function Space({ params }) {
 }
 
 /** 字より手前と奥を漂う塵。背景は絵なので、奥行きはこれで出す */
-function Dust({ params, zoom }) {
+function Dust({ params, proj }) {
   const count = Math.round(params.dust)
 
   const geometry = useMemo(() => {
@@ -235,7 +240,7 @@ function Dust({ params, zoom }) {
 
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
-    uZoom: { value: 40 },
+    uProj: { value: 800 },
     uSpread: { value: 60 },
     uSpeed: { value: DEFAULTS.dustSpeed },
     uColor: { value: new THREE.Color(DEFAULTS.color) },
@@ -253,7 +258,7 @@ function Dust({ params, zoom }) {
 
   useFrame((state) => {
     uniforms.uTime.value = state.clock.elapsedTime
-    uniforms.uZoom.value = zoom
+    uniforms.uProj.value = proj
     uniforms.uSpeed.value = params.dustSpeed
     uniforms.uColor.value.set(params.color)
   })
@@ -261,12 +266,92 @@ function Dust({ params, zoom }) {
   return <points geometry={geometry} material={material} frustumCulled={false} renderOrder={-50} />
 }
 
+/** 尾の刻み。粗いと軌道の曲がりが折れ線に見える */
+const TAIL_STEPS = 26
+
+/** 時計のまわりを駆け抜ける流れ星 */
+function Comets({ params, radius }) {
+  const count = Math.round(params.comets)
+
+  const line = useMemo(() => {
+    // 線分は隣り合う 2 点で 1 本。刻み数 - 1 本ぶん要る
+    const segs = TAIL_STEPS - 1
+    const n = count * segs * 2
+    const seed = new Float32Array(n)
+    const t = new Float32Array(n)
+    let k = 0
+    for (let c = 0; c < count; c++) {
+      for (let i = 0; i < segs; i++) {
+        for (const j of [i, i + 1]) {
+          seed[k] = c
+          t[k] = j / segs
+          k++
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
+    geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1))
+    geo.setAttribute('aT', new THREE.BufferAttribute(t, 1))
+    // 頂点が動くので、three が計算した範囲は当てにならない
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 400)
+    return geo
+  }, [count])
+  useEffect(() => () => line.dispose(), [line])
+
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uSpeed: { value: DEFAULTS.cometSpeed },
+    uTail: { value: DEFAULTS.cometTail },
+    uRadius: { value: 10 },
+    uCamDist: { value: 40 },
+    uGain: { value: DEFAULTS.cometGain },
+    uColor: { value: new THREE.Color(DEFAULTS.cometColor) },
+  }), [])
+
+  /*
+   * 加算合成。深度は書かない。彗星は光なので、重なった所は明るくなるだけで
+   * 手前の 1 本が奥を隠してはいけない。
+   */
+  const lineMat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: cometVertexShader,
+    fragmentShader: cometFragmentShader,
+    uniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }), [uniforms])
+  useEffect(() => () => lineMat.dispose(), [lineMat])
+
+  useFrame((state) => {
+    uniforms.uTime.value = state.clock.elapsedTime
+    uniforms.uCamDist.value = state.camera.userData.dist ?? 40
+    uniforms.uSpeed.value = params.cometSpeed
+    uniforms.uTail.value = params.cometTail
+    uniforms.uGain.value = params.cometGain
+    uniforms.uRadius.value = radius
+    uniforms.uColor.value.set(params.cometColor)
+  })
+
+  return <lineSegments geometry={line} material={lineMat} frustumCulled={false} />
+}
+
 /** 右上の leva が覆う幅。時計の桁がこの下に隠れると時刻が読めない */
 const PANEL_PX = 300
 
-function Rig({ scale, span, onZoom }) {
+const FOV = 34
+
+/**
+ * 斜めから見る遠近カメラ。
+ *
+ * 正面の正射影だと、彗星が時計を回っても平らな輪にしか見えない。
+ * 少し振って少し見下ろすと、手前と奥を通っているのが分かる。
+ */
+function Rig({ scale, span, onProj }) {
   const camera = useThree((s) => s.camera)
   const viewport = useThree((s) => s.size)
+  const target = useRef(new THREE.Vector3())
+
   useEffect(() => {
     // 漂いとゆがみで字は焼いた枠より外へ出る。その分を余白に足す
     const w = (span + 4) * scale
@@ -278,15 +363,49 @@ function Rig({ scale, span, onZoom }) {
      */
     const panel = viewport.width > 900 ? PANEL_PX : 0
     const usable = Math.max(200, viewport.width - panel)
-    const zoom = Math.min(usable / w, viewport.height / h) * 0.92
-    camera.zoom = zoom
-    const shift = panel / 2 / zoom
-    camera.position.set(shift, 0, 40)
-    // 原点を向かせない。向けるとカメラが傾いて、ずらしたぶんが打ち消される
-    camera.lookAt(shift, 0, 0)
+    const tan = Math.tan((FOV * Math.PI) / 180 / 2)
+
+    // 縦と横の両方が入る距離。横は「使える幅」の比で見る
+    const distH = h / 2 / tan
+    const distW = w / 2 / (tan * (usable / viewport.height))
+    // 斜めから見るぶん奥行きが要る
+    const dist = Math.max(distH, distW) * 1.3
+
+    // 1px あたりの世界の長さ。時計の置かれる深さで測る
+    const unit = (2 * dist * tan) / viewport.height
+    target.current.set((panel / 2) * unit, 0, 0)
+
+    camera.fov = FOV
+    camera.near = 1
+    camera.far = dist * 4
     camera.updateProjectionMatrix()
-    onZoom(zoom)
-  }, [camera, scale, span, viewport.width, viewport.height, onZoom])
+
+    // 縦の画角を基準にした「深さ 1 での 1 単位あたりの画素数」
+    onProj(viewport.height / (2 * tan))
+    camera.userData.dist = dist
+  }, [camera, scale, span, viewport.width, viewport.height, onProj])
+
+  useFrame((state) => {
+    const dist = camera.userData.dist ?? 40
+    const t = state.clock.elapsedTime
+    /*
+     * ゆっくり振る。止めると 3D なのに絵に見える。
+     * **振り幅は小さく。** 遠くから見ているので、わずかな角度でも画面上では
+     * 時計が大きく上下し、位置の定まらない例に見える。
+     */
+    // 左上から見下ろす。負の yaw が左
+    const yaw = -0.42 + Math.sin(t * 0.07) * 0.035
+    const pitch = 0.36 + Math.sin(t * 0.05 + 1.7) * 0.02
+    const c = target.current
+    camera.position.set(
+      c.x + dist * Math.sin(yaw) * Math.cos(pitch),
+      c.y + dist * Math.sin(pitch),
+      c.z + dist * Math.cos(yaw) * Math.cos(pitch),
+    )
+    // 中心を見る。原点を見ると leva ぶんのずらしが打ち消される
+    camera.lookAt(c)
+  })
+
   return null
 }
 
@@ -295,9 +414,9 @@ export default function VatClock() {
     variant: { value: DEFAULT_PRESET, options: PRESET_OPTIONS, label: 'Variant' },
   })
 
-  const zoom = useRef(40)
+  const proj = useRef(800)
   // 並びの実寸。桁とコロンで幅が違うので、式を 1 か所に持つ
-  const slotWidth = (kind, p) => (kind === 'c' ? p.colonGap + p.pitch * 1.1 : p.pitch * 4.1)
+  const slotWidth = (kind, p) => (kind === 'c' ? p.colonGap + p.pitch * 0.9 : p.pitch * 3.2)
 
   const [params, setParams] = useControls(() => ({
     Cloud: folder({
@@ -320,17 +439,22 @@ export default function VatClock() {
     Space: folder({
       nebula: { value: DEFAULTS.nebula, min: 0, max: 1.5, step: 0.02 },
       stars: { value: DEFAULTS.stars, min: 0, max: 1.5, step: 0.02 },
-      rayGain: { value: DEFAULTS.rayGain, min: 0, max: 0.8, step: 0.01, label: 'rays' },
-      rayWidth: { value: DEFAULTS.rayWidth, min: 0.01, max: 0.3, step: 0.005, label: 'ray width' },
       dust: { value: DEFAULTS.dust, min: 0, max: 4000, step: 100 },
       dustSpeed: { value: DEFAULTS.dustSpeed, min: 0, max: 3, step: 0.05, label: 'dust flow' },
+    }),
+    Comets: folder({
+      comets: { value: DEFAULTS.comets, min: 0, max: 60, step: 1, label: 'count' },
+      cometSpeed: { value: DEFAULTS.cometSpeed, min: 0.05, max: 3, step: 0.05, label: 'speed' },
+      cometTail: { value: DEFAULTS.cometTail, min: 0.05, max: 2, step: 0.05, label: 'tail' },
+      cometGain: { value: DEFAULTS.cometGain, min: 0, max: 2, step: 0.05, label: 'glow' },
+      cometRadius: { value: DEFAULTS.cometRadius, min: 0.5, max: 2.5, step: 0.05, label: 'orbit' },
     }),
     Look: folder({
       color: { value: DEFAULTS.color },
       deep: { value: DEFAULTS.deep, label: 'void' },
       nebulaA: { value: DEFAULTS.nebulaA, label: 'nebula 1' },
       nebulaB: { value: DEFAULTS.nebulaB, label: 'nebula 2' },
-      rayColor: { value: DEFAULTS.rayColor, label: 'ray tint' },
+      cometColor: { value: DEFAULTS.cometColor, label: 'comet' },
     }),
   }))
 
@@ -340,18 +464,17 @@ export default function VatClock() {
   }, [variant, setParams])
 
   const span = KINDS.reduce((a, k) => a + slotWidth(k, params), 0)
+  // 軌道は並びの幅に合わせる。字が長くなれば輪も大きくなる
+  const radius = (span / 2) * params.cometRadius
 
   return (
-    <Canvas
-      orthographic
-      camera={{ position: [0, 0, 40], zoom: 40, near: -200, far: 400 }}
-      dpr={[1, 2]}
-    >
+    <Canvas camera={{ fov: FOV, position: [0, 0, 40], near: 1, far: 400 }} dpr={[1, 2]}>
       <color attach="background" args={[params.deep]} />
       <Space params={params} />
-      <Dust params={params} zoom={zoom.current} />
-      <Digits params={params} zoom={zoom.current} />
-      <Rig scale={params.scale} span={span} onZoom={(z) => { zoom.current = z }} />
+      <Dust params={params} proj={proj.current} />
+      <Comets params={params} radius={radius} />
+      <Digits params={params} proj={proj.current} />
+      <Rig scale={params.scale} span={span} onProj={(v) => { proj.current = v }} />
     </Canvas>
   )
 }
