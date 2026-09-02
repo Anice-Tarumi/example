@@ -1,0 +1,16 @@
+{
+  "title": "Grid Snake",
+  "description": "1 回の入力で 1 ターン進む蛇。勝手には進まないので、盤面を見て考えられる。描画は現在位置ではなく「進む前の配置」との補間で動かすため、駒が瞬間移動しない。伸びた節は前の尻尾から生え、頭は進行方向へ潰れて伸びる。ロジックは three を知らない。",
+  "emoji": "🐍",
+  "category": "interaction",
+  "tags": ["game", "interaction", "instancing", "3d"],
+  "variants": [
+    { "id": "studio", "label": "Studio" },
+    { "id": "neon", "label": "Neon" },
+    { "id": "paper", "label": "Paper" },
+    { "id": "wide", "label": "Wide Board" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "食べないターンは尻尾が退くので、尻尾のマスへは入れる。ここを厳しくすると理不尽に死ぬ"
+}

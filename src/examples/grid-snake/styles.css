@@ -1,0 +1,52 @@
+/* HUD。盤の上に薄く重ねる。触れないので pointer-events は切る */
+.snk {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.snk__hud {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  color: #f4f4f2;
+  z-index: 2;
+  mix-blend-mode: difference;
+}
+
+.snk__score {
+  font-size: clamp(38px, 5vw, 64px);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.snk__label {
+  font-size: 10px;
+  letter-spacing: 0.36em;
+  text-indent: 0.36em;
+  opacity: 0.55;
+}
+
+.snk__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #f4f4f2;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: difference;
+  white-space: nowrap;
+}
