@@ -2,7 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { useControls, folder, button } from 'leva'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { ENV_MAPS } from '../../shared/env'
 import { createGame, DIRS } from './game'
@@ -57,7 +57,7 @@ function Board({ size, params }) {
  * ロジックは 1 ターンずつしか動かない。見た目はその間を補間する。
  * 補間しないと駒が瞬間移動して、いくら質感を上げても安っぽく見える。
  */
-function Stage({ params, onScore }) {
+function Stage({ params, onScore, onRestart }) {
   const size = Math.round(params.size)
   const game = useMemo(
     () => createGame({ size, fruits: Math.round(params.fruitCount), wrap: params.wrap }),
@@ -100,7 +100,8 @@ function Stage({ params, onScore }) {
     const down = (e) => {
       const name = KEYS[e.code]
       if (!name) {
-        if (e.code === 'KeyR') { game.reset(); onScore(0, false) }
+        // 終了時の再開はキーでもボタンでも同じ経路にする
+        if (e.code === 'KeyR' || ((e.code === 'Enter' || e.code === 'Space') && game.state.over)) onRestart()
         return
       }
       e.preventDefault()
@@ -119,7 +120,7 @@ function Stage({ params, onScore }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [game, onScore])
+  }, [game, onScore, onRestart])
 
   const advance = () => {
     const name = queue.current.shift() ?? held.current
@@ -330,6 +331,12 @@ export default function GridSnake() {
   const [over, setOver] = useState(false)
   const [resetKey, setResetKey] = useState(0)
 
+  const restart = useCallback(() => {
+    setResetKey((k) => k + 1)
+    setScore(0)
+    setOver(false)
+  }, [])
+
   const [params, setParams] = useControls(() => ({
     Board: folder({
       size: { value: DEFAULTS.size, min: 6, max: 20, step: 1, label: 'grid' },
@@ -354,7 +361,7 @@ export default function GridSnake() {
       background: { value: DEFAULTS.background, label: 'bg' },
       shadows: { value: DEFAULTS.shadows },
     }),
-    Restart: button(() => { setResetKey((k) => k + 1); setScore(0); setOver(false) }),
+    Restart: button(() => restart()),
   }))
 
   useEffect(() => {
@@ -391,19 +398,36 @@ export default function GridSnake() {
 
         <Suspense fallback={null}>
           <Environment files={ENV_MAPS.studio.url} />
-          <Stage key={resetKey} params={params} onScore={onScore} />
+          <Stage key={resetKey} params={params} onScore={onScore} onRestart={restart} />
         </Suspense>
 
         <ContactShadows position={[0, -0.32, 0]} opacity={0.45} scale={params.size * 2} blur={2.6} far={4} />
         <Rig size={params.size} tilt={params.tilt} />
       </Canvas>
 
-      <div className="snk__hud">
-        <span className="snk__score">{score}</span>
-        <span className="snk__label">FRUITS</span>
-      </div>
+      {/* 進行中のスコア。終了したら中央の板に譲る */}
+      {!over && (
+        <div className="snk__hud">
+          <span className="snk__score">{score}</span>
+          <span className="snk__label">FRUITS</span>
+        </div>
+      )}
 
-      <div className="snk__hint">{over ? 'PRESS R TO RESTART' : 'ARROWS OR WASD — ONE PRESS, ONE TURN'}</div>
+      {over && (
+        <div className="snk__over">
+          <div className="snk__card">
+            <span className="snk__over-label">NO MOVES LEFT</span>
+            <span className="snk__over-score">{score}</span>
+            <span className="snk__label">FRUITS EATEN</span>
+            <button type="button" className="snk__button" onClick={restart} autoFocus>
+              RESTART
+            </button>
+            <span className="snk__over-hint">OR PRESS R</span>
+          </div>
+        </div>
+      )}
+
+      {!over && <div className="snk__hint">ARROWS OR WASD — ONE PRESS, ONE TURN</div>}
     </div>
   )
 }

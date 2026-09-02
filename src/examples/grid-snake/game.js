@@ -122,15 +122,13 @@ export function createGame({ size = 10, fruits = 1, wrap = false, seed = 0x9e37 
     const p = probe(want)
 
     /*
-     * **自分の体へは進ませない。死なせもしない。**
+     * **進めない方向は死ではなく却下。** 体も壁も同じ扱い。
      * 入力を弾いて、描画側に「跳ねて赤く光る」を出させる。
      * 首へ戻る入力もここで弾かれるので、逆走の特別扱いは要らない。
+     *
+     * これで事故死が無くなり、終了条件は「四方が塞がる」だけになる。
      */
-    if (p.blocked === 'self') return { moved: false, blocked: 'self', dir: want }
-    if (p.blocked === 'wall') {
-      state.over = true
-      return { moved: false, died: 'wall', dir: want }
-    }
+    if (p.blocked) return { moved: false, blocked: p.blocked, dir: want }
 
     state.dir = want
     const { next, fruitIndex, ate } = p

@@ -50,3 +50,86 @@
   mix-blend-mode: difference;
   white-space: nowrap;
 }
+
+/*
+ * 終了時の板。
+ *
+ * ここだけ `pointer-events` を戻す。HUD ごと有効にすると盤が触れなくなる。
+ */
+.snk__over {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  background: rgba(6, 8, 12, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: snk-fade 0.24s ease-out both;
+}
+
+@keyframes snk-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.snk__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 34px 54px 28px;
+  border-radius: 18px;
+  background: rgba(20, 23, 30, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  color: #f4f4f2;
+  text-align: center;
+  animation: snk-pop 0.26s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes snk-pop {
+  from { transform: translateY(10px) scale(0.96); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.snk__over-label {
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  opacity: 0.5;
+}
+
+.snk__over-score {
+  font-size: clamp(56px, 8vw, 96px);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.snk__button {
+  margin-top: 16px;
+  padding: 11px 30px;
+  border: 0;
+  border-radius: 999px;
+  background: #d3ff02;
+  color: #14161b;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.snk__button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.snk__button:active { transform: translateY(0); }
+
+.snk__over-hint {
+  margin-top: 8px;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  opacity: 0.35;
+}
