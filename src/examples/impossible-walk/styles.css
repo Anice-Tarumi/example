@@ -1,0 +1,34 @@
+.iwk { position: absolute; inset: 0; overflow: hidden; }
+
+.iwk__hud {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: difference;
+  color: #ffffff;
+}
+
+.iwk__label {
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+}
+
+.iwk__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: difference;
+  color: #ffffff;
+  opacity: 0.6;
+  white-space: nowrap;
+}
