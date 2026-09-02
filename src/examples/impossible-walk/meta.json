@@ -1,16 +1,33 @@
 {
   "title": "Impossible Walk",
-  "description": "画面上で端が重なって見えれば、離れていても繋がっている。手前の柱で隠れた穴は落ちない。判定は 3D ではなく射影後の 2D で行い、乗り換えは端に着いた瞬間、穴は入る瞬間にだけ確定させる。連続で判定すると閾値付近でちらつく。カメラは正射影。透視だと奥行きで見かけの重なりが変わり、揃ったかどうかが曖昧になる。",
+  "description": "無限回廊の法則を射影後の 2D で実装した。端が画面で重なれば離れていても渡れる。手前の物で隠れた穴は落ちない。落ちたら画面上で真下に見えるものへ着地し、ジャンプ台では真上に見えるものへ跳ぶ。着地と跳躍は同じ「画面上の縦レイ」1 本で書ける。判定は到達した瞬間にだけ確定させる。連続で判定すると閾値付近でちらつく。",
   "emoji": "🪜",
   "category": "interaction",
-  "tags": ["game", "interaction", "3d", "mouse"],
+  "tags": [
+    "game",
+    "interaction",
+    "3d",
+    "mouse"
+  ],
   "variants": [
-    { "id": "paper", "label": "Paper" },
-    { "id": "ink", "label": "Ink" },
-    { "id": "loose", "label": "Loose Snap" },
-    { "id": "strict", "label": "Strict Snap" }
+    {
+      "id": "paper",
+      "label": "Paper"
+    },
+    {
+      "id": "ink",
+      "label": "Ink"
+    },
+    {
+      "id": "loose",
+      "label": "Loose Snap"
+    },
+    {
+      "id": "strict",
+      "label": "Strict Snap"
+    }
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "通路は全部直線の梁。曲がり角も錯視も「端が画面で重なったら乗り換える」の一本で扱える"
+  "note": "Landing と Jump は向きを変えただけの同じルーチン。Existence と Absence も同じ遮蔽判定。原始操作は 3 つで足りる"
 }

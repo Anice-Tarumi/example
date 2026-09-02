@@ -2,7 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useControls, folder, button } from 'leva'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { LEVEL, pointOn, solidSpans } from './level'
+import { LEVEL, pointOn, isInHole, solidSpans } from './level'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS, START_AZIMUTH } from './presets'
 import './styles.css'
 
@@ -66,6 +66,9 @@ function Walker({ params, onState }) {
   const pos = useRef({ ...LEVEL.start })
   const state = useRef('walk')
   const fallY = useRef(0)
+  // 画面上の進行方向。乗り換え先の向きを決めるのに使う
+  const screenDir = useRef({ x: 1, y: 0 })
+  const lastScreen = useRef(null)
   const ray = useMemo(() => new THREE.Raycaster(), [])
 
   const reset = () => {
@@ -108,6 +111,61 @@ function Walker({ params, onState }) {
       }
     })
     return best
+  }
+
+  /** 梁を射影した 2D 線分 */
+  const beamOnScreen = (i) => {
+    const b = LEVEL.beams[i]
+    return {
+      p0: toScreen(pointOn(b, 0, tmpA), { x: 0, y: 0 }),
+      p1: toScreen(pointOn(b, 1, tmpB), { x: 0, y: 0 }),
+    }
+  }
+
+  /**
+   * 画面上で縦にレイを飛ばし、最初に交わる梁を返す。
+   *
+   * **Landing（落ちたら画面の真下へ）と Jump（跳んだら画面の真上へ）は
+   * これ 1 本で足りる。** 向きを変えるだけ。
+   * 画面でほぼ垂直に見える梁は x で解けないので飛ばす。
+   */
+  const screenRayHit = (from, dirY, skipBeam) => {
+    const o = toScreen(from, { x: 0, y: 0 })
+    let best = null
+    let bestD = Infinity
+
+    LEVEL.beams.forEach((b, i) => {
+      if (i === skipBeam) return
+      const { p0, p1 } = beamOnScreen(i)
+      const dx = p1.x - p0.x
+      if (Math.abs(dx) < 1) return
+      const u = (o.x - p0.x) / dx
+      if (u < 0 || u > 1) return
+      // 穴の上には着地させない
+      if (isInHole(b, u)) return
+      const y = p0.y + (p1.y - p0.y) * u
+      const delta = (y - o.y) * dirY
+      if (delta <= 2) return
+      if (delta < bestD) {
+        bestD = delta
+        best = { beam: i, t: u }
+      }
+    })
+    return best
+  }
+
+  /**
+   * 乗り換え先で進む向き。
+   *
+   * **画面上の進行方向を保つ**ように選ぶ。世界での向きで決めると、
+   * 見た目には逆走したように見えることがある。
+   */
+  const dirFor = (beamIndex, screenDir) => {
+    const { p0, p1 } = beamOnScreen(beamIndex)
+    const vx = p1.x - p0.x
+    const vy = p1.y - p0.y
+    const len = Math.hypot(vx, vy) || 1
+    return (vx / len) * screenDir.x + (vy / len) * screenDir.y >= 0 ? 1 : -1
   }
 
   /**
@@ -163,9 +221,32 @@ function Walker({ params, onState }) {
       const entering = p.dir > 0 ? before < hole[0] && p.t >= hole[0] : before > hole[1] && p.t <= hole[1]
       if (!entering) continue
       if (!isCovered(b, hole)) {
-        state.current = 'fall'
         p.t = p.dir > 0 ? hole[0] : hole[1]
+        /*
+         * 落ちる。ただし**画面上の真下に見えるもの**があればそこへ着地する。
+         * ワールドでどれだけ離れていても構わない。これが移動の主役になる。
+         */
+        const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
+        if (land) {
+          pos.current = { beam: land.beam, t: land.t, dir: dirFor(land.beam, screenDir.current) }
+          onState('land')
+          return
+        }
+        state.current = 'fall'
         onState('fall')
+        return
+      }
+    }
+
+    // --- ジャンプ台。画面上の真上へ ---
+    for (const pad of LEVEL.pads) {
+      if (pad.beam !== p.beam) continue
+      const crossed = p.dir > 0 ? before < pad.t && p.t >= pad.t : before > pad.t && p.t <= pad.t
+      if (!crossed) continue
+      const up = screenRayHit(pointOn(b, pad.t, tmpA), -1, p.beam)
+      if (up) {
+        pos.current = { beam: up.beam, t: up.t, dir: dirFor(up.beam, screenDir.current) }
+        onState('jump')
         return
       }
     }
@@ -184,8 +265,14 @@ function Walker({ params, onState }) {
         pos.current = { beam: link.beam, t: link.t, dir: link.dir }
       } else {
         p.t = atEnd ? 1 : 0
-        state.current = 'fall'
-        onState('fall')
+        const land = screenRayHit(pointOn(b, p.t, tmpA), 1, p.beam)
+        if (land) {
+          pos.current = { beam: land.beam, t: land.t, dir: dirFor(land.beam, screenDir.current) }
+          onState('land')
+        } else {
+          state.current = 'fall'
+          onState('fall')
+        }
         return
       }
     }
@@ -194,6 +281,17 @@ function Walker({ params, onState }) {
       const cur = LEVEL.beams[pos.current.beam]
       pointOn(cur, pos.current.t, tmpA)
       ref.current.position.set(tmpA.x, tmpA.y + 0.42, tmpA.z)
+
+      // 画面上の進行方向を覚えておく。乗り換え先の向きに使う
+      const now = toScreen(tmpA, { x: 0, y: 0 })
+      const prev = lastScreen.current
+      if (prev) {
+        const dx = now.x - prev.x
+        const dy = now.y - prev.y
+        const len = Math.hypot(dx, dy)
+        if (len > 0.5) screenDir.current = { x: dx / len, y: dy / len }
+      }
+      lastScreen.current = now
     }
   })
 
@@ -259,6 +357,20 @@ export default function ImpossibleWalk() {
   })
 
   const [status, setStatus] = useState('walk')
+  const flashTimer = useRef(null)
+
+  /*
+   * 着地と跳躍は「起きた瞬間」なので、少し出してから歩行へ戻す。
+   * 状態として持ち続けると、その後ずっと表示が残る。
+   */
+  const onState = (s) => {
+    setStatus(s)
+    clearTimeout(flashTimer.current)
+    if (s === 'land' || s === 'jump') {
+      flashTimer.current = setTimeout(() => setStatus('walk'), 900)
+    }
+  }
+  useEffect(() => () => clearTimeout(flashTimer.current), [])
   const [view, setView] = useState({ azimuth: START_AZIMUTH, elevation: DEFAULTS.elevation })
   const [resetKey, setResetKey] = useState(0)
 
@@ -314,19 +426,35 @@ export default function ImpossibleWalk() {
           ))}
         </Occluders>
 
+        {/* ジャンプ台 */}
+        {LEVEL.pads.map((pad, i) => (
+          <mesh
+            key={`pad${i}`}
+            position={pointOn(LEVEL.beams[pad.beam], pad.t, new THREE.Vector3()).add(new THREE.Vector3(0, 0.13, 0)).toArray()}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
+            <ringGeometry args={[0.16, 0.3, 20]} />
+            <meshBasicMaterial color={params.walker} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+
         {/* ゴールの印 */}
         <mesh position={pointOn(LEVEL.beams[LEVEL.goal.beam], LEVEL.goal.t, new THREE.Vector3()).toArray()}>
           <torusGeometry args={[0.34, 0.05, 10, 28]} />
           <meshBasicMaterial color={params.walker} />
         </mesh>
 
-        <Walker key={resetKey} params={params} onState={setStatus} />
+        <Walker key={resetKey} params={params} onState={onState} />
         <Rig azimuth={view.azimuth} elevation={view.elevation} zoom={params.zoom} onDrag={onDrag} />
       </Canvas>
 
       <div className="iwk__hud">
         <span className="iwk__label">
-          {status === 'goal' ? 'REACHED' : status === 'fall' ? 'FELL — RESPAWNING' : 'DRAG TO ROTATE'}
+          {status === 'goal' ? 'REACHED'
+            : status === 'fall' ? 'FELL — RESPAWNING'
+            : status === 'land' ? 'LANDED ON WHAT LOOKED BELOW'
+            : status === 'jump' ? 'JUMPED TO WHAT LOOKED ABOVE'
+            : 'DRAG TO ROTATE'}
         </span>
       </div>
 
