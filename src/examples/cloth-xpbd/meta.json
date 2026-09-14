@@ -1,0 +1,17 @@
+{
+  "title": "Cloth (XPBD)",
+  "description": "位置ベースで布を解く。力を積分せず位置を直接直すので発散しない。反復ではなく部分刻みを増やすほど硬くなる。ただし刻みだけで伸びを潰すと計算が跳ね上がるので、伸びの上限を直接クランプする。掴んで引ける。破れる。",
+  "emoji": "🧵",
+  "category": "physics",
+  "tags": ["simulation", "3d", "mouse", "interaction"],
+  "variants": [
+    { "id": "drape", "label": "Drape" },
+    { "id": "flag", "label": "Flag" },
+    { "id": "ball", "label": "Over a ball" },
+    { "id": "tear", "label": "Tear" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "ひずみ制限は 1 回では足りない。留め点の隣は荷重が集まって 1.3 倍のまま残る",
+  "thumb": { "wait": 4500, "after": 600 }
+}
