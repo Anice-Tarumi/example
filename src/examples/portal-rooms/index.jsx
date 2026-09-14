@@ -52,6 +52,7 @@ function Portals({ params, mode }) {
 
   const clearColor = useMemo(() => new THREE.Color('#05060a'), [])
   const camLocal = useMemo(() => new THREE.Vector3(), [])
+  const travel = useMemo(() => new THREE.Vector3(), [])
   const placeB = useMemo(() => {
     const p = PLACEMENT[params.placement] || PLACEMENT.parallel
     const [x, , z] = p.pos(ROOM)
@@ -103,10 +104,22 @@ function Portals({ params, mode }) {
     const b = portalB.current
     if (!a || !b || !warm.current || !cold.current) return
 
-    // --- 通り抜け。枠の中で面を跨いだときだけ ---
+    /*
+     * --- 通り抜け。枠の中で面を跨いだときだけ ---
+     *
+     * **跨いだ地点まで戻してから転送する。** 越えた場所のまま転送すると、
+     * 行き先でも同じだけ深く入る。フレームが落ちると 1 フレームで 0.3 単位
+     * 進むので、壁の厚み（0.2）を越えて壁の中に出てしまい、画面が一瞬黒く
+     * なる。戻したうえで、面のごくわずか先へ置き直す。
+     */
     const from = here.current === 0 ? a : b
     const to = here.current === 0 ? b : a
-    if (crossed(prevPos, camera.position, from, PW / 2, PH / 2)) {
+    const t = crossed(prevPos, camera.position, from, PW / 2, PH / 2)
+    if (t >= 0) {
+      travel.subVectors(camera.position, prevPos)
+      camera.position.copy(prevPos).addScaledVector(travel, t)
+      if (travel.lengthSq() > 1e-12) camera.position.addScaledVector(travel.normalize(), 0.02)
+      camera.updateMatrixWorld(true)
       pairMatrix(from, to, pair)
       camera.matrixWorld.premultiply(pair)
       camera.matrixWorld.decompose(camera.position, camera.quaternion, camera.scale)

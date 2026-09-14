@@ -97,10 +97,14 @@ export function obliqueNearPlane(camera, portal, sign) {
 }
 
 /**
- * 窓を跨いだか。
+ * 窓を跨いだか。跨いでいれば、跨いだ瞬間の割合 t を返す。
  *
  * 面を跨いだだけでは足りない。**窓の枠の中で跨いだときだけ**通す。
  * 枠の外を回り込んだのに転送されると、壁を抜けたように見える。
+ *
+ * t を返すのは、**跨いだ地点まで戻してから転送する**ため。フレームが落ちる
+ * と 1 フレームで 0.3 単位ほど進むので、越えた場所で転送すると行き先でも
+ * 同じだけ深く入り、壁の中に出て画面が一瞬黒くなる。
  */
 export function crossed(prev, next, portal, halfWidth, halfHeight) {
   portal.updateWorldMatrix(true, false)
@@ -110,9 +114,10 @@ export function crossed(prev, next, portal, halfWidth, halfHeight) {
   const b = new THREE.Vector3().copy(next).applyMatrix4(inv)
 
   // 前から後ろへ抜けたときだけ
-  if (az <= 0 || b.z > 0) return false
+  if (az <= 0 || b.z > 0) return -1
   const t = az / (az - b.z)
   const hx = a.x + (b.x - a.x) * t
   const hy = a.y + (b.y - a.y) * t
-  return Math.abs(hx) <= halfWidth && Math.abs(hy) <= halfHeight
+  if (Math.abs(hx) > halfWidth || Math.abs(hy) > halfHeight) return -1
+  return t
 }

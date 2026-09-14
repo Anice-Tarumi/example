@@ -487,3 +487,9 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 59. **React Compiler は「宣言より前で参照される `useMemo`」を最適化できない。**
    `Compilation Skipped: Existing memoization could not be preserved` が出る。
    useFrame の中で使う値は、useFrame より**前**で作る。
+
+60. **転送は「越えた場所」ではなく「跨いだ地点」から行う。** 1 フレームの
+   移動量は fps が落ちるほど大きい（3.2 単位/秒・10fps で 0.32）。越えた場所の
+   まま転送すると行き先でも同じだけ深く入り、壁の厚み（0.2）を越えて壁の中に
+   出る。何度か往復すると一瞬画面が黒くなるのはこれ。交点の割合 t まで戻して
+   から転送する。
