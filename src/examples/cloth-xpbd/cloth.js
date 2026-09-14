@@ -323,12 +323,31 @@ export function step(c, dt, p) {
       pos[o + 2] += vel[o + 2] * h
     }
 
-    // --- 掴んでいる点は連れていく ---
+    /*
+     * --- 掴んでいる点を連れていく ---
+     *
+     * カーソルの位置へ**瞬間移動させない**。速く振ると、掴んだ点が 1 刻みで
+     * 布の厚みより遠くへ飛び、面を跨いで反対側へ出る。点どうしの押し退けは
+     * すり抜けた後には効かないので、そのまま絡まって戻らない。
+     *
+     * 上限を付けて、近づける速さを抑える。掴み心地はほとんど変わらない。
+     */
     if (c.grabbed >= 0) {
       const o = c.grabbed * 3
-      pos[o] = c.grabTarget[0]
-      pos[o + 1] = c.grabTarget[1]
-      pos[o + 2] = c.grabTarget[2]
+      let dx = c.grabTarget[0] - pos[o]
+      let dy = c.grabTarget[1] - pos[o + 1]
+      let dz = c.grabTarget[2] - pos[o + 2]
+      const d = Math.hypot(dx, dy, dz)
+      const max = (p.grabSpeed ?? 1e9) * h
+      if (d > max && d > 1e-9) {
+        const f = max / d
+        dx *= f
+        dy *= f
+        dz *= f
+      }
+      pos[o] += dx
+      pos[o + 1] += dy
+      pos[o + 2] += dz
     }
 
     // --- 拘束 ---
@@ -376,6 +395,30 @@ export function step(c, dt, p) {
         pos[bo] -= ex * wb
         pos[bo + 1] -= ey * wb
         pos[bo + 2] -= ez * wb
+      }
+    }
+
+    /*
+     * --- 移動量の頭打ち ---
+     *
+     * 1 刻みで厚みを越えて動く点があると、押し退ける前に相手を通り抜ける。
+     * **押し退けは通り抜けた後には効かない。** 動ける距離を厚みより内側に
+     * 抑えておけば、そもそも跨げない。
+     */
+    if (p.thickness > 0 && p.maxMove > 0) {
+      const cap = p.thickness * p.maxMove
+      for (let i = 0; i < n; i++) {
+        if (invMass[i] === 0) continue
+        const o = i * 3
+        const dx = pos[o] - prev[o]
+        const dy = pos[o + 1] - prev[o + 1]
+        const dz = pos[o + 2] - prev[o + 2]
+        const d = Math.hypot(dx, dy, dz)
+        if (d <= cap || d < 1e-12) continue
+        const f = cap / d
+        pos[o] = prev[o] + dx * f
+        pos[o + 1] = prev[o + 1] + dy * f
+        pos[o + 2] = prev[o + 2] + dz * f
       }
     }
 

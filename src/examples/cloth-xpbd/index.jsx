@@ -200,6 +200,8 @@ function Cloth({ params, cloth }) {
        */
       thickness: params.thickness * (cloth.size / (cloth.cols - 1)),
       selfEvery: params.selfEvery,
+      maxMove: params.maxMove,
+      grabSpeed: params.grabSpeed,
       tear: params.tear,
       tearStrain: params.tearStrain,
     })
@@ -272,7 +274,9 @@ export default function ClothXpbd() {
       damping: { value: DEFAULTS.damping, min: 0, max: 6, step: 0.1 },
       friction: { value: DEFAULTS.friction, min: 0, max: 1, step: 0.05, label: 'friction' },
       thickness: { value: DEFAULTS.thickness, min: 0, max: 1.2, step: 0.05, label: 'self collide' },
-      selfEvery: { value: DEFAULTS.selfEvery, label: 'collide每substep' },
+      selfEvery: { value: DEFAULTS.selfEvery, label: 'collide per substep' },
+      maxMove: { value: DEFAULTS.maxMove, min: 0, max: 2, step: 0.05, label: 'move cap' },
+      grabSpeed: { value: DEFAULTS.grabSpeed, min: 1, max: 40, step: 1, label: 'grab speed' },
     }),
     Forces: folder({
       gravity: { value: DEFAULTS.gravity, min: -25, max: 0, step: 0.5 },
