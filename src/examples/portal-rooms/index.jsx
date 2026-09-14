@@ -51,6 +51,7 @@ function Portals({ params, mode }) {
   const maskB = useRef(null)
 
   const clearColor = useMemo(() => new THREE.Color('#05060a'), [])
+  const camLocal = useMemo(() => new THREE.Vector3(), [])
   const placeB = useMemo(() => {
     const p = PLACEMENT[params.placement] || PLACEMENT.parallel
     const [x, , z] = p.pos(ROOM)
@@ -77,6 +78,24 @@ function Portals({ params, mode }) {
       }
     })
   }
+
+  // 窓は「くり抜き用の板」。色は書かず、深度も書かない
+  const maskMat = useMemo(() => new THREE.MeshBasicMaterial({
+    colorWrite: false,
+    depthWrite: false,
+    /*
+     * 壁と 2cm しか離れていないと、浅い角度で深度が競って**ステンシルが
+     * 書かれない瞬間が出る**（窓が消えたり点いたりする）。手前へ寄せる。
+     */
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    stencilWrite: true,
+    stencilRef: 1,
+    stencilFunc: THREE.AlwaysStencilFunc,
+    stencilZPass: THREE.ReplaceStencilOp,
+  }), [])
+  useEffect(() => () => maskMat.dispose(), [maskMat])
 
   useFrame((state) => {
     const { gl, camera } = state
@@ -129,7 +148,18 @@ function Portals({ params, mode }) {
        *
        * 部屋を隠して板だけ描く。**深度は 1 の結果を残したまま**なので、
        * 窓の手前に物があればステンシルは書かれない。
+       *
+       * ただし窓に顔を寄せると、板が near 面で切られて**ステンシルが 1
+       * フレーム抜ける**（くぐる瞬間に画面がちらつく）。近づいたら板を
+       * 面の裏へ下げ、深度判定も切る。そこまで近ければ、間に物は入らない。
        */
+      camLocal.copy(camera.position)
+      near.worldToLocal(camLocal)
+      const dist = camLocal.z
+      const veryClose = dist < 0.3
+      maskMat.depthTest = !veryClose
+      nearMask.position.z = veryClose ? Math.min(0, dist - 0.2) : 0
+
       nearMask.visible = true
       thisRoom.visible = false
       gl.render(scene, camera)
@@ -159,23 +189,6 @@ function Portals({ params, mode }) {
     thisRoom.visible = true
   }, 1)
 
-  // 窓は「くり抜き用の板」。色は書かず、深度も書かない
-  const maskMat = useMemo(() => new THREE.MeshBasicMaterial({
-    colorWrite: false,
-    depthWrite: false,
-    /*
-     * 壁と 2cm しか離れていないと、浅い角度で深度が競って**ステンシルが
-     * 書かれない瞬間が出る**（窓が消えたり点いたりする）。手前へ寄せる。
-     */
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-    stencilWrite: true,
-    stencilRef: 1,
-    stencilFunc: THREE.AlwaysStencilFunc,
-    stencilZPass: THREE.ReplaceStencilOp,
-  }), [])
-  useEffect(() => () => maskMat.dispose(), [maskMat])
 
   return (
     <>
@@ -368,7 +381,7 @@ export default function PortalRooms() {
       <Canvas
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: [0, EYE, 3.5], fov: 62, near: 0.1, far: 60 }}
+        camera={{ position: [0, EYE, 3.5], fov: 62, near: 0.05, far: 60 }}
         // ステンシルを使うので明示的に要求する。既定では付かない
         gl={{ stencil: true, antialias: true }}
       >

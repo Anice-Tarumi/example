@@ -478,3 +478,12 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 57. **ステンシル用の板を面から 2cm しか浮かせないと、浅い角度で深度が競う。**
    書かれたり書かれなかったりして、窓が点滅する。`polygonOffset` で手前へ
    寄せる。
+
+58. **ステンシルの板は near 面で切られる。** 窓に顔を寄せると板の一部が
+   near 面より手前に出て、ステンシルが 1 フレーム抜ける。くぐる瞬間に
+   画面がちらつく原因。近づいたら板を面の裏へ下げ、深度判定を切る。
+   そこまで近ければ、カメラと窓の間に物は入らない。
+
+59. **React Compiler は「宣言より前で参照される `useMemo`」を最適化できない。**
+   `Compilation Skipped: Existing memoization could not be preserved` が出る。
+   useFrame の中で使う値は、useFrame より**前**で作る。
