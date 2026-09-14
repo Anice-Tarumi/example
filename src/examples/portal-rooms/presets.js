@@ -2,6 +2,8 @@
 
 const BASE = {
   portalOn: true,
+  // 平行に置くと対の変換が平行移動だけになり、くぐっても向きが変わらない
+  placement: 'parallel',
   // near 面を窓へ倒す。切ると、窓より手前の物まで写り込むのが見える
   oblique: true,
   walkSpeed: 3.2,
@@ -23,11 +25,13 @@ export const PRESETS = {
   rooms: { label: 'Rooms', params: { ...BASE } },
   noOblique: {
     label: 'No clip',
+    // near 面を倒さない失敗例。窓の向こうに B の部屋の壁の裏が写って真っ黒になる
     params: { ...BASE, oblique: false },
   },
-  off: {
-    label: 'Portal off',
-    params: { ...BASE, portalOn: false },
+  turn: {
+    label: 'Turning',
+    // 横壁に置いた対。くぐると 90° 向きが変わる
+    params: { ...BASE, placement: 'turn' },
   },
   mono: {
     label: 'Mono',

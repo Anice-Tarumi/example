@@ -7,6 +7,21 @@ import { pairMatrix, placeVirtualCamera, obliqueNearPlane, crossed } from './por
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
 import './styles.css'
 
+/**
+ * 窓 B の置き場所。
+ *
+ * **既定は「向かい合わせ」ではなく「平行」。** 対の変換は
+ * `B × rotY(180°) × A⁻¹` なので、B が A と 180° 違う向きなら回転が打ち消し
+ * 合って**ただの平行移動**になる。くぐっても向きが変わらない。
+ *
+ * 横壁に置くと 90° 回る。ポータルとしては正しい挙動だが、初見では
+ * 「勝手に向きが変わった」と感じる。見せたいときだけ変種で出す。
+ */
+const PLACEMENT = {
+  parallel: { pos: (R) => [0, 0, R.d / 2 - 0.12], rot: [0, Math.PI, 0] },
+  turn: { pos: (R) => [R.w / 2 - 0.12, 0, 0], rot: [0, -Math.PI / 2, 0] },
+}
+
 /** 窓の大きさ */
 const PW = 1.5
 const PH = 2.4
@@ -36,6 +51,11 @@ function Portals({ params, mode }) {
   const maskB = useRef(null)
 
   const clearColor = useMemo(() => new THREE.Color('#05060a'), [])
+  const placeB = useMemo(() => {
+    const p = PLACEMENT[params.placement] || PLACEMENT.parallel
+    const [x, , z] = p.pos(ROOM)
+    return { pos: [x, PH / 2 + 0.05, z], rot: p.rot }
+  }, [params.placement])
   const virtual = useMemo(() => new THREE.PerspectiveCamera(), [])
   const pair = useMemo(() => new THREE.Matrix4(), [])
   const prevPos = useMemo(() => new THREE.Vector3(), [])
@@ -143,6 +163,13 @@ function Portals({ params, mode }) {
   const maskMat = useMemo(() => new THREE.MeshBasicMaterial({
     colorWrite: false,
     depthWrite: false,
+    /*
+     * 壁と 2cm しか離れていないと、浅い角度で深度が競って**ステンシルが
+     * 書かれない瞬間が出る**（窓が消えたり点いたりする）。手前へ寄せる。
+     */
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     stencilWrite: true,
     stencilRef: 1,
     stencilFunc: THREE.AlwaysStencilFunc,
@@ -165,7 +192,7 @@ function Portals({ params, mode }) {
 
       <group ref={cold} visible={false}>
         <RoomCold params={params} />
-        <group position={[ROOM.w / 2 - 0.12, PH / 2 + 0.05, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <group position={placeB.pos} rotation={placeB.rot}>
           <lineSegments>
             <edgesGeometry args={[new THREE.PlaneGeometry(PW + 0.12, PH + 0.12)]} />
             <lineBasicMaterial color={params.frameCold} />
@@ -182,7 +209,7 @@ function Portals({ params, mode }) {
           <planeGeometry args={[PW, PH]} />
         </mesh>
       </group>
-      <group ref={portalB} position={[ROOM.w / 2 - 0.12, PH / 2 + 0.05, 0]} rotation={[0, -Math.PI / 2, 0]}>
+      <group ref={portalB} position={placeB.pos} rotation={placeB.rot}>
         <mesh ref={maskB} material={maskMat} visible={false}>
           <planeGeometry args={[PW, PH]} />
         </mesh>
@@ -312,6 +339,7 @@ export default function PortalRooms() {
     Portal: folder({
       portalOn: { value: DEFAULTS.portalOn, label: 'portal' },
       oblique: { value: DEFAULTS.oblique, label: 'oblique near' },
+      placement: { value: DEFAULTS.placement, options: { 'Parallel (no turn)': 'parallel', 'Side wall (turns 90°)': 'turn' }, label: 'exit' },
       walkSpeed: { value: DEFAULTS.walkSpeed, min: 1, max: 8, step: 0.5, label: 'walk' },
     }),
     Warm: folder({

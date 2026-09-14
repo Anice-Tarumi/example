@@ -3,15 +3,35 @@
   "description": "ステンシルで窓をくり抜き、その中だけ別の部屋を描く。窓の形をステンシルへ書いてから深度を捨て、対の窓の裏に置いた仮想カメラで向こうを描く。near 面を窓の面へ倒さないと、窓より手前にある向こうの部屋の物まで写り込む。枠の中で面を跨いだときだけ転送する。",
   "emoji": "🚪",
   "category": "geometry",
-  "tags": ["3d", "interaction", "mouse", "transition"],
+  "tags": [
+    "3d",
+    "interaction",
+    "mouse",
+    "transition"
+  ],
   "variants": [
-    { "id": "rooms", "label": "Rooms" },
-    { "id": "noOblique", "label": "No clip" },
-    { "id": "off", "label": "Portal off" },
-    { "id": "mono", "label": "Mono" }
+    {
+      "id": "rooms",
+      "label": "Rooms"
+    },
+    {
+      "id": "turn",
+      "label": "Turning"
+    },
+    {
+      "id": "noOblique",
+      "label": "No clip"
+    },
+    {
+      "id": "mono",
+      "label": "Mono"
+    }
   ],
   "source": "",
   "sourceUrl": "",
   "note": "Canvas に gl={{ stencil: true }} が要る。既定ではステンシルバッファが付かない",
-  "thumb": { "wait": 4000, "after": 400 }
+  "thumb": {
+    "wait": 4000,
+    "after": 400
+  }
 }
