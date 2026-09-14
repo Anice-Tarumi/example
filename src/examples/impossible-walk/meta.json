@@ -29,5 +29,9 @@
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "Landing と Jump は向きを変えただけの同じルーチン。Existence と Absence も同じ遮蔽判定。原始操作は 3 つで足りる"
+  "note": "Landing と Jump は向きを変えただけの同じルーチン。Existence と Absence も同じ遮蔽判定。原始操作は 3 つで足りる",
+  "thumb": {
+    "wait": 6000,
+    "after": 800
+  }
 }

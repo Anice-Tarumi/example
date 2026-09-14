@@ -3,13 +3,31 @@
   "description": "同じシーンを左はメインスレッド、右は Worker + OffscreenCanvas で描く。ボタンでメインスレッドを故意にブロックすると、左だけが固まって右は回り続ける。描画をメインから逃がす効果がそのまま目に見える。",
   "emoji": "🧵",
   "category": "performance",
-  "tags": ["performance", "worker", "offscreen-canvas", "3d"],
+  "tags": [
+    "performance",
+    "worker",
+    "offscreen-canvas",
+    "3d"
+  ],
   "variants": [
-    { "id": "compare", "label": "Side by Side" },
-    { "id": "heavy", "label": "Heavy Scene" },
-    { "id": "stutter", "label": "Auto Stutter" }
+    {
+      "id": "compare",
+      "label": "Side by Side"
+    },
+    {
+      "id": "heavy",
+      "label": "Heavy Scene"
+    },
+    {
+      "id": "stutter",
+      "label": "Auto Stutter"
+    }
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "R3F は使わない。ワーカーには document が無いので three を直接叩く"
+  "note": "R3F は使わない。ワーカーには document が無いので three を直接叩く",
+  "thumb": {
+    "sweep": true,
+    "after": 500
+  }
 }

@@ -29,5 +29,8 @@
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "記録は cookie ではなく localStorage。cookie は毎リクエストに載るうえ 4KB 制限と期限がある"
+  "note": "記録は cookie ではなく localStorage。cookie は毎リクエストに載るうえ 4KB 制限と期限がある",
+  "thumb": {
+    "wait": 5000
+  }
 }

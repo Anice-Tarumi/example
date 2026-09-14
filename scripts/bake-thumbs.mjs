@@ -72,19 +72,20 @@ for (const slug of slugs) {
 
   try {
     await page.goto(`${BASE}/examples/${slug}`, { waitUntil: 'networkidle', timeout: 30000 })
-    await page.addStyleTag({ content: HIDE_CSS })
-    // キャンバスが新しい幅に追いつくのを待つ。R3F は監視で気付く
-    await page.waitForTimeout(500)
-
     /*
-     * 変種を選べるようにしておく。既定が地味な例がある。
-     * leva は隠してあるので、開く前に選んでから隠す…のではなく、
-     * **隠す CSS は見た目だけ**なので、要素は生きていて選べる。
+     * 変種は**隠す前に**選ぶ。既定が地味な例がある。
+     * `display: none` にした要素は操作できない。順番を逆にすると、
+     * 選択が待ちに入ったまま時間切れになる。
      */
     if (hint.variant != null) {
       const select = await page.$('.stage__controls select')
       if (select) await select.selectOption({ index: hint.variant })
+      await page.waitForTimeout(300)
     }
+
+    await page.addStyleTag({ content: HIDE_CSS })
+    // キャンバスが新しい幅に追いつくのを待つ。R3F は監視で気付く
+    await page.waitForTimeout(500)
 
     if (hint.scroll) {
       const target = await page.$('.dws__scroll, .stage__canvas [data-scroll]')
@@ -96,9 +97,34 @@ for (const slug of slugs) {
     const [hx, hy] = hint.hover || [0.5, 0.5]
     await page.mouse.move(W * hx, H * hy)
     await page.waitForTimeout(hint.wait ?? DEFAULT_WAIT)
-    // 少し動かす。静止したままだと軌跡や速度が 0 の例がある
-    await page.mouse.move(W * hx + 40, H * hy + 24, { steps: 12 })
-    await page.waitForTimeout(400)
+
+    /*
+     * 触って初めて何か出る例は、**画面を大きく撫でないと絵にならない**。
+     * 軌跡・波紋・削り出しの類は、40px 動かした程度では跡が点にしかならない。
+     * `sweep` で弧を描いて掃く。`drag` なら押しながら掃く。
+     */
+    if (hint.sweep || hint.drag) {
+      const path = hint.drag || hint.sweep
+      const pts = Array.isArray(path)
+        ? path.map(([x, y]) => [W * x, H * y])
+        // 既定は中央を通る大きな弧。画面の端まで届かせる
+        : Array.from({ length: 5 }, (_, i) => {
+          const a = -Math.PI * 0.85 + (i / 4) * Math.PI * 1.7
+          return [W * (0.5 + Math.cos(a) * 0.34), H * (0.5 + Math.sin(a) * 0.32)]
+        })
+      await page.mouse.move(pts[0][0], pts[0][1])
+      if (hint.drag) await page.mouse.down()
+      for (const [x, y] of pts.slice(1)) {
+        await page.mouse.move(x, y, { steps: 24 })
+        await page.waitForTimeout(60)
+      }
+      if (hint.drag) await page.mouse.up()
+      await page.waitForTimeout(hint.after ?? 500)
+    } else {
+      // 静止したままだと軌跡や速度が 0 の例がある
+      await page.mouse.move(W * hx + 40, H * hy + 24, { steps: 12 })
+      await page.waitForTimeout(400)
+    }
 
     /*
      * ページ全体ではなく**本体の要素だけ**を撮る。ページを撮ると、

@@ -30,5 +30,9 @@
   ],
   "source": "buttermax.net",
   "sourceUrl": "https://buttermax.net/",
-  "note": "buttermax/hover_gold_grid_v2_PROMPT.md"
+  "note": "buttermax/hover_gold_grid_v2_PROMPT.md",
+  "thumb": {
+    "sweep": true,
+    "after": 400
+  }
 }

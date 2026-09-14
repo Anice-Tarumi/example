@@ -3,14 +3,34 @@
   "description": "空港の掲示板のような機械式フリップドット。1 マスが 1 画素で、字形は 5×7 のビットフォントを手で持つ。機構の核は変化した画素だけを裏返すこと。毎秒すべて裏返すと掲示板ではなく点滅板になる。差分だけ動かすから、秒は数個、分は十数個というリズムが自然に出る。",
   "emoji": "🕰️",
   "category": "typography",
-  "tags": ["instancing", "typography", "3d", "bake"],
+  "tags": [
+    "instancing",
+    "typography",
+    "3d",
+    "bake"
+  ],
   "variants": [
-    { "id": "station", "label": "Station" },
-    { "id": "amber", "label": "Amber" },
-    { "id": "paper", "label": "Paper" },
-    { "id": "snap", "label": "Snap" }
+    {
+      "id": "station",
+      "label": "Station"
+    },
+    {
+      "id": "amber",
+      "label": "Amber"
+    },
+    {
+      "id": "paper",
+      "label": "Paper"
+    },
+    {
+      "id": "snap",
+      "label": "Snap"
+    }
   ],
   "source": "",
   "sourceUrl": "",
-  "note": "既製フォントをこの大きさでラスタライズすると必ず潰れる。画素単位で字形を決めきる"
+  "note": "既製フォントをこの大きさでラスタライズすると必ず潰れる。画素単位で字形を決めきる",
+  "thumb": {
+    "wait": 6000
+  }
 }
