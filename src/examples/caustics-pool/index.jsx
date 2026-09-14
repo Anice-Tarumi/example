@@ -310,10 +310,10 @@ export default function CausticsPool() {
   }, [variant, setParams])
 
   return (
-    {/*
-      * 画素ごとに波の式を解くので、この例だけ倍率の上限を下げる。
-      * Retina の 2 倍で 4 倍の面積を計算しても、水の絵はほとんど変わらない。
-      */}
+    /*
+     * 画素ごとに波の式を解くので、この例だけ倍率の上限を下げる。
+     * Retina の 2 倍で 4 倍の面積を計算しても、水の絵はほとんど変わらない。
+     */
     <Canvas camera={{ position: [0.5, 7.2, 12.5], fov: 40 }} dpr={[1, 1.6]}>
       <color attach="background" args={[params.skyColor]} />
       <Pool params={params} />
