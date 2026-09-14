@@ -35,7 +35,14 @@ export default function Home({ examples }) {
                   to={`/examples/${ex.slug}`}
                   className="card"
                 >
-                  <div className="card__thumb">{ex.emoji || '✨'}</div>
+                  <div className="card__thumb">
+                    {ex.thumb
+                      ? (
+                        /* 画面外のぶんは読まない。34 枚を一度に取りにいかせない */
+                        <img src={ex.thumb} alt="" loading="lazy" decoding="async" />
+                      )
+                      : (ex.emoji || '✨')}
+                  </div>
                   <div className="card__meta">
                     <div className="card__title">
                       {ex.title}

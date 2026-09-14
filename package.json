@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "thumbs": "node scripts/bake-thumbs.mjs",
+    "globe": "node scripts/bake-globe.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

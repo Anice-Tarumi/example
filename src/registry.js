@@ -9,6 +9,18 @@ const metas = import.meta.glob('./examples/*/meta.json', {
 // 各 example の index.jsx を lazy import（コード分割）
 const modules = import.meta.glob('./examples/*/index.jsx')
 
+/*
+ * サムネイル。`scripts/bake-thumbs.mjs` が焼いたものを拾う。
+ *
+ * **有るものだけ**を貼る。存在チェックを走らせずに済むよう、glob の結果を
+ * そのまま引き当てる。無ければ絵文字に落ちる。
+ */
+const thumbs = import.meta.glob('./assets/thumbs/*.jpg', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
 /** src/examples/<slug>/ を走査して example 一覧を作る。`_` 始まりは除外。 */
 export const examples = Object.entries(metas)
   .map(([path, meta]) => {
@@ -20,6 +32,7 @@ export const examples = Object.entries(metas)
     if (!modules[modPath]) return null
     return {
       slug,
+      thumb: thumbs[`./assets/thumbs/${slug}.jpg`] || null,
       category: meta.category || null,
       tags: meta.tags || [],
       variants: meta.variants || [],

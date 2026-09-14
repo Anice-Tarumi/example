@@ -146,7 +146,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 
 ## インフラ / 改善
 
-- [ ] **サムネイル** — Home のカードが emoji のみ。`scripts/screenshot.mjs` で各 example の静止画を自動生成して `public/thumbs/` に置く仕組みを作る
+- [x] **サムネイル** — `npm run thumbs` で全 example を実機で撮り `src/assets/thumbs/` へ。Home は有るものだけ画像に差し替え、無ければ絵文字。撮り方は `meta.json` の `thumb`（wait / hover / scroll / variant）で上書きできる
 - [ ] **バンドル分割** — `react-three-fiber` チャンクが 890kB。`manualChunks` で three 本体を分離
 - [ ] **モバイル確認** — サイドバーのドロワー化と leva パネルの配置が未検証
 - [ ] **hover-gold-grid-v2 の扱い** — `ripple-simulation` と category が被る。Buttermax 再現として残すか、統合するか
