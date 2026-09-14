@@ -1,0 +1,38 @@
+{
+  "title": "Caustics Pool",
+  "description": "太陽光を水面で屈折させ、底のどこに落ちたかを数えて焦線を作る。模様を手で描かないので、波と網が必ず一致する。水面からは屈折した先の底を式で引くため、画面をずらす擬似屈折ではなく本物の交点になる。触ると波紋が立ち、網もそのぶん歪む。",
+  "emoji": "🌊",
+  "category": "materials",
+  "tags": [
+    "shader",
+    "fbo",
+    "simulation",
+    "3d",
+    "mouse"
+  ],
+  "variants": [
+    {
+      "id": "pool",
+      "label": "Pool"
+    },
+    {
+      "id": "calm",
+      "label": "Calm"
+    },
+    {
+      "id": "rain",
+      "label": "Rain"
+    },
+    {
+      "id": "lagoon",
+      "label": "Lagoon"
+    }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "光子と水面は同じ波の式を見る。別々に持つと焦線と皺がずれる。法線は差分でなく解析微分（1 画素 6 回の評価が 1 回に）",
+  "thumb": {
+    "wait": 5000,
+    "after": 500
+  }
+}
