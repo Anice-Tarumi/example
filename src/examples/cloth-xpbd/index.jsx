@@ -194,6 +194,12 @@ function Cloth({ params, cloth }) {
       sphereR: params.sphereOn ? params.sphereR : 0,
       floor: params.floor,
       friction: params.friction,
+      /*
+       * 厚みは**格子の間隔に対する比**で持つ。絶対値で持つと、格子を
+       * 細かくしたときだけ布が膨らんで見える。
+       */
+      thickness: params.thickness * (cloth.size / (cloth.cols - 1)),
+      selfEvery: params.selfEvery,
       tear: params.tear,
       tearStrain: params.tearStrain,
     })
@@ -265,6 +271,8 @@ export default function ClothXpbd() {
       bend: { value: DEFAULTS.bend, min: 0, max: 2e-3, step: 1e-5, label: 'bend give' },
       damping: { value: DEFAULTS.damping, min: 0, max: 6, step: 0.1 },
       friction: { value: DEFAULTS.friction, min: 0, max: 1, step: 0.05, label: 'friction' },
+      thickness: { value: DEFAULTS.thickness, min: 0, max: 1.2, step: 0.05, label: 'self collide' },
+      selfEvery: { value: DEFAULTS.selfEvery, label: 'collide每substep' },
     }),
     Forces: folder({
       gravity: { value: DEFAULTS.gravity, min: -25, max: 0, step: 0.5 },

@@ -113,6 +113,102 @@ export function createCloth({ cols = 40, rows = 40, size = 4, flat = false, heig
     grabbed: -1,
     grabTarget: [0, 0, 0],
     torn: false,
+
+    /*
+     * 自己衝突用の空間ハッシュ。**毎フレーム作り直すが、確保は 1 回だけ。**
+     * Map を毎回作ると、粒より割り当ての方が高くつく。
+     */
+    hashSize: 1 << Math.ceil(Math.log2(Math.max(16, n * 2))),
+    cellStart: null,
+    cellEntry: new Int32Array(n),
+  }
+}
+
+/**
+ * 自己衝突。
+ *
+ * 布は面だが、ここでは**点どうしの押し退け**で代用する。三角形と点の判定は
+ * 正確だが桁違いに高い。点の間隔より細かく畳まない限り、点どうしで足りる。
+ *
+ * 格子の上で隣り合う点は除く。隣を押し退けると、辺の拘束と綱引きになって
+ * 布全体が震える。
+ */
+function selfCollide(c, thickness) {
+  const { pos, invMass, cols, cellEntry, hashSize } = c
+  const n = invMass.length
+  if (!c.cellStart) c.cellStart = new Int32Array(hashSize + 1)
+  const start = c.cellStart
+  const inv = 1 / thickness
+
+  // 空間ハッシュ。セルの大きさは押し退ける距離に合わせる
+  const hash = (x, y, z) => {
+    const h = (x * 92837111) ^ (y * 689287499) ^ (z * 283923481)
+    return (h < 0 ? -h : h) % hashSize
+  }
+
+  start.fill(0)
+  for (let i = 0; i < n; i++) {
+    const o = i * 3
+    const h = hash(Math.floor(pos[o] * inv), Math.floor(pos[o + 1] * inv), Math.floor(pos[o + 2] * inv))
+    start[h]++
+  }
+  // 累積和にして詰める。数え上げソート
+  let sum = 0
+  for (let i = 0; i < hashSize; i++) {
+    sum += start[i]
+    start[i] = sum
+  }
+  start[hashSize] = sum
+  for (let i = 0; i < n; i++) {
+    const o = i * 3
+    const h = hash(Math.floor(pos[o] * inv), Math.floor(pos[o + 1] * inv), Math.floor(pos[o + 2] * inv))
+    cellEntry[--start[h]] = i
+  }
+
+  const t2 = thickness * thickness
+  for (let i = 0; i < n; i++) {
+    const wi = invMass[i]
+    const io = i * 3
+    const xi = i % cols
+    const yi = (i / cols) | 0
+    const gx = Math.floor(pos[io] * inv)
+    const gy = Math.floor(pos[io + 1] * inv)
+    const gz = Math.floor(pos[io + 2] * inv)
+
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let oz = -1; oz <= 1; oz++) {
+          const h = hash(gx + ox, gy + oy, gz + oz)
+          for (let k = start[h]; k < start[h + 1]; k++) {
+            const j = cellEntry[k]
+            if (j <= i) continue
+            // 格子の上で近い相手は拘束が持っている。触らない
+            const dxg = Math.abs(xi - (j % cols))
+            const dyg = Math.abs(yi - ((j / cols) | 0))
+            if (dxg + dyg <= 2) continue
+
+            const jo = j * 3
+            const dx = pos[jo] - pos[io]
+            const dy = pos[jo + 1] - pos[io + 1]
+            const dz = pos[jo + 2] - pos[io + 2]
+            const d2 = dx * dx + dy * dy + dz * dz
+            if (d2 > t2 || d2 < 1e-12) continue
+
+            const wj = invMass[j]
+            const w = wi + wj
+            if (w === 0) continue
+            const d = Math.sqrt(d2)
+            const f = ((thickness - d) / d) / w
+            pos[io] -= dx * f * wi
+            pos[io + 1] -= dy * f * wi
+            pos[io + 2] -= dz * f * wi
+            pos[jo] += dx * f * wj
+            pos[jo + 1] += dy * f * wj
+            pos[jo + 2] += dz * f * wj
+          }
+        }
+      }
+    }
   }
 }
 
@@ -282,6 +378,18 @@ export function step(c, dt, p) {
         pos[bo + 2] -= ez * wb
       }
     }
+
+    /*
+     * --- 自己衝突 ---
+     *
+     * 引っ張って折り返した布は、放っておくと**自分をすり抜けて重なる**。
+     * 重なった層は面の向きが打ち消し合って、癒着したように見える。
+     *
+     * 刻みごとに掛けると計算が倍になる（32×32 で 3.3ms → 7.1ms）。
+     * **最後の刻みだけで足りる。** 1 フレームに 1 回押し退ければ、目に見える
+     * 貫通は起きない。細かく畳む場面だけ `selfEvery` を上げる。
+     */
+    if (p.thickness > 0 && (p.selfEvery || s === sub - 1)) selfCollide(c, p.thickness)
 
     /*
      * --- ひずみ制限 ---
