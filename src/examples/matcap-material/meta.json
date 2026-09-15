@@ -1,0 +1,17 @@
+{
+  "title": "Matcap Material",
+  "description": "matcap をその場で焼いて使う。素材を配らず、球に当たった光を計算で 1 枚に描く。拡散・粗い鏡面・鋭い鏡面を別チャンネルに詰め、色は実行時に掛ける。ライトも環境マップも要らないが、光はカメラに固定されるので物を回しても光の向きは変わらない。PBR と並べて差を見る。",
+  "emoji": "🔮",
+  "category": "materials",
+  "tags": ["shader", "bake", "3d", "lighting"],
+  "variants": [
+    { "id": "metal", "label": "Metal" },
+    { "id": "clay", "label": "Clay" },
+    { "id": "wax", "label": "Wax" },
+    { "id": "compare", "label": "PBR compare" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "引くのはビュー空間の法線。遠近では反射ベクトルで引かないと画面の端で向きが揃って見える",
+  "thumb": { "wait": 3500, "after": 400 }
+}

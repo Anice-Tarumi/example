@@ -62,18 +62,17 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 | `caustics-pool` | materials | 光子を水面で屈折させ、底に落ちた密度を数えて焦線を作る |
 | `portal-rooms` | geometry | ステンシルで窓をくり抜き、対の窓の裏から見た部屋を描く。くぐれる |
 | `god-rays` | lighting | 遮蔽マスクを放射ブラー。板ポリ式と並べて長短を見せる |
+| `matcap-material` | materials | matcap をその場で焼き、拡散・粗鏡面・鋭鏡面を別チャンネルに詰める |
 
 ---
 
 ## 優先度 高
 
+（空。`day-night-cycle` / `god-rays` / `matcap-material` は実装済み）
+
 ### `day-night-cycle` — lighting
 - ネタ元: `手続き的な昼夜・天候サイクル（キーフレームプリセット＋ノイズ）` / `スクロール連動の昼夜・感情ライティング` / `二色グラデーションフォグ`
 - variant: 昼夜 / 天候 / 感情ライティング / フォグ単体
-
-### `matcap-material` — materials
-- ネタ元: `matcap マテリアルの多チャンネル活用（diffuse・rough spec・smooth spec）` / `ベイクテクスチャ1枚＋MeshBasicMaterialでライト不要表現`
-- variant: matcap 単体 / 多チャンネル / ベイク
 
 ---
 
@@ -506,3 +505,7 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
    ときに density（歩幅）だけ上げても、decay が速いと途中で消える。
    decay を 1 へ近づけ、そのぶん weight を下げる。実測では
    density 0.92 / decay 0.986 / weight 0.024 で、床まで届く筋になった。
+
+64. **OrbitControls を入れたら、カメラは `lookAt` で向けても上書きされる。**
+   操作を握っているのは controls なので、寄せたいときは注視点（`target`）
+   ごと動かして `update()` を呼ぶ。
