@@ -1,0 +1,17 @@
+{
+  "title": "God Rays",
+  "description": "光芒を 2 通りで出して見比べる。スクリーンスペース式は、太陽だけ明るく遮る物を黒く塗った下絵を作り、太陽の画面位置から放射状にぼかして加算する。遮蔽が自動で効くが、太陽が画面外へ出ると消える。板ポリ式は太陽から伸びる板を並べる。画面外でも出るが遮蔽を知らない。",
+  "emoji": "🌤️",
+  "category": "lighting",
+  "tags": ["shader", "fbo", "postprocess", "3d", "lighting"],
+  "variants": [
+    { "id": "forest", "label": "Pillars" },
+    { "id": "shafts", "label": "Shafts only" },
+    { "id": "both", "label": "Both" },
+    { "id": "dusk", "label": "Dusk" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "下絵は 2 回に分けて描く。一度に描くと、上書き用の黒い材質が太陽まで黒くする",
+  "thumb": { "wait": 4000, "after": 400 }
+}
