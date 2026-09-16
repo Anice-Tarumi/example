@@ -1,7 +1,14 @@
+/*
+ * three の材質と uniform は書き換える前提の入れ物で、毎フレーム値を
+ * 差し替えるのが正しい使い方。React Compiler の不変性チェックはここでは外す。
+ */
+/* eslint-disable react-hooks/immutability */
+
 import { useFrame, useThree } from '@react-three/fiber'
 import { useFBO } from '@react-three/drei'
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import Backdrop from './Backdrop'
 import Tube from './Tube'
 import Motes from './Motes'
@@ -45,12 +52,59 @@ export default function Stage({ boards, focusRef, onFocus }) {
    * そこで**板を隠した場面を先に 1 枚焼いて**、板のシェーダーの中で
    * 画面座標で引いて混ぜる。板は不透明のまま、向こうが見える。
    */
-  const behind = useFBO(Math.max(2, size.width), Math.max(2, size.height), {
+  /*
+   * **半分の解像度で焼く。** どうせ曇りガラス越しにしか見ない絵なので、
+   * 全解像度で場面をもう 1 枚描くのは無駄。トップページの描画費用の
+   * 2 割をここが使っていた。
+   */
+  const behindRaw = useFBO(Math.max(2, Math.round(size.width / 2)), Math.max(2, Math.round(size.height / 2)), {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     depthBuffer: true,
     stencilBuffer: false,
   })
+
+  /*
+   * 曇らせた 1 枚。**生の絵をそのままガラスに映さない。**
+   * この的は後処理を通る前の絵なので、そのまま引くと
+   * **ガラスの中だけ背景が合焦している**という妙な絵になる
+   * （外はボケているのに、板越しだけ粒が鋭い）。
+   *
+   * 板の中で何点も拾って曇らせる手もあるが、板の面積ぶん毎回引くより、
+   * 小さい的に 1 回ぼかして焼くほうが安い。
+   */
+  const bqw = Math.max(2, Math.round(size.width / 4))
+  const bqh = Math.max(2, Math.round(size.height / 4))
+  const blurOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false }
+  const behindA = useFBO(bqw, bqh, blurOpts)
+  const behindB = useFBO(bqw, bqh, blurOpts)
+
+  const blurUniforms = useMemo(() => ({ tColor: { value: null }, uDir: { value: new THREE.Vector2() } }), [])
+  const blurQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
+    depthTest: false,
+    depthWrite: false,
+    uniforms: blurUniforms,
+    vertexShader: /* glsl */`
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform sampler2D tColor;
+      uniform vec2 uDir;
+      varying vec2 vUv;
+      void main() {
+        vec3 c = texture2D(tColor, vUv).rgb * 0.227;
+        c += (texture2D(tColor, vUv + uDir * 1.385).rgb + texture2D(tColor, vUv - uDir * 1.385).rgb) * 0.316;
+        c += (texture2D(tColor, vUv + uDir * 3.231).rgb + texture2D(tColor, vUv - uDir * 3.231).rgb) * 0.070;
+        gl_FragColor = vec4(c, 1.0);
+      }
+    `,
+  })), [blurUniforms])
+  useEffect(() => () => blurQuad.dispose(), [blurQuad])
 
   useFrame((state, delta) => {
     const { gl, scene, camera } = state
@@ -72,11 +126,22 @@ export default function Stage({ boards, focusRef, onFocus }) {
     // --- 板を隠して 1 枚焼く ---
     const bg = boardsGroup.current
     if (bg) bg.visible = false
-    gl.setRenderTarget(behind)
+    gl.setRenderTarget(behindRaw)
     gl.clear()
     gl.render(scene, camera)
-    gl.setRenderTarget(null)
     if (bg) bg.visible = true
+
+    // 横 → 縦にぼかす。1 回で二次元にぼかすより安い
+    blurUniforms.tColor.value = behindRaw.texture
+    blurUniforms.uDir.value.set(1 / bqw, 0)
+    gl.setRenderTarget(behindA)
+    blurQuad.render(gl)
+
+    blurUniforms.tColor.value = behindA.texture
+    blurUniforms.uDir.value.set(0, 1 / bqh)
+    gl.setRenderTarget(behindB)
+    blurQuad.render(gl)
+    gl.setRenderTarget(null)
   })
 
   return (
@@ -94,7 +159,7 @@ export default function Stage({ boards, focusRef, onFocus }) {
           fluidRef={fluid.texRef}
           resolution={fluid.resolution}
           groupRef={boardsGroup}
-          behindTex={behind.texture}
+          behindTex={behindB.texture}
         />
       </group>
       {/*

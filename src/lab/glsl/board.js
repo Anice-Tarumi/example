@@ -92,18 +92,12 @@ export const boardFragmentShader = /* glsl */`
      * ガラスの向こう。**素通しにはしない。** そのまま引くと、板の所だけ
      * 背景が切り抜かれたように見えて、板が存在しなくなる。
      *
-     *   - 法線の向きへ少しずらす（屈折）
-     *   - 数点ずらして拾い、曇りガラスにする
-     *
-     * 曇っているから「板がある」と分かる。
+     * 曇りは Stage 側で焼いてある（小さい的に 1 回ぼかすほうが、
+     * 板の面積ぶん毎回何点も拾うより安い）。ここは屈折の分だけずらして
+     * 1 点引く。
      */
     vec2 refr = n.xy * 0.035 + stir * uPush * 0.08;
-    vec2 blur = 1.6 / uResolution;
-    vec3 back = texture2D(tBehind, screenUv + refr).rgb * 0.36;
-    back += texture2D(tBehind, screenUv + refr + blur * vec2( 2.0,  1.0)).rgb * 0.16;
-    back += texture2D(tBehind, screenUv + refr + blur * vec2(-2.0,  1.0)).rgb * 0.16;
-    back += texture2D(tBehind, screenUv + refr + blur * vec2( 1.0, -2.0)).rgb * 0.16;
-    back += texture2D(tBehind, screenUv + refr + blur * vec2(-1.0, -2.0)).rgb * 0.16;
+    vec3 back = texture2D(tBehind, screenUv + refr).rgb;
     // ガラスの地の色。わずかに冷たく沈める
     /*
      * 少し沈める。**向こうと同じ明るさだと板が消える。** 曇りガラスは

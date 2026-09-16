@@ -85,7 +85,12 @@ export default function Lab() {
       <Canvas
         className="lab__canvas"
         camera={{ position: [0, 0, 5.2], fov: 35, near: 0.1, far: 60 }}
-        dpr={[1, 2]}
+        /*
+         * 画素密度は 1.5 で頭打ち。**2 だと画素数が 4 倍になる。**
+         * ここは後処理を 3 枚（場面・板の向こう・ブルーム）通すので、
+         * 画素あたりの費用が example より重い。等倍の見た目はほぼ変わらない。
+         */
+        dpr={[1, 1.5]}
       >
         <color attach="background" args={['#0b0c10']} />
         <Stage boards={boards} focusRef={focusRef} onFocus={setFocus} />

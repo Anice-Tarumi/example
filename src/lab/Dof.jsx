@@ -59,14 +59,19 @@ const blurFrag = /* glsl */`
   }
 `
 
-const dofFrag = /* glsl */`
+/**
+ * ぼかしのギャザー。**半分の解像度で解く。**
+ *
+ * ボケは低い周波数の絵なので、全解像度で 19 点も拾う必要が無い。
+ * 全解像度でやっていたときは、この 1 パスだけでフレームの半分近くを
+ * 使っていた（1440x900 × 19 点 × 2 枚 = 4,900 万回の読み出し）。
+ * 半分にすれば 4 分の 1 で済み、見た目はほぼ変わらない。
+ */
+const gatherFrag = /* glsl */`
   precision highp float;
 
   uniform sampler2D tColor;
   uniform sampler2D tDepth;
-  uniform sampler2D tBloom;
-  uniform float uBloom;
-  uniform vec2  uTexel;
   uniform float uNear;
   uniform float uFar;
   uniform float uFocus;      // 合わせる距離（世界単位）
@@ -117,7 +122,31 @@ const dofFrag = /* glsl */`
       total += w;
     }
 
-    vec3 col = sum / total;
+    gl_FragColor = vec4(sum / total, clamp(abs(coc), 0.0, 1.0));
+  }
+`
+
+/** 合成。鮮明な絵とぼかした絵を錯乱円で混ぜ、ブルームと諧調を乗せる */
+const compositeFrag = /* glsl */`
+  precision highp float;
+
+  uniform sampler2D tColor;   // 全解像度・鮮明
+  uniform sampler2D tBlur;    // 半解像度・ぼかし済み（a に錯乱円）
+  uniform sampler2D tBloom;
+  uniform float uBloom;
+
+  varying vec2 vUv;
+
+  void main() {
+    vec3 sharp = texture2D(tColor, vUv).rgb;
+    vec4 blur = texture2D(tBlur, vUv);
+
+    /*
+     * 錯乱円で混ぜる。**半解像度の絵をそのまま出さない。**
+     * 合っている所まで解像度が落ちて、全体が眠い絵になる。
+     */
+    vec3 col = mix(sharp, blur.rgb, smoothstep(0.02, 0.35, blur.a));
+
     // ブルームは最後に足す。ボケの前に足すと光が二重ににじむ
     col += texture2D(tBloom, vUv).rgb * uBloom;
 
@@ -197,22 +226,44 @@ export default function Dof({ focus = 5.4, focusAt = null, range = 3.2, maxBlur 
   })), [blurUniforms])
   useEffect(() => () => blurQuad.dispose(), [blurQuad])
 
-  const uniforms = useMemo(() => ({
+  /*
+   * ぼかしを解く的。**半分の解像度。** ボケは低い周波数なので、
+   * 全解像度で 19 点も拾う必要が無い。
+   */
+  const gw = Math.max(2, Math.round(size.width / 2))
+  const gh = Math.max(2, Math.round(size.height / 2))
+  const blurred = useFBO(gw, gh, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    depthBuffer: false,
+    stencilBuffer: false,
+  })
+
+  const gatherUniforms = useMemo(() => ({
     tColor: { value: null },
     tDepth: { value: null },
-    tBloom: { value: null },
-    uBloom: { value: bloom },
-    uTexel: { value: new THREE.Vector2() },
     uNear: { value: 0.1 },
     uFar: { value: 60 },
     uFocus: { value: focus },
     uRange: { value: range },
     uMaxBlur: { value: maxBlur },
-  }), [focus, range, maxBlur, bloom])
+  }), [focus, range, maxBlur])
+
+  const gatherQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
+    vertexShader: quadVert, fragmentShader: gatherFrag, uniforms: gatherUniforms, depthTest: false, depthWrite: false,
+  })), [gatherUniforms])
+  useEffect(() => () => gatherQuad.dispose(), [gatherQuad])
+
+  const uniforms = useMemo(() => ({
+    tColor: { value: null },
+    tBlur: { value: null },
+    tBloom: { value: null },
+    uBloom: { value: bloom },
+  }), [bloom])
 
   const quad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
     vertexShader: quadVert,
-    fragmentShader: dofFrag,
+    fragmentShader: compositeFrag,
     uniforms,
     depthTest: false,
     depthWrite: false,
@@ -244,16 +295,22 @@ export default function Dof({ focus = 5.4, focusAt = null, range = 3.2, maxBlur 
 
     gl.setRenderTarget(null)
 
+    // --- ぼかし。半分の解像度で 1 回だけ解く ---
+    gatherUniforms.tColor.value = target.texture
+    gatherUniforms.tDepth.value = target.depthTexture
+    gatherUniforms.uNear.value = camera.near
+    gatherUniforms.uFar.value = camera.far
+    gatherUniforms.uFocus.value = focusPoint ? camera.position.distanceTo(focusPoint) : focus
+    gatherUniforms.uRange.value = range
+    gatherUniforms.uMaxBlur.value = maxBlur
+    gl.setRenderTarget(blurred)
+    gatherQuad.render(gl)
+    gl.setRenderTarget(null)
+
     uniforms.tColor.value = target.texture
-    uniforms.tDepth.value = target.depthTexture
+    uniforms.tBlur.value = blurred.texture
     uniforms.tBloom.value = bloomA.texture
     uniforms.uBloom.value = bloom
-    uniforms.uTexel.value.set(1 / target.width, 1 / target.height)
-    uniforms.uNear.value = camera.near
-    uniforms.uFar.value = camera.far
-    uniforms.uFocus.value = focusPoint ? camera.position.distanceTo(focusPoint) : focus
-    uniforms.uRange.value = range
-    uniforms.uMaxBlur.value = maxBlur
     quad.render(gl)
   }, 1)
 
