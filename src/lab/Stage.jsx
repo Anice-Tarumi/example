@@ -4,7 +4,8 @@ import { useRef } from 'react'
 import * as THREE from 'three'
 import Backdrop from './Backdrop'
 import Tube from './Tube'
-import Bokeh from './Bokeh'
+import Motes from './Motes'
+import Hero from './Hero'
 import Environment from './Environment'
 import Boards from './Boards'
 import Dof from './Dof'
@@ -83,7 +84,8 @@ export default function Stage({ boards, focusRef, onFocus }) {
       <group ref={group}>
         <Backdrop tint="#0b0c10" />
         <Tube />
-        <Bokeh fluidRef={fluid.texRef} />
+        <Motes fluidRef={fluid.texRef} />
+        <Hero />
         <Environment fog="#0b0c10" fluidRef={fluid.texRef} resolution={fluid.resolution} />
         <Boards
           boards={boards}
