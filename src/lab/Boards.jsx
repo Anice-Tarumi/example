@@ -254,8 +254,13 @@ export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution
     /*
      * 余白を広く取る。**正面の板で画面を埋めない。** 埋めると隣の板が
      * 見えず、送れることが分からないうえ、壁を見ている絵になる。
+     *
+     * ただし**縦画面で同じ係数を使わない。** 横幅で決まる距離に広い余白を
+     * 掛けると距離が跳ね上がり（390px 幅で 17 まで飛んだ）、板が画面の
+     * 真ん中に小さく置かれただけの絵になる。画面比で詰める。
      */
-    const need = Math.max(H / 2 / tan, W / 2 / (tan * aspect)) * 1.9
+    const margin = Math.min(1.9, Math.max(1.1, 0.9 + aspect * 0.62))
+    const need = Math.max(H / 2 / tan, W / 2 / (tan * aspect)) * margin
     /*
      * わずかに見下ろす。**水平のままだと地面が画面の外に落ちて、背景が
      * ただの粒になる。** 少し上から見るだけで、点群が面として読める。
