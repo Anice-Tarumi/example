@@ -54,5 +54,6 @@ export function useLabFluid() {
     resolution.set(size.width, size.height)
   }
 
-  return { texRef, resolution, advance }
+  // カーソルは板も読む（本家も uMouse を板へ渡している）
+  return { texRef, resolution, advance, pointer }
 }

@@ -177,7 +177,6 @@ export default function Hero({ position = [0.42, 1.06, -0.7], scale = 0.66 }) {
         col += iri * fres * 0.085;
 
         gl_FragColor = vec4(col, 1.0);
-        #include <colorspace_fragment>
       }
     `,
   }), [matcap])

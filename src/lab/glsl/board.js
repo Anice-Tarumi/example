@@ -1,22 +1,26 @@
 /**
  * 空間に浮くガラスの板。
  *
- * 本家（Active Theory の Work ページ）は、`WorkPanelShader.glsl` を取得して
- * 読んだうえに、**実際の画面も撮って見比べた**。コードだけ読んで
- * 「色は無い、濃淡だけ」と判断したのが間違いで、あちらの板は
+ * 参考実装（Active Theory の Work 一覧）の `WorkItemShader.glsl` を読んで
+ * 組み直した。**以前は `WorkPanelShader.glsl` を読んでいたが、一覧の板は
+ * それではない。** あちらは別の場面の物で、一覧は MRT を使う別の材質。
  *
- *   - 本当に透ける（向こうの背景も、板に焼かれた文字の影も見える）
- *   - 縁が光を拾う（厚みのあるスラブで、側面が立っている）
- *   - 画面座標の流体で UV が押される
- *   - 周辺が明るい（中心 1.0 → 端 1.6）
+ * `WorkItemShader` の要点。
  *
- * という**ガラス板**だった。絵を貼った不透明な板ではない。
+ *   1. **色は黒から足していく。** 掛けるのではなく足す。だから重なるほど
+ *      明るくなり、何も無い所は黒に沈む
+ *   2. **屈折の的を別に持つ。** `#drawbuffer WorkRefraction` へ書くのは
+ *      粒子と金属と板の裏面だけ。それを放射状にぼかして引く
+ *   3. **環境マップが地を作る。** `envColorEquiRGB(tEnv, vRefraction) * 0.08`。
+ *      これが無いと板は真っ黒から始まり、粒子の後ろだけ光る穴になる
+ *   4. **側面を持ち上げる。** `vSide = abs(normal.x)`、`*= 1.0 + pow(vSide, 3.0)`
+ *   5. 中身（映像・絵）は soft light で重ねる。貼るのではない
+ *   6. マウスの位置を中心に `blendAdd` で色を足す
+ *   7. 頂点でせん断とうねり
  *
- * 透けさせ方だけは作りを変えてある。素直に `transparent: true` にすると、
- * 板が深度を書けず（書かないと後段の被写界深度が画面全体をぼかす）、
- * 書けば書いたで並び順で面が欠ける。そこで `Stage` が**板を隠した場面を
- * 先に 1 枚焼き**、それを `tBehind` として画面座標で引く。板は不透明の
- * まま向こうが見える。
+ * 透かし方だけ作りを変えてある。素直に `transparent: true` にすると板が
+ * 深度を書けず（書かないと後段の被写界深度が画面全体をぼかす）、書けば
+ * 並び順で面が欠ける。足し合わせで組む本家の式は、そのまま不透明で通る。
  */
 
 export const boardVertexShader = /* glsl */`
@@ -25,23 +29,38 @@ export const boardVertexShader = /* glsl */`
   uniform float uTime;
   uniform float uSeed;
   uniform float uHover;
+  uniform float uRefractionRatio;
 
   varying vec2 vUv;
-  varying vec3 vNormal;    // 視点座標の法線。縁の拾い方に使う
+  varying vec3 vNormal;
   varying vec3 vViewPos;
+  varying vec3 vRefract;   // 環境マップを引く向き（世界座標）
+  varying float vSide;     // 側面ほど 1
 
   void main() {
     vUv = uv;
 
     vec3 p = position;
-    // ゆっくり反る。平らなままだと板ではなく写真に見える
-    float bend = sin(uv.x * 3.14159 + uTime * 0.25 + uSeed * 6.2831) * 0.012
-               + cos(uv.y * 3.14159 - uTime * 0.19 + uSeed * 3.7) * 0.008;
-    p.z += bend * (1.0 + uHover);
+    /*
+     * うねりとせん断。本家は
+     *   pos.z += sin(time * 0.5 + abs(0.5 - pos.x) * 3.0) * 0.1 + uHover * 0.2;
+     *   pos.y -= pos.x * 0.08;
+     * と、板を平面のまま置いていない。わずかに反って傾いている。
+     */
+    p.z += sin(uTime * 0.5 + abs(0.5 - uv.x) * 3.0 + uSeed * 6.2831) * 0.012 + uHover * 0.02;
+    p.y -= (uv.x - 0.5) * 0.045;
 
-    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vec4 mv = viewMatrix * world;
+
     vViewPos = mv.xyz;
     vNormal = normalMatrix * normal;
+    vSide = abs(normal.x);
+
+    // 視線を屈折させた向き。比 1.0 は曲げない（本家の uRefractionRatio も 1）
+    vec3 worldNormal = normalize(mat3(modelMatrix) * normal);
+    vec3 toVertex = normalize(world.xyz - cameraPosition);
+    vRefract = refract(toVertex, worldNormal, uRefractionRatio);
 
     gl_Position = projectionMatrix * mv;
   }
@@ -53,20 +72,51 @@ export const boardFragmentShader = /* glsl */`
   uniform sampler2D tMap;
   uniform sampler2D tNext;
   uniform sampler2D tFluid;     // 画面座標で引く速度場
-  uniform sampler2D tBehind;    // 板を除いた場面。ガラスの向こう
+  uniform sampler2D tBehind;    // 屈折の的（粒子と金属だけ、放射状にぼかし済み）
+  uniform sampler2D tEnv;       // 等距円筒の環境マップ
+  uniform sampler2D tNormal;    // 繰り返せる法線マップ（面の細かい凹凸）
   uniform vec2  uResolution;
-  uniform float uBlend;         // 差し替え中の混ぜ具合
+  uniform vec2  uMouse;         // 0..1
+  uniform float uBlend;
   uniform float uHasMap;
-  uniform float uOpacity;       // 中身の濃さ。本家の uAlpha * 0.9 に当たる
-  uniform float uPush;          // 流れで UV を押す量
+  uniform float uOpacity;
+  uniform float uPush;
   uniform float uHover;
-  uniform float uFocus;         // 正面にいるほど 1
+  uniform float uFocus;
   uniform vec3  uTint;
   uniform float uTime;
 
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vViewPos;
+  varying vec3 vRefract;
+  varying float vSide;
+
+  vec2 scaleUV(vec2 uv, vec2 scale) { return (uv - 0.5) / scale + 0.5; }
+
+  /** 本家 refl.fs と同じ。等距円筒を RGB をずらして引く */
+  vec3 envColorEquiRGB(sampler2D map, vec3 dir, float angle, float amount) {
+    vec2 uv;
+    uv.y = asin(clamp(dir.y, -1.0, 1.0)) * 0.31830988618 + 0.5;
+    uv.x = atan(dir.z, dir.x) * 0.15915494 + 0.5;
+    vec2 off = vec2(cos(angle), sin(angle)) * amount * 0.01;
+    return vec3(texture2D(map, uv + off).r, texture2D(map, uv).g, texture2D(map, uv - off).b);
+  }
+
+  /** 本家 blendmodes.glsl と同じ */
+  vec3 softLight(vec3 base, vec3 blend) {
+    return mix(
+      2.0 * base * blend + base * base * (1.0 - 2.0 * blend),
+      sqrt(max(base, 0.0)) * (2.0 * blend - 1.0) + 2.0 * base * (1.0 - blend),
+      step(0.5, blend)
+    );
+  }
+  vec3 blendSoftLight(vec3 base, vec3 blend, float amt) {
+    return mix(base, softLight(base, blend), amt);
+  }
+  vec3 blendAdd(vec3 base, vec3 blend, float amt) {
+    return mix(base, min(base + blend, vec3(1.0)), amt);
+  }
 
   void main() {
     vec2 screenUv = gl_FragCoord.xy / uResolution;
@@ -74,107 +124,102 @@ export const boardFragmentShader = /* glsl */`
     /*
      * 流体。**画面座標で引く。** 板の uv で引くと、板を送ったときに模様が
      * 一緒に動いてしまい、空間に流れがあるようには見えない。
+     * 二乗してから使う。線形のままだと少し動かしただけで板が煙になる。
+     * 係数は実測。本家の 0.01 はこちらの速度場には合わない（桁が違う）。
      */
     vec2 flow = texture2D(tFluid, screenUv).xy;
-    /*
-     * **二乗してから使う。** 線形のまま使うと、少し動かしただけで板全体が
-     * 溶けて煙になる。二乗すると、速い所だけが効いて弱い流れは無視される。
-     * 係数は**実測で決める**。本家の 0.01 をそのまま持ってきても合わない。
-     * こちらの速度場は力の掛け方が違って桁がひとつ大きく、同じ係数だと
-     * 板が丸ごと煙になった。
-     */
     float stir = pow(min(1.0, abs(flow.x) * 0.0022), 2.0);
-    vec2 uv = vUv + stir * uPush * 0.6;
 
     vec3 n = normalize(vNormal);
-    vec3 viewDir = normalize(-vViewPos);
+    float centerDist = length(vUv - 0.5);
 
     /*
-     * ガラスの向こう。**素通しにはしない。** そのまま引くと、板の所だけ
-     * 背景が切り抜かれたように見えて、板が存在しなくなる。
-     *
-     * 曇りは Stage 側で焼いてある（小さい的に 1 回ぼかすほうが、
-     * 板の面積ぶん毎回何点も拾うより安い）。ここは屈折の分だけずらして
-     * 1 点引く。
+     * 屈折。本家は板の中で毎画素 40 点の放射状ぼかしを掛けているが、
+     * こちらは Stage が小さい的に 1 回掛けて焼いてある。
+     * ここでは引く位置をずらすだけ。ずらし方は同じ考えで、法線・ホバー・
+     * 時間・マウスで動かす。
      */
-    vec2 refr = n.xy * 0.035 + stir * uPush * 0.08;
-    vec3 back = texture2D(tBehind, screenUv + refr).rgb;
-    // ガラスの地の色。わずかに冷たく沈める
     /*
-     * 少し沈める。**向こうと同じ明るさだと板が消える。** 曇りガラスは
-     * 必ず光を食う。食わせることで輪郭が立つ。
+     * 面の凹凸。本家は waternormals.jpg を貼って cnoise でずらしている。
+     *
+     *   vec2 normalUV = scaleUV(vUv, vec2(0.5)) + vNormal.xy * 0.02;
+     *   normalUV += cnoise(vUv + time * 0.06) * 0.01;
+     *
+     * **これが無いと板が一様になる。** 平らな面は環境を引く向きが
+     * ほとんど変わらないので、凹凸で向きを散らさないと濃淡が生まれない。
      */
-    vec3 glass = back * mix(vec3(0.72, 0.78, 0.88), vec3(1.0), 0.35) * 0.78;
+    vec2 normalUV = scaleUV(vUv, vec2(0.5)) + n.xy * 0.02;
+    normalUV += sin(vUv.x * 6.0 + uTime * 0.06) * sin(vUv.y * 5.0 - uTime * 0.05) * 0.012;
+    vec3 surf = texture2D(tNormal, normalUV).rgb * 2.0 - 1.0;
+
+    vec2 ruv = screenUv;
+    ruv -= n.xy * 0.05;
+    // ずらすのは**面の法線**。幾何の法線だと板ごと一様に動くだけ
+    ruv -= surf.xy * (uHover * 0.03 + 0.02 + sin(uTime * 2.0 + vUv.x * 5.0) * 0.005);
+    ruv = scaleUV(ruv, vec2(1.1 + uHover * 0.05));
+    ruv += (uMouse - 0.5) * 0.02;
+    ruv += stir * uPush * 0.06;
+    vec3 refraction = pow(max(texture2D(tBehind, ruv).rgb, 0.0), vec3(1.5));
 
     /*
-     * 中身とガラスを混ぜる。**絵の有無で経路を分けない。**
-     *
-     * 本家の WorkPanelShader は 1 本道で、映像の板も
-     *
-     *   gl_FragColor = vec4(color * 0.8, alpha * 0.9);
-     *
-     * と**半透明で描いている**。不透明に描く経路そのものが無い。
-     * こちらは深度を書く都合で tBehind を混ぜる形にしているが、
-     * mix(向こう, 中身, a) はアルファ合成と同じ式なので、
-     * やっていることは一致する。
-     *
-     * 以前は絵のある板だけ 0.86 で混ぜていて、実質不透明だった。
-     * 「板はガラス」と言いながら、Experiments の板だけ板紙になっていた。
+     * 中身。絵の有無で経路を分けない（本家に分岐は無い）。
+     * 絵の無い板は無地しか中身が無いので、地の光をそのまま見せる。
      */
     vec3 content;
     if (uHasMap > 0.5) {
-      content = mix(texture2D(tMap, uv).rgb, texture2D(tNext, uv).rgb, uBlend) * 0.8;
+      vec2 uv = vUv + stir * uPush * 0.6;
+      content = mix(texture2D(tMap, uv).rgb, texture2D(tNext, uv).rgb, uBlend) * 0.7;
     } else {
-      // 絵がまだ無い板。地のガラスに薄く光の帯を乗せるだけ
-      float sweep = smoothstep(0.35, 0.0, abs(fract((uv.x - uv.y) * 0.5 - uTime * 0.035) - 0.5));
-      content = uTint * (0.055 + sweep * 0.085);
+      float sweep = smoothstep(0.35, 0.0, abs(fract((vUv.x - vUv.y) * 0.5 - uTime * 0.035) - 0.5));
+      content = uTint * (0.05 + sweep * 0.08);
     }
-    vec3 col = mix(glass, content, uOpacity);
+
+    // --- ここから黒に足していく。順番は本家と同じ ---
+    vec3 col = vec3(0.0);
 
     /*
-     * 周辺を持ち上げる。中央だけ明るいと、板ではなく光る板に見える。
-     * **押す前の uv で測る。** 押した後で測ると、流れた所が一様に明るく
-     * なって板全体が白く浮く。
+     * 1. 環境。板の地の明るさはここから来る。
+     *    **係数は小さい。** 本家は 0.08。0.62 で試したら乳白色の板になった。
+     *    ここは「地」であって「色」ではない。
      */
-    col *= mix(1.0, 1.6, smoothstep(0.2, 1.0, length(vUv - 0.5)));
-    col *= 0.64;
+    col += envColorEquiRGB(tEnv, normalize(vRefract + vec3(surf.xy * 0.22, 0.0)), 0.2, 0.05) * 0.055;
 
-    /*
-     * 縁が光を拾う。**ここがガラスに見えるかの分かれ目。**
-     * 厚みのあるスラブなので側面が立っていて、正面から外れた面ほど強く光る。
-     * 平面に貼っていたときはこれが出せなかった。
-     */
-    /*
-     * **頭打ちにする。** 真横を向いた側面は内積がほぼ 0 になり、
-     * 1 画素の白い線として出る。鋭い縁ではなく**傷**に見えるので抑える。
-     */
-    float fres = min(pow(1.0 - clamp(abs(dot(n, viewDir)), 0.0, 1.0), 3.0), 0.45);
-    col += mix(vec3(0.55, 0.62, 0.75), uTint, 0.4) * fres * 0.22;
+    // 2. 中身を薄く。貼るのではなく足す
+    col += min(vec3(0.5), content) * 0.45 * uOpacity;
 
+    // 3. ごく弱い傾斜。真っ平らな面を作らない
+    col += 0.01 * vUv.x + 0.01 * vUv.y;
+
+    // 4. 側面を持ち上げる。厚みのあるスラブは縁が光を拾う
+    col *= 1.0 + pow(vSide, 3.0);
+
+    // 5. 屈折。**中央は弱く、縁ほど強い**（本家 mix(1.1, 0.3, ...)）
     /*
-     * 内側の縁。**四辺すべてに細い光を入れる。** 側面の反射だけだと、
-     * カメラから見て立っている辺（上辺）しか光らず、板が「上だけ光る面」
-     * になる。ガラスは縁が全周で光を拾う。
+     * 係数は本家より大きく取る。あちらの屈折の的には 150,000 個の
+     * 色付き粒子が詰まっていて中身が濃い。こちらは 16,000 個なので、
+     * 同じ係数だと**環境の地だけが見えて平らな灰色の板**になる。
      */
-    vec2 edge = min(vUv, 1.0 - vUv);
-    float rim = smoothstep(0.030, 0.0, min(edge.x, edge.y * 1.6));
-    col += mix(vec3(0.50, 0.58, 0.72), uTint, 0.5) * rim * 0.085;
+    col += refraction * 2.6 * mix(1.1, 0.3, smoothstep(0.65, 0.0, centerDist)) * mix(1.0, 0.7, uHover);
+
+    // 6. 中身を soft light で重ねる。中央ほど強い
+    col = blendSoftLight(col, content, smoothstep(0.7, 0.0, centerDist) * uOpacity);
+
+    // 7. 面をゆっくり波打たせる
+    col *= 1.0 + sin(uTime * 2.0 + vUv.x * 5.0) * 0.15;
+
+    // 8. マウスの位置を中心に色を足す
+    vec2 offset = mix(vec2(0.5), vec2(uMouse.x, 1.0 - uMouse.y), uHover);
+    col = blendAdd(col, uTint, mix(0.0, 0.3 + uHover * 0.2, smoothstep(0.7, -0.1, length(vUv - offset))));
+
+    // 9. ホバーの立ち上がりで一瞬光らせる
+    col *= 1.0 + vSide * uHover * 0.2 + 0.3 * smoothstep(0.5, 0.0, abs(uHover - 0.5));
 
     // 手前にいない板は沈める。並んだとき、どれを見ているかが分かる
     col *= mix(0.42, 1.0, uFocus);
-    /*
-     * 触れた板を持ち上げる。**控えめに。** 地が暗いので、大きく足すと
-     * 触った瞬間に白い板へ化ける。
-     */
-    col += uTint * 0.018 * uHover;
 
-    /*
-     * 撫でた所は沈む。**透過ではなく明度で表現する。**
-     * 半透明にすると深度を書けず、後段の被写界深度が板を背景と誤認する。
-     */
+    // 撫でた所は沈む。透過ではなく明度で（深度を書く必要があるため）
     col *= 1.0 - min(0.5, stir * 5.0);
 
     gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
   }
 `

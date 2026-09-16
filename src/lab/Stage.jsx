@@ -36,6 +36,7 @@ export default function Stage({ boards, focusRef, onFocus }) {
   const { size } = useThree()
   const group = useRef(null)
   const boardsGroup = useRef(null)
+  const envGroup = useRef(null)
   const wiggle = useRef({ x: 0, y: 0 })
 
   /*
@@ -57,7 +58,7 @@ export default function Stage({ boards, focusRef, onFocus }) {
    * 全解像度で場面をもう 1 枚描くのは無駄。トップページの描画費用の
    * 2 割をここが使っていた。
    */
-  const behindRaw = useFBO(Math.max(2, Math.round(size.width / 2)), Math.max(2, Math.round(size.height / 2)), {
+  const refractRaw = useFBO(Math.max(2, Math.round(size.width / 2)), Math.max(2, Math.round(size.height / 2)), {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     depthBuffer: true,
@@ -65,21 +66,24 @@ export default function Stage({ boards, focusRef, onFocus }) {
   })
 
   /*
-   * 曇らせた 1 枚。**生の絵をそのままガラスに映さない。**
-   * この的は後処理を通る前の絵なので、そのまま引くと
-   * **ガラスの中だけ背景が合焦している**という妙な絵になる
-   * （外はボケているのに、板越しだけ粒が鋭い）。
+   * 曇らせた 1 枚。
    *
-   * 板の中で何点も拾って曇らせる手もあるが、板の面積ぶん毎回引くより、
-   * 小さい的に 1 回ぼかして焼くほうが安い。
+   * ぼかし方は本家の radialblur.fs と同じ。8 方向へ放射状に拾う。
+   * 分離ガウスでも曇りはするが、放射状だと**中心から外へ流れる筋**が
+   * 出て、ガラスの厚みがある側へ像が引き伸ばされたように見える。
+   * あちらは板の中で毎画素 40 点拾っているが、こちらは小さい的に
+   * 1 回だけ掛けて焼く（板の面積ぶん毎回拾うと重い）。
    */
   const bqw = Math.max(2, Math.round(size.width / 4))
   const bqh = Math.max(2, Math.round(size.height / 4))
-  const blurOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false }
-  const behindA = useFBO(bqw, bqh, blurOpts)
-  const behindB = useFBO(bqw, bqh, blurOpts)
+  const refracted = useFBO(bqw, bqh, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false,
+  })
 
-  const blurUniforms = useMemo(() => ({ tColor: { value: null }, uDir: { value: new THREE.Vector2() } }), [])
+  const blurUniforms = useMemo(() => ({
+    tColor: { value: null },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+  }), [])
   const blurQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
     depthTest: false,
     depthWrite: false,
@@ -94,13 +98,29 @@ export default function Stage({ boards, focusRef, onFocus }) {
     fragmentShader: /* glsl */`
       precision highp float;
       uniform sampler2D tColor;
-      uniform vec2 uDir;
+      uniform vec2 uResolution;
       varying vec2 vUv;
+
+      /** 本家 radialblur.fs と同じ。8 方向 x quality 点 */
+      vec3 radialBlur(sampler2D map, vec2 uv, float size, float quality) {
+        vec3 color = vec3(0.0);
+        const float pi2 = 3.141596 * 2.0;
+        const float direction = 8.0;
+        vec2 radius = size / uResolution;
+        float samples = 0.0;
+        for (float d = 0.0; d < pi2; d += pi2 / direction) {
+          vec2 t = radius * vec2(cos(d), sin(d));
+          for (float i = 1.0; i <= 6.0; i += 1.0) {
+            if (i >= quality) break;
+            color += texture2D(map, uv + t * i / quality).rgb;
+            samples += 1.0;
+          }
+        }
+        return color / max(1.0, samples);
+      }
+
       void main() {
-        vec3 c = texture2D(tColor, vUv).rgb * 0.227;
-        c += (texture2D(tColor, vUv + uDir * 1.385).rgb + texture2D(tColor, vUv - uDir * 1.385).rgb) * 0.316;
-        c += (texture2D(tColor, vUv + uDir * 3.231).rgb + texture2D(tColor, vUv - uDir * 3.231).rgb) * 0.070;
-        gl_FragColor = vec4(c, 1.0);
+        gl_FragColor = vec4(radialBlur(tColor, vUv, 9.0, 6.0), 1.0);
       }
     `,
   })), [blurUniforms])
@@ -123,23 +143,35 @@ export default function Stage({ boards, focusRef, onFocus }) {
       g.rotation.y = w.y
     }
 
-    // --- 板を隠して 1 枚焼く ---
+    /*
+     * --- 屈折の的を焼く ---
+     *
+     * **中身は粒子と金属だけ。** 本家は MRT で 2 枚同時に書いていて、
+     *
+     *   #drawbuffer Color          gl_FragColor = color;
+     *   #drawbuffer WorkRefraction gl_FragColor = refractionOut;
+     *
+     * この WorkRefraction へ書くのは粒子（FlowerParticleShader）と
+     * 金属（ChainShader）と**板の裏面だけ**。背景も筒も入っていない。
+     * だからガラス越しに見えるのは「浮いている物」であって、
+     * 風景がそのまま透けるのではない。
+     *
+     * 以前はここで場面まるごと（背景・筒・地形）を焼いていた。
+     * それだと板が「窓」になってしまい、物体の後ろにある感じが出ない。
+     */
     const bg = boardsGroup.current
+    const env = envGroup.current
     if (bg) bg.visible = false
-    gl.setRenderTarget(behindRaw)
+    if (env) env.visible = false
+    gl.setRenderTarget(refractRaw)
     gl.clear()
     gl.render(scene, camera)
     if (bg) bg.visible = true
+    if (env) env.visible = true
 
-    // 横 → 縦にぼかす。1 回で二次元にぼかすより安い
-    blurUniforms.tColor.value = behindRaw.texture
-    blurUniforms.uDir.value.set(1 / bqw, 0)
-    gl.setRenderTarget(behindA)
-    blurQuad.render(gl)
-
-    blurUniforms.tColor.value = behindA.texture
-    blurUniforms.uDir.value.set(0, 1 / bqh)
-    gl.setRenderTarget(behindB)
+    blurUniforms.tColor.value = refractRaw.texture
+    blurUniforms.uResolution.value.set(bqw, bqh)
+    gl.setRenderTarget(refracted)
     blurQuad.render(gl)
     gl.setRenderTarget(null)
   })
@@ -147,11 +179,18 @@ export default function Stage({ boards, focusRef, onFocus }) {
   return (
     <>
       <group ref={group}>
-        <Backdrop tint="#0b0c10" />
-        <Tube />
+        {/*
+          * 背景・筒・地形は**屈折の的には入れない**（本家の
+          * WorkRefraction に入るのは粒子と金属と板の裏面だけ）。
+          * まとめて 1 つの group に入れて、焼くときだけ隠す。
+          */}
+        <group ref={envGroup}>
+          <Backdrop tint="#0b0c10" />
+          <Tube />
+          <Environment fog="#0b0c10" fluidRef={fluid.texRef} resolution={fluid.resolution} />
+        </group>
         <Motes fluidRef={fluid.texRef} />
         <Hero />
-        <Environment fog="#0b0c10" fluidRef={fluid.texRef} resolution={fluid.resolution} />
         <Boards
           boards={boards}
           focusRef={focusRef}
@@ -159,7 +198,8 @@ export default function Stage({ boards, focusRef, onFocus }) {
           fluidRef={fluid.texRef}
           resolution={fluid.resolution}
           groupRef={boardsGroup}
-          behindTex={behindB.texture}
+          behindTex={refracted.texture}
+          mouseRef={fluid.pointer}
         />
       </group>
       {/*

@@ -13,6 +13,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import { boardVertexShader, boardFragmentShader } from './glsl/board'
+import { bakeEnvMap } from './envMap'
+import { bakeFrostNormal } from './frostNormal'
 
 /**
  * 領域ごとの板を横に並べ、送って選ぶ。
@@ -46,12 +48,36 @@ const FADE = 0.9
  * React Compiler が「レンダー後に手を入れている」として最適化を止める。
  * ref は書き換える前提の入れ物なので通る。
  */
+/*
+ * 環境マップ。板ぜんぶで 1 枚を使い回す。焼き直す理由が無い。
+ * これが板の地の明るさを作っている（本家の `work/env1.jpg` に当たる）。
+ */
+let envMap = null
+function getEnvMap() {
+  if (!envMap) envMap = bakeEnvMap(256)
+  return envMap
+}
+
+/*
+ * 面の凹凸。本家は `waternormals.jpg`。こちらは周期を持つ雑音から焼いた
+ * 物を使い回す（後処理のフロストと同じ生成器）。
+ */
+let surfNormal = null
+function getSurfNormal() {
+  if (!surfNormal) surfNormal = bakeFrostNormal(256, 1.5)
+  return surfNormal
+}
+
 function makeItem(board, index) {
   const uniforms = {
     tMap: { value: board.textures?.[0] ?? null },
     tNext: { value: board.textures?.[1] ?? board.textures?.[0] ?? null },
     tFluid: { value: null },
-    tBehind: { value: null },   // 板を除いた場面。ガラスの向こう
+    tBehind: { value: null },   // 屈折の的（粒子と金属だけ）
+    tEnv: { value: getEnvMap() },
+    tNormal: { value: getSurfNormal() },
+    uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+    uRefractionRatio: { value: 1 },
     uResolution: { value: new THREE.Vector2(1, 1) },
     uBlend: { value: 0 },
     uHasMap: { value: board.textures?.length ? 1 : 0 },
@@ -61,7 +87,7 @@ function makeItem(board, index) {
      * 無地しか無い**ので、そこだけ地のガラスを多く見せる。
      * 濃さの違いは中身の量の違いであって、材質は同じ。
      */
-    uOpacity: { value: board.textures?.length ? 0.74 : 0.26 },
+    uOpacity: { value: board.textures?.length ? 1.0 : 0.55 },
     uPush: { value: 1 },
     uHover: { value: 0 },
     uFocus: { value: 0 },
@@ -87,7 +113,7 @@ function makeItem(board, index) {
   return { uniforms, material }
 }
 
-function Board({ board, index, focusRef, onOpen, fluidRef, resolution, behindTex }) {
+function Board({ board, index, focusRef, onOpen, fluidRef, resolution, behindTex, mouseRef }) {
   const mesh = useRef(null)
   const [hovered, setHovered] = useState(false)
   const swap = useRef({ at: 0, i: 0, blend: 0 })
@@ -163,6 +189,16 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution, behindTex
     uniforms.uTime.value = t
     uniforms.tFluid.value = fluidRef.current
     uniforms.tBehind.value = behindTex ?? null
+    /*
+     * カーソル。**直に入れない。** 本家も `mouse.lerp(Mouse.normal, 0.08)`
+     * と遅らせている。生の値を入れると屈折のずれが動きに張り付いて、
+     * ガラスではなく貼り付いた模様に見える。
+     */
+    if (mouseRef?.current) {
+      const m = uniforms.uMouse.value
+      m.x += (mouseRef.current.x - m.x) * 0.08
+      m.y += (mouseRef.current.y - m.y) * 0.08
+    }
     uniforms.uResolution.value.copy(resolution)
     uniforms.uFocus.value += (focus - uniforms.uFocus.value) * Math.min(1, dt * 6)
     uniforms.uHover.value += ((hovered ? 1 : 0) - uniforms.uHover.value) * Math.min(1, dt * 8)
@@ -203,7 +239,7 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution, behindTex
   )
 }
 
-export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution, groupRef, behindTex }) {
+export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution, groupRef, behindTex, mouseRef }) {
   const navigate = useNavigate()
   const { gl, camera, size } = useThree()
 
@@ -312,6 +348,7 @@ export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution
           fluidRef={fluidRef}
           resolution={resolution}
           behindTex={behindTex}
+          mouseRef={mouseRef}
         />
       ))}
     </group>

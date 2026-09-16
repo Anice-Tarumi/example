@@ -31,7 +31,6 @@ export default function Backdrop({ tint = '#0b0c10' }) {
         // 中央をわずかに持ち上げるだけ。板が座る場所を作る
         float v = smoothstep(0.85, 0.0, length(p * vec2(0.8, 1.25)));
         gl_FragColor = vec4(uTint + vec3(0.030, 0.034, 0.046) * v, 1.0);
-        #include <colorspace_fragment>
       }
     `,
   }), [tint])
