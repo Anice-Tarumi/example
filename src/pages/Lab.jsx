@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Boards from '../lab/Boards'
+import Backdrop from '../lab/Backdrop'
 import { examples } from '../registry'
 import './lab.css'
 
@@ -72,18 +73,9 @@ export default function Lab() {
       to: '/experiments',
       label: 'Experiments',
       sub: `ブラウザで動く技術 ${examples.length} 件`,
-      desc: 'WebGL と DOM で「どこまでできるか」を 1 件ずつ実装して確かめた記録。全部その場で触れる。',
+      desc: 'WebGL と DOM で「どこまでできるか」を 1 件ずつ実装して確かめた記録。ゲームや AR もここに入る。全部その場で触れる。',
       tint: '#6f8ba8',
       textures: maps,
-    },
-    {
-      id: 'ar',
-      to: '/works',
-      label: 'AR',
-      sub: '準備中',
-      desc: '端末のカメラを使った体験。ここに置く予定。',
-      tint: '#7a8b7f',
-      textures: null,
     },
   ], [maps])
 
@@ -97,6 +89,7 @@ export default function Lab() {
         dpr={[1, 2]}
       >
         <color attach="background" args={['#0b0c10']} />
+        <Backdrop tint="#0b0c10" />
         <Boards boards={boards} focusRef={focusRef} onFocus={setFocus} />
       </Canvas>
 

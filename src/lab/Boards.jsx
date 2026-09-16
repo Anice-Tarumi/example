@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import { boardVertexShader, boardFragmentShader } from './glsl/board'
+import { useVelocityField } from '../shared/useVelocityField'
 
 /**
  * 領域ごとの板を横に並べ、送って選ぶ。
@@ -42,11 +43,13 @@ function makeItem(board, index) {
   const uniforms = {
     tMap: { value: board.textures?.[0] ?? null },
     tNext: { value: board.textures?.[1] ?? board.textures?.[0] ?? null },
+    tFluid: { value: null },
+    uResolution: { value: new THREE.Vector2(1, 1) },
     uBlend: { value: 0 },
     uHasMap: { value: board.textures?.length ? 1 : 0 },
     uSize: { value: new THREE.Vector2(W, H) },
     uRadius: { value: 0.14 },
-    uRim: { value: 0.5 },
+    uPush: { value: 1 },
     uHover: { value: 0 },
     uFocus: { value: 0 },
     uTint: { value: new THREE.Color(board.tint) },
@@ -58,11 +61,14 @@ function makeItem(board, index) {
     fragmentShader: boardFragmentShader,
     uniforms,
     side: THREE.DoubleSide,
+    // 撫でた所が薄くなるので透過が要る。深度は書かない（板は前後に重なる）
+    transparent: true,
+    depthWrite: false,
   })
   return { uniforms, material }
 }
 
-function Board({ board, index, focusRef, onOpen }) {
+function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
   const mesh = useRef(null)
   const [hovered, setHovered] = useState(false)
   const swap = useRef({ at: 0, i: 0, blend: 0 })
@@ -93,6 +99,8 @@ function Board({ board, index, focusRef, onOpen }) {
     m.scale.setScalar(s)
 
     uniforms.uTime.value = t
+    uniforms.tFluid.value = fluidRef.current
+    uniforms.uResolution.value.copy(resolution)
     uniforms.uFocus.value += (focus - uniforms.uFocus.value) * Math.min(1, dt * 6)
     uniforms.uHover.value += ((hovered ? 1 : 0) - uniforms.uHover.value) * Math.min(1, dt * 8)
 
@@ -134,6 +142,24 @@ function Board({ board, index, focusRef, onOpen }) {
 export default function Boards({ boards, focusRef, onFocus }) {
   const navigate = useNavigate()
   const { gl, camera, size } = useThree()
+
+  /*
+   * 画面座標の速度場。**本家と同じ作り。** カーソルでかき混ぜた流れを
+   * 板が読み、UV を押して縁を溶かす。板に凝るより、ここが質感を作る。
+   * 解く中身は `shared/useVelocityField`（他の example と同じ物）。
+   */
+  const aspect = size.width / Math.max(1, size.height)
+  const stepFluid = useVelocityField(128, aspect)
+  const fluidRef = useRef(null)
+  const resolution = useMemo(() => new THREE.Vector2(1, 1), [])
+  const pointer = useRef({ x: 0.5, y: 0.5, px: 0.5, py: 0.5, moved: false })
+  const fluidParams = useMemo(() => ({
+    fluidForce: 900,
+    fluidRadius: 0.22,
+    fluidCurl: 12,
+    fluidIterations: 3,
+    fluidDissipation: 0.955,
+  }), [])
   const group = useRef(null)
   const target = useRef(0)
   const drag = useRef({ on: false, x: 0, from: 0, moved: 0 })
@@ -159,11 +185,24 @@ export default function Boards({ boards, focusRef, onFocus }) {
     }
     const up = () => { drag.current.on = false }
 
+    // 流体へ渡すカーソル。uv 空間で前フレームとの差分を取る
+    const stir = (e) => {
+      const r = el.getBoundingClientRect()
+      const pt = pointer.current
+      pt.px = pt.x
+      pt.py = pt.y
+      pt.x = (e.clientX - r.left) / r.width
+      pt.y = 1 - (e.clientY - r.top) / r.height
+      pt.moved = true
+    }
+
+    el.addEventListener('pointermove', stir)
     el.addEventListener('wheel', wheel, { passive: true })
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
     return () => {
+      el.removeEventListener('pointermove', stir)
       el.removeEventListener('wheel', wheel)
       el.removeEventListener('pointerdown', down)
       el.removeEventListener('pointermove', move)
@@ -185,6 +224,9 @@ export default function Boards({ boards, focusRef, onFocus }) {
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20)
+    fluidRef.current = stepFluid(gl, dt, pointer.current, fluidParams)
+    pointer.current.moved = false
+    resolution.set(size.width, size.height)
     /*
      * 送りは**近い整数へ寄る**。自由に止まれると、どの板を見ているのか
      * 曖昧なままになる。掴んでいる間だけ自由。
@@ -208,7 +250,15 @@ export default function Boards({ boards, focusRef, onFocus }) {
   return (
     <group ref={group}>
       {boards.map((b, i) => (
-        <Board key={b.id} board={b} index={i} focusRef={focusRef} onOpen={open} />
+        <Board
+          key={b.id}
+          board={b}
+          index={i}
+          focusRef={focusRef}
+          onOpen={open}
+          fluidRef={fluidRef}
+          resolution={resolution}
+        />
       ))}
     </group>
   )
