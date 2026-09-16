@@ -57,6 +57,7 @@ export const boardFragmentShader = /* glsl */`
   uniform vec2  uResolution;
   uniform float uBlend;         // 差し替え中の混ぜ具合
   uniform float uHasMap;
+  uniform float uOpacity;       // 中身の濃さ。本家の uAlpha * 0.9 に当たる
   uniform float uPush;          // 流れで UV を押す量
   uniform float uHover;
   uniform float uFocus;         // 正面にいるほど 1
@@ -105,22 +106,30 @@ export const boardFragmentShader = /* glsl */`
      */
     vec3 glass = back * mix(vec3(0.72, 0.78, 0.88), vec3(1.0), 0.35) * 0.78;
 
-    vec3 col;
+    /*
+     * 中身とガラスを混ぜる。**絵の有無で経路を分けない。**
+     *
+     * 本家の WorkPanelShader は 1 本道で、映像の板も
+     *
+     *   gl_FragColor = vec4(color * 0.8, alpha * 0.9);
+     *
+     * と**半透明で描いている**。不透明に描く経路そのものが無い。
+     * こちらは深度を書く都合で tBehind を混ぜる形にしているが、
+     * mix(向こう, 中身, a) はアルファ合成と同じ式なので、
+     * やっていることは一致する。
+     *
+     * 以前は絵のある板だけ 0.86 で混ぜていて、実質不透明だった。
+     * 「板はガラス」と言いながら、Experiments の板だけ板紙になっていた。
+     */
+    vec3 content;
     if (uHasMap > 0.5) {
-      vec3 shot = mix(texture2D(tMap, uv).rgb, texture2D(tNext, uv).rgb, uBlend);
-      /*
-       * 絵の入った板も**少し透かす。** 完全に不透明にすると、周りの空間と
-       * 切れて「貼った板」に戻る。
-       */
-      col = mix(glass, shot * 0.78, 0.86);
+      content = mix(texture2D(tMap, uv).rgb, texture2D(tNext, uv).rgb, uBlend) * 0.8;
     } else {
-      /*
-       * 絵がまだ無い板は**ガラスそのもの**。無地の面を置くより、
-       * 向こうの空間が曇って見えるほうが場に馴染む。
-       */
+      // 絵がまだ無い板。地のガラスに薄く光の帯を乗せるだけ
       float sweep = smoothstep(0.35, 0.0, abs(fract((uv.x - uv.y) * 0.5 - uTime * 0.035) - 0.5));
-      col = glass + uTint * (0.014 + sweep * 0.022);
+      content = uTint * (0.055 + sweep * 0.085);
     }
+    vec3 col = mix(glass, content, uOpacity);
 
     /*
      * 周辺を持ち上げる。中央だけ明るいと、板ではなく光る板に見える。

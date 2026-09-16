@@ -55,6 +55,13 @@ function makeItem(board, index) {
     uResolution: { value: new THREE.Vector2(1, 1) },
     uBlend: { value: 0 },
     uHasMap: { value: board.textures?.length ? 1 : 0 },
+    /*
+     * 中身の濃さ。本家は全部の板が `uAlpha * 0.9` の一律で、映像の板も
+     * 半透明。こちらも同じ一律にしたいが、**絵の無い板は中身が
+     * 無地しか無い**ので、そこだけ地のガラスを多く見せる。
+     * 濃さの違いは中身の量の違いであって、材質は同じ。
+     */
+    uOpacity: { value: board.textures?.length ? 0.74 : 0.26 },
     uPush: { value: 1 },
     uHover: { value: 0 },
     uFocus: { value: 0 },
