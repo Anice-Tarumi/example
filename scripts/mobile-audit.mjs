@@ -98,8 +98,10 @@ async function audit(path, name) {
 }
 
 const rows = []
-rows.push(await audit('/', 'home'))
-for (const slug of slugs) rows.push(await audit(`/examples/${slug}`, slug))
+rows.push(await audit('/', 'lab'))
+rows.push(await audit('/experiments', 'experiments'))
+rows.push(await audit('/works', 'works'))
+for (const slug of slugs) rows.push(await audit(`/experiments/${slug}`, slug))
 
 await context.close()
 await browser.close()

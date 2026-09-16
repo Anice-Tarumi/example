@@ -1,0 +1,132 @@
+/*
+ * ラボのトップ。**UI は最小限。** 板が主役なので、文字は隅に寄せて小さく。
+ * 派手にしない代わりに、余白と字詰めで密度を作る。
+ */
+
+.lab {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0c10;
+  color: #e8ecf2;
+  font-family: system-ui, sans-serif;
+  user-select: none;
+}
+
+.lab__canvas { position: absolute; inset: 0; }
+
+.lab__head {
+  position: absolute;
+  top: 1.6rem;
+  left: 1.8rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+.lab__mark {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #7f8b9c;
+}
+.lab__name {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: #dbe3ee;
+}
+
+.lab__meta {
+  position: absolute;
+  left: 1.8rem;
+  bottom: 2.2rem;
+  z-index: 2;
+  width: min(340px, calc(100% - 3.6rem));
+}
+.lab__index {
+  margin: 0 0 0.6rem;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: #6d7a8c;
+  font-variant-numeric: tabular-nums;
+}
+.lab__title {
+  margin: 0;
+  font-size: clamp(30px, 4.6vw, 52px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.lab__sub {
+  margin: 0.5rem 0 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #97a5b8;
+}
+.lab__desc {
+  margin: 0.9rem 0 0;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #8a97a8;
+}
+.lab__enter {
+  display: inline-block;
+  margin-top: 1.1rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: #e8ecf2;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.lab__enter:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lab__nav {
+  position: absolute;
+  top: 1.6rem;
+  right: 1.8rem;
+  z-index: 2;
+  display: flex;
+  gap: 1.1rem;
+}
+.lab__nav-item {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #6d7a8c;
+  text-decoration: none;
+  padding-bottom: 3px;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.lab__nav-item:hover { color: #cdd7e4; }
+.lab__nav-item.is-current {
+  color: #e8ecf2;
+  border-bottom-color: rgba(255, 255, 255, 0.45);
+}
+
+.lab__hint {
+  position: absolute;
+  right: 1.8rem;
+  bottom: 1.6rem;
+  z-index: 2;
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #5d6a7c;
+  pointer-events: none;
+}
+
+@media (max-width: 860px) {
+  .lab__head { top: 1.1rem; left: 1.1rem; }
+  .lab__nav { top: 1.1rem; right: 1.1rem; gap: 0.7rem; }
+  .lab__meta { left: 1.1rem; right: 1.1rem; bottom: 3.2rem; width: auto; }
+  .lab__desc { display: none; }
+  .lab__hint { left: 1.1rem; right: auto; bottom: 1.1rem; }
+}

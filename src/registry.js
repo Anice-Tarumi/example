@@ -32,7 +32,12 @@ export const examples = Object.entries(metas)
     if (!modules[modPath]) return null
     return {
       slug,
-      thumb: thumbs[`./assets/thumbs/${slug}.jpg`] || null,
+      /*
+       * 画像の URL。**`thumb` という名前は使わない。**
+       * `meta.json` 側にも撮影ヒントの `thumb` があり、下の `...meta` で
+       * 上書きされて URL が消える（Home のカードが画像切れになる）。
+       */
+      thumbUrl: thumbs[`./assets/thumbs/${slug}.jpg`] || null,
       category: meta.category || null,
       tags: meta.tags || [],
       variants: meta.variants || [],

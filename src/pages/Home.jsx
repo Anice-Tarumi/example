@@ -7,10 +7,11 @@ export default function Home({ examples }) {
   return (
     <div className="home">
       <header className="home__header">
-        <h1 className="home__title">Web Effects Showcase</h1>
+        <h1 className="home__title">Experiments</h1>
         <p className="home__subtitle">
-          Three.js / WebGL による表現のコレクション。左のリストから選ぶか、
-          下のカードから飛んでください。各シーンは右上のパネルでパラメータを変えて試せます。
+          ブラウザで「どこまでできるか」を 1 件ずつ実装して確かめた記録。
+          左のリストか下のカードから開くと、その場で触れる。
+          パラメータは画面のパネルで変えられる。
         </p>
       </header>
 
@@ -32,14 +33,14 @@ export default function Home({ examples }) {
               {items.map((ex) => (
                 <Link
                   key={ex.slug}
-                  to={`/examples/${ex.slug}`}
+                  to={`/experiments/${ex.slug}`}
                   className="card"
                 >
                   <div className="card__thumb">
-                    {ex.thumb
+                    {ex.thumbUrl
                       ? (
                         /* 画面外のぶんは読まない。34 枚を一度に取りにいかせない */
-                        <img src={ex.thumb} alt="" loading="lazy" decoding="async" />
+                        <img src={ex.thumbUrl} alt="" loading="lazy" decoding="async" />
                       )
                       : (ex.emoji || '✨')}
                   </div>

@@ -35,9 +35,10 @@ export default function Sidebar({ open, onNavigate }) {
 
   return (
     <aside className={`sidebar${open ? ' is-open' : ''}`}>
+      {/* 上はラボへ戻る導線、下は今いる場所。**戻り先を必ず置く** */}
       <Link to="/" className="sidebar__brand" onClick={onNavigate}>
-        <span className="sidebar__brand-title">Showcase</span>
-        <span className="sidebar__brand-sub">Web Effects Collection</span>
+        <span className="sidebar__brand-title">← CG &amp; Interactive Lab</span>
+        <span className="sidebar__brand-sub">Experiments</span>
       </Link>
 
       <div className="sidebar__search">
@@ -79,7 +80,7 @@ export default function Sidebar({ open, onNavigate }) {
                 {items.map((ex) => (
                   <li key={ex.slug}>
                     <NavLink
-                      to={`/examples/${ex.slug}`}
+                      to={`/experiments/${ex.slug}`}
                       className={({ isActive }) =>
                         `sidebar__item${isActive ? ' is-active' : ''}`
                       }
