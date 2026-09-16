@@ -54,13 +54,6 @@ export default function Home({ examples }) {
                       )}
                     </div>
                     <div className="card__desc">{ex.description}</div>
-                    {ex.tags?.length > 0 && (
-                      <div className="card__tags">
-                        {ex.tags.map((t) => (
-                          <span key={t} className="tag">{t}</span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </Link>
               ))}

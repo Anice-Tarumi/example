@@ -348,25 +348,60 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
   border-radius: 12px;
 }
 
+/*
+ * カード。
+ *
+ * **要素を減らす。** 絵・名前・一行の説明で足りる。タグの箱を 4 つ並べると
+ * カードの三分の一が装飾で埋まり、主役の絵が負ける。タグで探したい人は
+ * サイドバーの絞り込みを使う。
+ */
 .card {
   display: flex;
   flex-direction: column;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: #101116;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
   overflow: hidden;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.24s ease, border-color 0.24s ease, background 0.24s ease;
 }
-.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #14151b;
+}
+
 .card__thumb {
+  position: relative;
   aspect-ratio: 16 / 10;
-  background: linear-gradient(135deg, #171717, #262626);
+  background: linear-gradient(140deg, #16171d, #0d0e12);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8rem;
   overflow: hidden;
 }
+/*
+ * 絵と文字の境目を溶かす。**線で仕切らない。**
+ * 罫線を引くと「画像の下に説明を置いた表」に見える。
+ */
+.card__thumb::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38%;
+  /*
+   * 絵の下端を地色へ沈めるだけ。**文字は重ねない。**
+   * 重ねると、明るいサムネイルで読めなくなるうえ、画像と div の境目に
+   * 段差が出て文字が途中で切れたように見える。
+   */
+  background: linear-gradient(to bottom, rgba(16, 17, 22, 0), #101116);
+  pointer-events: none;
+  transition: background 0.24s ease;
+}
+.card:hover .card__thumb::after {
+  background: linear-gradient(to bottom, rgba(20, 21, 27, 0), #14151b);
+}
+
 /*
  * 撮った画は 16:10 ちょうどではない。**枠に合わせて切る。**
  * contain にすると上下に帯が出て、カードごとに絵の大きさが変わる。
@@ -376,37 +411,39 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.35s ease, filter 0.35s ease;
-  filter: saturate(0.92);
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.4s ease;
+  filter: saturate(0.9) brightness(0.96);
 }
-.card:hover .card__thumb img { transform: scale(1.04); filter: saturate(1.05); }
-.card__meta { padding: 0.85rem; border-top: 1px solid var(--border); }
+.card:hover .card__thumb img { transform: scale(1.045); filter: saturate(1.02) brightness(1.04); }
+
+.card__meta { padding: 0.9rem 1rem 1.05rem; }
 .card__title {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-bottom: 0.3rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.35rem;
 }
+/* 変種の数は添え字。箱で囲うと名前と同じ重さになる */
 .card__badge {
-  font-size: 0.6rem;
+  margin-left: auto;
+  font-size: 0.62rem;
   font-weight: 400;
-  color: var(--text-muted);
-  background: var(--code-bg);
-  border-radius: 3px;
-  padding: 0.1rem 0.35rem;
+  letter-spacing: 0.06em;
+  color: #6d7382;
+  font-variant-numeric: tabular-nums;
 }
 .card__desc {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  line-height: 1.5;
+  font-size: 0.74rem;
+  color: #8b909c;
+  line-height: 1.65;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.card__tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.6rem; }
 
 /* ============ Responsive ============ */
 @media (max-width: 860px) {
