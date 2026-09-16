@@ -51,6 +51,7 @@ function makeItem(board, index) {
     tMap: { value: board.textures?.[0] ?? null },
     tNext: { value: board.textures?.[1] ?? board.textures?.[0] ?? null },
     tFluid: { value: null },
+    tBehind: { value: null },   // 板を除いた場面。ガラスの向こう
     uResolution: { value: new THREE.Vector2(1, 1) },
     uBlend: { value: 0 },
     uHasMap: { value: board.textures?.length ? 1 : 0 },
@@ -79,7 +80,7 @@ function makeItem(board, index) {
   return { uniforms, material }
 }
 
-function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
+function Board({ board, index, focusRef, onOpen, fluidRef, resolution, behindTex }) {
   const mesh = useRef(null)
   const [hovered, setHovered] = useState(false)
   const swap = useRef({ at: 0, i: 0, blend: 0 })
@@ -154,6 +155,7 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
 
     uniforms.uTime.value = t
     uniforms.tFluid.value = fluidRef.current
+    uniforms.tBehind.value = behindTex ?? null
     uniforms.uResolution.value.copy(resolution)
     uniforms.uFocus.value += (focus - uniforms.uFocus.value) * Math.min(1, dt * 6)
     uniforms.uHover.value += ((hovered ? 1 : 0) - uniforms.uHover.value) * Math.min(1, dt * 8)
@@ -194,7 +196,7 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
   )
 }
 
-export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution }) {
+export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution, groupRef, behindTex }) {
   const navigate = useNavigate()
   const { gl, camera, size } = useThree()
 
@@ -203,7 +205,9 @@ export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution
    * 読む。ここで別に解くと、板と背景がばらばらの流れで揺れて、
    * 同じ空間にいるように見えない。
    */
-  const group = useRef(null)
+  const local = useRef(null)
+  // 親が「板だけ隠して 1 枚焼く」ために掴む。無ければ自前の ref で動く
+  const group = groupRef ?? local
   const target = useRef(0)
   const drag = useRef({ on: false, x: 0, from: 0, moved: 0 })
 
@@ -295,6 +299,7 @@ export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution
           onOpen={open}
           fluidRef={fluidRef}
           resolution={resolution}
+          behindTex={behindTex}
         />
       ))}
     </group>
