@@ -87,7 +87,7 @@ export default function Lab() {
     <div className="lab">
       <Canvas
         className="lab__canvas"
-        camera={{ position: [0, 0, 5.2], fov: 42, near: 0.1, far: 60 }}
+        camera={{ position: [0, 0, 5.2], fov: 35, near: 0.1, far: 60 }}
         dpr={[1, 2]}
       >
         <color attach="background" args={['#0b0c10']} />
@@ -95,7 +95,7 @@ export default function Lab() {
         <Environment fog="#0b0c10" />
         <Boards boards={boards} focusRef={focusRef} onFocus={setFocus} />
         {/* 最後に置く。場面を焼いてから後処理で出す */}
-        <Dof focus={5.6} range={3.0} maxBlur={0.016} />
+        <Dof focus={5.6} range={3.0} maxBlur={0.016} bloom={0.55} threshold={0.3} />
       </Canvas>
 
       <header className="lab__head">

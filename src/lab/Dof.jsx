@@ -31,11 +31,41 @@ const quadVert = /* glsl */`
   }
 `
 
+/** 明るい所だけ抜く。閾値は低め。本家は luminosityThreshold 0 */
+const brightFrag = /* glsl */`
+  precision highp float;
+  uniform sampler2D tColor;
+  uniform float uThreshold;
+  varying vec2 vUv;
+  void main() {
+    vec3 c = texture2D(tColor, vUv).rgb;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    // 閾値の下も少し残す。切り捨てると縁が硬くなる
+    gl_FragColor = vec4(c * smoothstep(uThreshold * 0.5, uThreshold + 0.25, l), 1.0);
+  }
+`
+
+/** 横か縦に 1 回ぼかす。2 回に分ける（1 回で二次元にぼかすと重い） */
+const blurFrag = /* glsl */`
+  precision highp float;
+  uniform sampler2D tColor;
+  uniform vec2 uDir;
+  varying vec2 vUv;
+  void main() {
+    vec3 c = texture2D(tColor, vUv).rgb * 0.227;
+    c += (texture2D(tColor, vUv + uDir * 1.385).rgb + texture2D(tColor, vUv - uDir * 1.385).rgb) * 0.316;
+    c += (texture2D(tColor, vUv + uDir * 3.231).rgb + texture2D(tColor, vUv - uDir * 3.231).rgb) * 0.070;
+    gl_FragColor = vec4(c, 1.0);
+  }
+`
+
 const dofFrag = /* glsl */`
   precision highp float;
 
   uniform sampler2D tColor;
   uniform sampler2D tDepth;
+  uniform sampler2D tBloom;
+  uniform float uBloom;
   uniform vec2  uTexel;
   uniform float uNear;
   uniform float uFar;
@@ -87,12 +117,16 @@ const dofFrag = /* glsl */`
       total += w;
     }
 
-    gl_FragColor = vec4(sum / total, 1.0);
+    vec3 col = sum / total;
+    // ブルームは最後に足す。ボケの前に足すと光が二重ににじむ
+    col += texture2D(tBloom, vUv).rgb * uBloom;
+
+    gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
 `
 
-export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012 }) {
+export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012, bloom = 0.5, threshold = 0.32 }) {
   const { size, camera } = useThree()
 
   /*
@@ -108,16 +142,36 @@ export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012 }) {
     depth: true,
   })
 
+  // ブルームは 1/4 で足りる。輪郭ではなく光の広がりなので、解像度は要らない
+  const bw = Math.max(2, Math.round(size.width / 4))
+  const bh = Math.max(2, Math.round(size.height / 4))
+  const bloomA = useFBO(bw, bh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false })
+  const bloomB = useFBO(bw, bh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false })
+
+  const brightUniforms = useMemo(() => ({ tColor: { value: null }, uThreshold: { value: threshold } }), [threshold])
+  const brightQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
+    vertexShader: quadVert, fragmentShader: brightFrag, uniforms: brightUniforms, depthTest: false, depthWrite: false,
+  })), [brightUniforms])
+  useEffect(() => () => brightQuad.dispose(), [brightQuad])
+
+  const blurUniforms = useMemo(() => ({ tColor: { value: null }, uDir: { value: new THREE.Vector2() } }), [])
+  const blurQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
+    vertexShader: quadVert, fragmentShader: blurFrag, uniforms: blurUniforms, depthTest: false, depthWrite: false,
+  })), [blurUniforms])
+  useEffect(() => () => blurQuad.dispose(), [blurQuad])
+
   const uniforms = useMemo(() => ({
     tColor: { value: null },
     tDepth: { value: null },
+    tBloom: { value: null },
+    uBloom: { value: bloom },
     uTexel: { value: new THREE.Vector2() },
     uNear: { value: 0.1 },
     uFar: { value: 60 },
     uFocus: { value: focus },
     uRange: { value: range },
     uMaxBlur: { value: maxBlur },
-  }), [focus, range, maxBlur])
+  }), [focus, range, maxBlur, bloom])
 
   const quad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
     vertexShader: quadVert,
@@ -135,8 +189,28 @@ export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012 }) {
     gl.render(scene, camera)
     gl.setRenderTarget(null)
 
+    // --- ブルーム。明るい所を抜いて、横 → 縦にぼかす ---
+    brightUniforms.tColor.value = target.texture
+    brightUniforms.uThreshold.value = threshold
+    gl.setRenderTarget(bloomA)
+    brightQuad.render(gl)
+
+    blurUniforms.tColor.value = bloomA.texture
+    blurUniforms.uDir.value.set(1 / bw, 0)
+    gl.setRenderTarget(bloomB)
+    blurQuad.render(gl)
+
+    blurUniforms.tColor.value = bloomB.texture
+    blurUniforms.uDir.value.set(0, 1 / bh)
+    gl.setRenderTarget(bloomA)
+    blurQuad.render(gl)
+
+    gl.setRenderTarget(null)
+
     uniforms.tColor.value = target.texture
     uniforms.tDepth.value = target.depthTexture
+    uniforms.tBloom.value = bloomA.texture
+    uniforms.uBloom.value = bloom
     uniforms.uTexel.value.set(1 / target.width, 1 / target.height)
     uniforms.uNear.value = camera.near
     uniforms.uFar.value = camera.far
