@@ -13,7 +13,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import { boardVertexShader, boardFragmentShader } from './glsl/board'
-import { useVelocityField } from '../shared/useVelocityField'
 
 /**
  * 領域ごとの板を横に並べ、送って選ぶ。
@@ -26,6 +25,14 @@ import { useVelocityField } from '../shared/useVelocityField'
 const W = 2.6
 const H = 1.62
 const GAP = 3.35
+/*
+ * 板の厚み。本家のジオメトリ（`panels/2x3.bin`）を展開して実測したら、
+ * 2 × 3 の板に対して **0.05**（長辺の 1.7%）だった。平面ではなく、
+ * 角丸が頂点として焼かれたスラブ。側面があるから縁が光を拾う。
+ */
+const THICK = W * 0.017
+/** 角の丸み。実測では長辺の 1 割弱を弧が占めていた */
+const RADIUS = H * 0.085
 
 /** 絵を順に入れ替える間隔（秒）。速いと落ち着かない */
 const SWAP = 3.4
@@ -47,8 +54,6 @@ function makeItem(board, index) {
     uResolution: { value: new THREE.Vector2(1, 1) },
     uBlend: { value: 0 },
     uHasMap: { value: board.textures?.length ? 1 : 0 },
-    uSize: { value: new THREE.Vector2(W, H) },
-    uRadius: { value: 0.14 },
     uPush: { value: 1 },
     uHover: { value: 0 },
     uFocus: { value: 0 },
@@ -81,6 +86,49 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
 
   const { uniforms, material } = useMemo(() => makeItem(board, index), [board, index])
   useEffect(() => () => material.dispose(), [material])
+
+  /*
+   * 角丸のスラブ。**平面 + discard では側面が無い。**
+   * 本家のジオメトリを展開したら厚みのある角丸板だった。押し出しで作る。
+   */
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape()
+    const w = W / 2
+    const h = H / 2
+    const r = RADIUS
+    shape.moveTo(-w + r, -h)
+    shape.lineTo(w - r, -h)
+    shape.quadraticCurveTo(w, -h, w, -h + r)
+    shape.lineTo(w, h - r)
+    shape.quadraticCurveTo(w, h, w - r, h)
+    shape.lineTo(-w + r, h)
+    shape.quadraticCurveTo(-w, h, -w, h - r)
+    shape.lineTo(-w, -h + r)
+    shape.quadraticCurveTo(-w, -h, -w + r, -h)
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: THICK,
+      bevelEnabled: false,
+      curveSegments: 10,
+    })
+    geo.translate(0, 0, -THICK / 2)
+    geo.computeVertexNormals()
+
+    /*
+     * **UV を貼り直す。** `ExtrudeGeometry` が既定で使う `WorldUVGenerator`
+     * は、シェイプの座標をそのまま uv に入れる。つまり 0〜1 ではなく
+     * -1.3〜1.3 が入る。気付かずに使うと、角丸の判定も絵の参照も座標系ごと
+     * ずれる（実際、板の大半が `discard` で消えて中央の一部だけが残った）。
+     */
+    const pos = geo.attributes.position
+    const uv = new Float32Array(pos.count * 2)
+    for (let i = 0; i < pos.count; i++) {
+      uv[i * 2] = pos.getX(i) / W + 0.5
+      uv[i * 2 + 1] = pos.getY(i) / H + 0.5
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    return geo
+  }, [])
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame((state, delta) => {
     const m = mesh.current
@@ -135,37 +183,26 @@ function Board({ board, index, focusRef, onOpen, fluidRef, resolution }) {
   return (
     <mesh
       ref={mesh}
+      geometry={geometry}
       material={material}
       onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
       onPointerOut={() => setHovered(false)}
       onClick={(e) => { e.stopPropagation(); onOpen(index) }}
     >
-      <planeGeometry args={[W, H, 24, 16]} />
+
     </mesh>
   )
 }
 
-export default function Boards({ boards, focusRef, onFocus }) {
+export default function Boards({ boards, focusRef, onFocus, fluidRef, resolution }) {
   const navigate = useNavigate()
   const { gl, camera, size } = useThree()
 
   /*
-   * 画面座標の速度場。**本家と同じ作り。** カーソルでかき混ぜた流れを
-   * 板が読み、UV を押して縁を溶かす。板に凝るより、ここが質感を作る。
-   * 解く中身は `shared/useVelocityField`（他の example と同じ物）。
+   * 速度場は `Stage` が 1 本だけ持っていて、板も背景の粒子も**同じ物**を
+   * 読む。ここで別に解くと、板と背景がばらばらの流れで揺れて、
+   * 同じ空間にいるように見えない。
    */
-  const aspect = size.width / Math.max(1, size.height)
-  const stepFluid = useVelocityField(128, aspect)
-  const fluidRef = useRef(null)
-  const resolution = useMemo(() => new THREE.Vector2(1, 1), [])
-  const pointer = useRef({ x: 0.5, y: 0.5, px: 0.5, py: 0.5, moved: false })
-  const fluidParams = useMemo(() => ({
-    fluidForce: 900,
-    fluidRadius: 0.22,
-    fluidCurl: 12,
-    fluidIterations: 3,
-    fluidDissipation: 0.955,
-  }), [])
   const group = useRef(null)
   const target = useRef(0)
   const drag = useRef({ on: false, x: 0, from: 0, moved: 0 })
@@ -191,24 +228,11 @@ export default function Boards({ boards, focusRef, onFocus }) {
     }
     const up = () => { drag.current.on = false }
 
-    // 流体へ渡すカーソル。uv 空間で前フレームとの差分を取る
-    const stir = (e) => {
-      const r = el.getBoundingClientRect()
-      const pt = pointer.current
-      pt.px = pt.x
-      pt.py = pt.y
-      pt.x = (e.clientX - r.left) / r.width
-      pt.y = 1 - (e.clientY - r.top) / r.height
-      pt.moved = true
-    }
-
-    el.addEventListener('pointermove', stir)
     el.addEventListener('wheel', wheel, { passive: true })
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
     return () => {
-      el.removeEventListener('pointermove', stir)
       el.removeEventListener('wheel', wheel)
       el.removeEventListener('pointerdown', down)
       el.removeEventListener('pointermove', move)
@@ -223,12 +247,16 @@ export default function Boards({ boards, focusRef, onFocus }) {
   useEffect(() => {
     const tan = Math.tan((camera.fov * Math.PI) / 360)
     const aspect = size.width / size.height
-    const need = Math.max(H / 2 / tan, W / 2 / (tan * aspect)) * 1.35
+    /*
+     * 余白を広く取る。**正面の板で画面を埋めない。** 埋めると隣の板が
+     * 見えず、送れることが分からないうえ、壁を見ている絵になる。
+     */
+    const need = Math.max(H / 2 / tan, W / 2 / (tan * aspect)) * 1.9
     /*
      * わずかに見下ろす。**水平のままだと地面が画面の外に落ちて、背景が
      * ただの粒になる。** 少し上から見るだけで、点群が面として読める。
      */
-    const dist = Math.max(4.4, need)
+    const dist = Math.max(5.6, need)
     camera.position.set(0, 1.35, dist)
     camera.lookAt(0, 0.05, 0)
     camera.updateProjectionMatrix()
@@ -236,9 +264,6 @@ export default function Boards({ boards, focusRef, onFocus }) {
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20)
-    fluidRef.current = stepFluid(gl, dt, pointer.current, fluidParams)
-    pointer.current.moved = false
-    resolution.set(size.width, size.height)
     /*
      * 送りは**近い整数へ寄る**。自由に止まれると、どの板を見ているのか
      * 曖昧なままになる。掴んでいる間だけ自由。

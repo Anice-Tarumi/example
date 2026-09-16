@@ -19,6 +19,12 @@ import * as THREE from 'three'
  *   3. **色を置かない。** 濃淡だけ。トーンを上げるのは密度で、彩度ではない
  */
 
+/*
+ * 数は増やさない。**ここは地形**で、密度を上げると霧になって奥行きが死ぬ。
+ * 本家の 150,000 個は地形ではなく、板の周りの
+ * `width [-1,1] / height [-1,1] / depth [-0.5,0.5]` という**小さな箱**に
+ * 詰まっていた（近景の細かい塵）。そちらは `Backdrop` が受け持つ。
+ */
 const GROUND = 22000
 const PILLARS = 14000
 const MOTES = 1600
@@ -61,8 +67,19 @@ function buildCloud() {
   const total = GROUND + PILLARS + MOTES
   const pos = new Float32Array(total * 3)
   const attr = new Float32Array(total * 2) // 明るさ / 大きさ
+  /*
+   * 乱数。**素朴な線形合同法は使わない。** 連続する 3 つの値を x, y, z に
+   * 使うと、出た点が斜めの平面群に乗る（Marsaglia の格子）。実際それで
+   * 塵が斜め縞に固まって、撒いた粒ではなく模様に見えた。
+   */
   let s = 0x2c91
-  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
+  const rand = () => {
+    s |= 0
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
   let k = 0
 
   const put = (x, y, z, bright, size) => {
@@ -116,7 +133,7 @@ function buildCloud() {
   return { pos, attr, count: k }
 }
 
-export default function Environment({ fog = '#0b0c10' }) {
+export default function Environment({ fog = '#0b0c10', fluidRef, resolution }) {
   const { pos, attr, count } = useMemo(() => buildCloud(), [])
 
   const geometry = useMemo(() => {
@@ -137,12 +154,16 @@ export default function Environment({ fog = '#0b0c10' }) {
       uTime: { value: 0 },
       uProj: { value: 800 },
       uFog: { value: new THREE.Color(fog) },
+      tFluid: { value: null },
+      uResolution: { value: new THREE.Vector2(1, 1) },
     },
     vertexShader: /* glsl */`
       precision highp float;
       attribute vec2 aAttr;
       uniform float uTime;
       uniform float uProj;
+      uniform sampler2D tFluid;
+      uniform vec2 uResolution;
       varying float vDim;
 
       void main() {
@@ -152,14 +173,37 @@ export default function Environment({ fog = '#0b0c10' }) {
         p.y += cos(uTime * 0.04 + p.x * 0.25) * 0.05;
 
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_Position = projectionMatrix * mv;
-
         float dist = -mv.z;
+
+        /*
+         * **板と同じ流体で粒子も押す。** 本家の粒子にも "Mouse Fluid" と
+         * いう名の挙動が付いていて、
+         *
+         *   target += flow * 0.0001 * uMouseStrength * tFluidMask
+         *
+         * と、板とまったく同じ速度場を読んでいた。板だけ反応すると
+         * 「板に効果が乗っている」に見えるが、空間ごと動くと
+         * **カーソルが空気をかき混ぜている**ように見える。
+         *
+         * 一度投影して画面上の位置を求め、そこで流体を引く。
+         */
+        vec4 clip = projectionMatrix * mv;
+        vec2 screenUv = clip.xy / max(0.001, clip.w) * 0.5 + 0.5;
+        vec2 flow = texture2D(tFluid, screenUv).xy;
+        /*
+         * 押す量は**頭打ちにする**。速度場の値は勢いよく撫でると桁で跳ねる
+         * ので、そのまま足すと粒子が画面外へ飛ぶ。
+         * 奥ほど大きく動かすのは、遠くの粒が画面上でほとんど動かないから。
+         */
+        vec2 push = clamp(flow * 0.0012, vec2(-1.0), vec2(1.0));
+        mv.xy += push * min(dist, 14.0) * 0.16;
+
+        gl_Position = projectionMatrix * mv;
         /*
          * 霞。**奥ほど沈める。** 距離で落とさないと、遠い点も近い点も同じ
          * 濃さになって奥行きが消える。
          */
-        float haze = exp(-dist * 0.028);
+        float haze = exp(-dist * 0.055);
         vDim = aAttr.x * haze;
         // 遠近で小さく。最低 1 画素は残す（消えるとちらつく）
         gl_PointSize = max(1.0, aAttr.y * uProj * 0.03 / max(0.5, dist));
@@ -174,7 +218,7 @@ export default function Environment({ fog = '#0b0c10' }) {
         if (d > 0.25) discard;
         float a = smoothstep(0.25, 0.0, d) * vDim;
         // 色は置かない。わずかに青を残すだけ
-        gl_FragColor = vec4(vec3(0.60, 0.65, 0.74) * a * 0.32, 1.0);
+        gl_FragColor = vec4(vec3(0.60, 0.65, 0.74) * a * 0.24, 1.0);
       }
     `,
   }), [fog])
@@ -184,6 +228,8 @@ export default function Environment({ fog = '#0b0c10' }) {
 
   useFrame((state) => {
     material.uniforms.uTime.value = state.clock.elapsedTime
+    material.uniforms.tFluid.value = fluidRef?.current ?? null
+    if (resolution) material.uniforms.uResolution.value.copy(resolution)
     const h = state.size.height
     const tan = Math.tan((state.camera.fov * Math.PI) / 360)
     material.uniforms.uProj.value = h / (2 * tan)

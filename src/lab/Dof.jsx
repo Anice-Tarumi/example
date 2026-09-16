@@ -126,8 +126,15 @@ const dofFrag = /* glsl */`
   }
 `
 
-export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012, bloom = 0.5, threshold = 0.32 }) {
+export default function Dof({ focus = 5.4, focusAt = null, range = 3.2, maxBlur = 0.012, bloom = 0.5, threshold = 0.32 }) {
   const { size, camera } = useThree()
+
+  /*
+   * 合わせる点。**距離を定数で持たない。** カメラは画面幅に応じて board が
+   * 収まる所まで下がるので、固定値だと狭い画面で正面の板までボケる
+   * （実際それで、一番見せたい板が常に少し滲んでいた）。
+   */
+  const focusPoint = useMemo(() => (focusAt ? new THREE.Vector3(...focusAt) : null), [focusAt])
 
   /*
    * 深度をテクスチャで受け取る。**作った後から `depthTexture` を差しても
@@ -214,7 +221,7 @@ export default function Dof({ focus = 5.4, range = 3.2, maxBlur = 0.012, bloom =
     uniforms.uTexel.value.set(1 / target.width, 1 / target.height)
     uniforms.uNear.value = camera.near
     uniforms.uFar.value = camera.far
-    uniforms.uFocus.value = focus
+    uniforms.uFocus.value = focusPoint ? camera.position.distanceTo(focusPoint) : focus
     uniforms.uRange.value = range
     uniforms.uMaxBlur.value = maxBlur
     quad.render(gl)

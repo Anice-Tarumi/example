@@ -5,7 +5,7 @@
  * 取得して読んだうえで組み直した。**あちらに虹色のリムもフレネルも無い。**
  * やっているのは 4 つだけ。
  *
- *   1. 角丸で切る（`roundedBox` で discard）
+ *   1. 角丸に切る（あちらは**ジオメトリに焼いた角丸**。こちらも同じ）
  *   2. **画面座標で引いた流体の速度場で UV を押す**
  *   3. 周辺を明るくする（中心 1.0 → 端 1.6）
  *   4. 流れの強い所は薄くする（カーソルで撫でると板が溶ける）
@@ -45,8 +45,6 @@ export const boardFragmentShader = /* glsl */`
   uniform vec2  uResolution;
   uniform float uBlend;         // 差し替え中の混ぜ具合
   uniform float uHasMap;
-  uniform vec2  uSize;          // 板の実寸（世界単位）
-  uniform float uRadius;        // 角の丸み
   uniform float uPush;          // 流れで UV を押す量
   uniform float uHover;
   uniform float uFocus;         // 正面にいるほど 1
@@ -55,21 +53,15 @@ export const boardFragmentShader = /* glsl */`
 
   varying vec2 vUv;
 
-  /** 角丸矩形の符号付き距離。内側が負 */
-  float roundedBox(vec2 p, vec2 b, float r) {
-    vec2 q = abs(p) - b + r;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-  }
-
   void main() {
-    vec2 p = (vUv - 0.5) * uSize;
-    float sd = roundedBox(p, uSize * 0.5, uRadius);
-
-    // 縁の外は描かない。幅は画素の大きさから決めるので、寄っても滲まない
-    float aa = fwidth(sd) * 1.2;
-    if (sd > aa) discard;
-    float edgeSoft = 1.0 - smoothstep(-aa, aa, sd);
-
+    /*
+     * 角丸は**シェーダーで切らない。** 本家のジオメトリを展開したら、
+     * 角の弧が頂点として焼かれた厚み 0.05 のスラブだった。こちらも同じく
+     * 押し出しで作ってある。
+     *
+     * 両方でやると、多角形で近似した角と円の距離関数がわずかに食い違って、
+     * 角の縁がぎざぎざに欠ける。形はジオメトリに任せ、縁は MSAA に任せる。
+     */
     /*
      * 流体。**画面座標で引く。** 板の uv で引くと、板を送ったときに模様が
      * 一緒に動いてしまい、空間に流れがあるようには見えない。
@@ -94,9 +86,20 @@ export const boardFragmentShader = /* glsl */`
     if (uHasMap > 0.5) {
       col = mix(texture2D(tMap, uv).rgb, texture2D(tNext, uv).rgb, uBlend);
     } else {
-      // 絵が無い板。斜めの緩い勾配だけ置く。真っ黒だと穴に見える
-      float g = 0.5 + 0.5 * sin((uv.x + uv.y) * 2.2 + uTime * 0.1);
-      col = uTint * (0.16 + g * 0.08);
+      /*
+       * 絵がまだ無い板。**平らな一色にしない。** 単色の矩形は「準備中の
+       * 箱」に見えて、周りを作り込んだぶん余計に安く見える。
+       * 上から下への落ちと、ゆっくり横切る光の帯だけ置く。
+       */
+      float fall = smoothstep(1.0, 0.0, uv.y);
+      float sweep = smoothstep(0.35, 0.0, abs(fract((uv.x - uv.y) * 0.5 - uTime * 0.035) - 0.5));
+      // 細かい粒。面に粒が乗っているだけで、塗った板ではなく物に見える
+      float grain = fract(sin(dot(floor(uv * 900.0), vec2(12.9898, 78.233))) * 43758.5453);
+      /*
+       * 全体を明るくしない。**均一な明るい面は「すりガラスの板」**に
+       * 見えて、絵が入る場所には見えない。暗い所を作って落差で見せる。
+       */
+      col = uTint * (0.028 + fall * 0.058 + sweep * 0.05 + grain * 0.010);
     }
 
     /*
@@ -109,7 +112,11 @@ export const boardFragmentShader = /* glsl */`
 
     // 手前にいない板は沈める。並んだとき、どれを見ているかが分かる
     col *= mix(0.42, 1.0, uFocus);
-    col += uTint * 0.05 * uHover;
+    /*
+     * 触れた板を持ち上げる。**控えめに。** 絵の無い板の地は 0.03 しかない
+     * ので、0.05 も足すと触った瞬間に白い板へ化ける。
+     */
+    col += uTint * 0.018 * uHover;
 
     // 撫でた所は薄くなる。流れが板を溶かす
     /*
@@ -120,7 +127,7 @@ export const boardFragmentShader = /* glsl */`
      */
     col *= 1.0 - min(0.5, stir * 5.0);
 
-    gl_FragColor = vec4(col, edgeSoft);
+    gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
 `

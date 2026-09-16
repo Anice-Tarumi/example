@@ -2,10 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import Boards from '../lab/Boards'
-import Backdrop from '../lab/Backdrop'
-import Environment from '../lab/Environment'
-import Dof from '../lab/Dof'
+import Stage from '../lab/Stage'
 import { examples } from '../registry'
 import './lab.css'
 
@@ -67,7 +64,7 @@ export default function Lab() {
       label: 'Works',
       sub: '映像・CG の成果物',
       desc: 'CG チームが作った映像と、その裏側で組んだ仕組み。',
-      tint: '#8b7f72',
+      tint: '#8e97a4',
       textures: null,
     },
     {
@@ -91,11 +88,7 @@ export default function Lab() {
         dpr={[1, 2]}
       >
         <color attach="background" args={['#0b0c10']} />
-        <Backdrop tint="#0b0c10" />
-        <Environment fog="#0b0c10" />
-        <Boards boards={boards} focusRef={focusRef} onFocus={setFocus} />
-        {/* 最後に置く。場面を焼いてから後処理で出す */}
-        <Dof focus={5.6} range={3.0} maxBlur={0.016} bloom={0.55} threshold={0.3} />
+        <Stage boards={boards} focusRef={focusRef} onFocus={setFocus} />
       </Canvas>
 
       <header className="lab__head">
