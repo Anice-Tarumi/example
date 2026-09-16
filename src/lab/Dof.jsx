@@ -5,6 +5,7 @@ import { useFBO } from '@react-three/drei'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
+import { bakeFrostNormal } from './frostNormal'
 
 /**
  * 被写界深度。
@@ -126,20 +127,111 @@ const gatherFrag = /* glsl */`
   }
 `
 
-/** 合成。鮮明な絵とぼかした絵を錯乱円で混ぜ、ブルームと諧調を乗せる */
+/**
+ * 合成。
+ *
+ * 本家の `GlobalComposite.fs` を読み直して組み直した。以前はここで
+ * 「隅に色を足してビネットを掛ける」だけをやっていたが、あちらは
+ * **全ページ共通のこの 1 枚**で次をやっている。順番もこの通り。
+ *
+ *   1. 繰り返しの法線マップで画面全体の UV をずらす（フロスト）
+ *   2. RGB をずらして引く
+ *   3. コントラスト調整
+ *   4. 隅のグラデーションを **blendAdd**。色相は雑音でゆっくり動く
+ *   5. ブルームを `pow(bloom, 1.8)` で足す
+ *   6. 粒子ノイズを 15% で **blendOverlay**
+ *
+ * 4 と 6 が効く。隅の色が静止していると作り物に見えるし、
+ * 粒子が無いと綺麗すぎて CG に見える。
+ */
 const compositeFrag = /* glsl */`
   precision highp float;
 
   uniform sampler2D tColor;   // 全解像度・鮮明
   uniform sampler2D tBlur;    // 半解像度・ぼかし済み（a に錯乱円）
   uniform sampler2D tBloom;
+  uniform sampler2D tNormal;  // 繰り返せる法線マップ（手続きで焼いた物）
   uniform float uBloom;
+  uniform float uTime;
+  uniform vec2  uResolution;
+  uniform float uNormalScale;
+  uniform vec2  uContrast;
+  uniform vec2  uGradient;
 
   varying vec2 vUv;
 
+  vec3 rgb2hsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+  }
+  vec3 hsv2rgb(vec3 c) {
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+  }
+
+  /** 本家の contrast.glsl と同じ式 */
+  vec3 adjustContrast(vec3 color, float c, float m) {
+    float t = 0.5 - c * 0.5;
+    return (color * c + t) * m;
+  }
+
+  /** 本家の rgbshift.fs と同じ式 */
+  vec3 getRGB(sampler2D tex, vec2 uv, float angle, float amount) {
+    vec2 off = vec2(cos(angle), sin(angle)) * amount;
+    return vec3(texture2D(tex, uv + off).r, texture2D(tex, uv).g, texture2D(tex, uv - off).b);
+  }
+
+  vec2 scaleUV(vec2 uv, vec2 scale) {
+    return (uv - 0.5) / scale + 0.5;
+  }
+
+  float hash12(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
+  }
+
+  /** 値ノイズ。隅のグラデーションの色相を動かすのに使う */
+  float vnoise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    float a = hash12(i);
+    float b = hash12(i + vec2(1.0, 0.0));
+    float c = hash12(i + vec2(0.0, 1.0));
+    float d = hash12(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  }
+
+  vec3 blendAdd(vec3 base, vec3 blend, float amt) {
+    return mix(base, min(base + blend, vec3(1.0)), amt);
+  }
+  vec3 blendOverlay(vec3 base, vec3 blend, float amt) {
+    vec3 o = mix(2.0 * base * blend, 1.0 - 2.0 * (1.0 - base) * (1.0 - blend), step(0.5, base));
+    return mix(base, o, amt);
+  }
+
   void main() {
-    vec3 sharp = texture2D(tColor, vUv).rgb;
-    vec4 blur = texture2D(tBlur, vUv);
+    float aspect = uResolution.x / max(1.0, uResolution.y);
+    vec2 squareUV = scaleUV(vUv, vec2(1.4, aspect));
+
+    /*
+     * フロスト。**繰り返しの法線で画面ごとずらす。**
+     * 本家は右上隅を強くしていた（smoothstep(0.3, 0.0, length(vUv - 1.0))）。
+     * 脈も同じく sin(time - length * 30.0)。
+     */
+    vec2 normalUV = scaleUV(squareUV, vec2(uNormalScale * 0.18));
+    vec3 nrm = texture2D(tNormal, normalUV).rgb * 2.0 - 1.0;
+    float frost = smoothstep(0.3, 0.0, length(vUv - vec2(1.0))) * 0.08;
+    frost *= 1.0 + sin(uTime - length(squareUV - 0.5) * 30.0) * 0.9;
+    vec2 uv = vUv + nrm.xy * frost * 0.5;
+
+    // RGB をずらして引く。ずれ量は小さい。大きいと安いグリッチになる
+    vec3 sharp = getRGB(tColor, uv, radians(120.0), 0.0006);
+    vec4 blur = texture2D(tBlur, uv);
 
     /*
      * 錯乱円で混ぜる。**半解像度の絵をそのまま出さない。**
@@ -147,39 +239,47 @@ const compositeFrag = /* glsl */`
      */
     vec3 col = mix(sharp, blur.rgb, smoothstep(0.02, 0.35, blur.a));
 
-    // ブルームは最後に足す。ボケの前に足すと光が二重ににじむ
-    col += texture2D(tBloom, vUv).rgb * uBloom;
+    col = adjustContrast(col, uContrast.x, uContrast.y);
 
     /*
-     * 隅から色を差す。**光源が 1 つも無い場面は、どれだけ物を置いても
-     * 平らに見える。** 本家の画面を撮ったら、左上から冷たい光、
-     * 下側から低い色が差していて、中央だけが抜けていた。
-     * こちらは彩度を上げないぶん、方向だけ借りる。
+     * 隅のグラデーション。**色相を止めない。**
+     * 本家は vec3(0.5,0.5,1.0) を HSV にして
+     * hue += cnoise(squareUV*0.65 - time*0.04)*0.065 + 0.88 と動かしている。
+     * 固定色を隅に置いただけだと、ただ塗った絵に見える。
      */
+    vec3 gradient = rgb2hsv(vec3(0.5, 0.5, 1.0));
+    gradient.x += (vnoise(squareUV * 0.65 - uTime * 0.04) - 0.5) * 0.13 + 0.88;
+    gradient = hsv2rgb(gradient);
     /*
-     * **広げない。** 半径を大きく取ると画面全体が持ち上がって、
-     * ただ全体が明るい灰色になる（実際そうなった）。隅に留める。
+     * **明度を落としてから足す。** 本家の素材は明るいので彩度の高い色を
+     * 5% 足しても隅の光に見えるが、こちらの地は暗く、そのまま足すと
+     * 画面全体が青緑に染まった。
      */
-    vec2 q = vUv - vec2(0.06, 0.98);
-    col += vec3(0.050, 0.080, 0.098) * pow(smoothstep(0.62, 0.0, length(q * vec2(1.0, 1.25))), 1.6);
-    vec2 q2 = vUv - vec2(0.94, 0.02);
-    col += vec3(0.048, 0.044, 0.070) * pow(smoothstep(0.55, 0.0, length(q2 * vec2(1.0, 1.25))), 1.6);
+    gradient *= 0.46;
+
+    float gNoise = 0.5 + (vnoise(squareUV * 1.1 + uTime * 0.03) - 0.5);
+    // 中央には掛けない。隅から立ち上げる
+    float cornerNoise = 0.7 * 1.6 * smoothstep(uGradient.x, uGradient.y * 0.9, length(squareUV - 0.5));
+    col = blendAdd(col, gradient, 0.012 + pow(cornerNoise * gNoise, 2.0) * 0.55);
+
+    // ブルームは 1.8 乗で足す。線形で足すと霞んで締まらない
+    col += pow(max(texture2D(tBloom, uv).rgb, 0.0), vec3(1.8)) * uBloom;
 
     /*
-     * ビネット。**周辺を落とさないと画面が一枚の紙に見える。**
-     * 落とす量は大きめに取る。中央だけ抜けていると、そこに奥行きが出る。
+     * ビネット。本家は隅のグラデーションで締めているが、こちらは素材が
+     * 淡いので明示的に落とす。
      */
     vec2 vp = (vUv - 0.5) * vec2(1.0, 0.86);
-    col *= mix(0.22, 1.0, smoothstep(0.70, 0.08, length(vp)));
+    col *= mix(0.44, 1.0, smoothstep(0.80, 0.12, length(vp)));
 
     /*
-     * 最後に締める。**黒が浮いていると、何を足しても灰色の靄に見える。**
-     * 本家の合成にも uContrast があった（一覧ページでは 1 だが、
-     * あちらは素材そのものが濃い）。こちらは手続きで作った淡い素材なので、
-     * ここで暗部を落として中間を持ち上げる。
+     * 粒子ノイズ。**これが無いと綺麗すぎて CG に見える。**
+     * 本家も 15% のオーバーレイで乗せている。
      */
-    col = pow(max(col, 0.0), vec3(1.28)) * 1.30;
+    float grain = hash12(vUv * uResolution + fract(uTime) * 91.7);
+    col = blendOverlay(col, vec3(grain), 0.15);
 
+    col = clamp(col, 0.0, 1.0);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -254,12 +354,27 @@ export default function Dof({ focus = 5.4, focusAt = null, range = 3.2, maxBlur 
   })), [gatherUniforms])
   useEffect(() => () => gatherQuad.dispose(), [gatherQuad])
 
+  // フロスト用の法線。1 回だけ焼く
+  const frostNormal = useMemo(() => bakeFrostNormal(256, 2.2), [])
+  useEffect(() => () => frostNormal.dispose(), [frostNormal])
+
   const uniforms = useMemo(() => ({
     tColor: { value: null },
     tBlur: { value: null },
     tBloom: { value: null },
+    tNormal: { value: frostNormal },
     uBloom: { value: bloom },
-  }), [bloom])
+    uTime: { value: 0 },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uNormalScale: { value: 3 },
+    // 本家は一覧では [1,1]。こちらは素材が淡いので少し締める
+    /*
+     * コントラストと明度。**上げすぎない。** 1.14 で試したら中間が潰れて、
+     * 板の輪郭が黒に沈んで消えた。締めるのは主にビネットの役目。
+     */
+    uContrast: { value: new THREE.Vector2(1.05, 1.18) },
+    uGradient: { value: new THREE.Vector2(0.30, 0.82) },
+  }), [bloom, frostNormal])
 
   const quad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
     vertexShader: quadVert,
@@ -311,6 +426,8 @@ export default function Dof({ focus = 5.4, focusAt = null, range = 3.2, maxBlur 
     uniforms.tBlur.value = blurred.texture
     uniforms.tBloom.value = bloomA.texture
     uniforms.uBloom.value = bloom
+    uniforms.uTime.value = state.clock.elapsedTime
+    uniforms.uResolution.value.set(size.width, size.height)
     quad.render(gl)
   }, 1)
 
