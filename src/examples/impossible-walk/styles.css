@@ -32,3 +32,17 @@
   opacity: 0.6;
   white-space: nowrap;
 }
+
+/*
+ * 狭い画面では 1 行に収まらない。**折り返しを許して字も詰める。**
+ * `white-space: nowrap` のままだと画面の外へ出て、横スクロールを生む。
+ */
+@media (max-width: 860px) {
+  .iwk__hint {
+    max-width: calc(100vw - 6rem);
+    white-space: normal;
+    text-align: center;
+    letter-spacing: 0.18em;
+    bottom: 68px;
+  }
+}

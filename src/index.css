@@ -235,6 +235,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 }
 .stage__controls:empty { display: none; }
 
+/*
+ * パネルの開閉ボタン。広い画面では出さない。
+ * 覆っても困らない広さがあるなら、開いたままのほうが触りやすい。
+ */
+.stage__panel-toggle { display: none; }
+
 .stage__info {
   position: absolute;
   left: 1rem;
@@ -436,6 +442,62 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
     background: rgba(0, 0, 0, 0.55);
   }
   .home { padding: 4.5rem 1.25rem 3rem; }
-  .stage__controls { width: 220px; top: 0.75rem; right: 0.75rem; }
-  .stage__info { left: 0.75rem; right: 0.75rem; bottom: 0.75rem; width: auto; }
+
+  /*
+   * パネルは**下から出す引き出し**にする。横に置くと、狭い画面では
+   * シーンが縦長の帯になって何も見えない。高さも半分までに抑える。
+   */
+  .stage__controls {
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 48vh;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    transform: translateY(101%);
+    transition: transform 0.22s ease;
+  }
+  .stage__controls.is-open { transform: none; }
+
+  .stage__panel-toggle {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 12;
+    width: 42px;
+    height: 42px;
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  /* 引き出しが出ている間はボタンをその上へ逃がす */
+  .stage__panel-toggle[aria-expanded='true'] { bottom: calc(48vh + 0.75rem); }
+
+  /*
+   * 引き出しが出ている間は説明札を退かす。**重ねない。**
+   * 狭い画面で 2 枚同時に出すと、どちらも読めない。
+   */
+  .stage__controls.is-open ~ .stage__info {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.5rem);
+  }
+  .stage__info { transition: opacity 0.18s ease, transform 0.18s ease; }
+
+  /* 説明札は畳んだ見出しだけ。ボタンと重ならないよう右に余白を取る */
+  .stage__info {
+    left: 0.75rem;
+    right: 4.5rem;
+    bottom: 0.75rem;
+    width: auto;
+    max-height: 56vh;
+    overflow-y: auto;
+  }
 }

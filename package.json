@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "thumbs": "node scripts/bake-thumbs.mjs",
-    "globe": "node scripts/bake-globe.mjs"
+    "globe": "node scripts/bake-globe.mjs",
+    "audit:mobile": "node scripts/mobile-audit.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

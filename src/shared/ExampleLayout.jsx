@@ -4,8 +4,20 @@ import { getCategory } from '../categories'
 import { levaTheme } from './levaTheme'
 
 /** キャンバス全面 + 右上コントロールパネル + 左下 info オーバーレイ */
+/** 実機幅の境目。CSS のブレークポイントと合わせる */
+const NARROW = 860
+
 export default function ExampleLayout({ meta, children }) {
-  const [infoOpen, setInfoOpen] = useState(true)
+  /*
+   * 狭い画面では**説明もパネルも畳んでおく**。
+   *
+   * 実測すると、leva が画面の 54%、説明札が 33% を覆っていた。合わせて
+   * 9 割で、肝心のシーンが左の細い帯しか見えない。既定で開いておくのは、
+   * 覆っても困らない広さがあるときだけ。
+   */
+  const narrow = typeof window !== 'undefined' && window.innerWidth <= NARROW
+  const [infoOpen, setInfoOpen] = useState(!narrow)
+  const [panelOpen, setPanelOpen] = useState(!narrow)
   const category = getCategory(meta.category)
 
   /*
@@ -30,7 +42,21 @@ export default function ExampleLayout({ meta, children }) {
     <div className="stage">
       <div className="stage__canvas">{children}</div>
 
-      <div className="stage__controls">
+      {/*
+        * 狭い画面ではボタンで開閉する。leva 自身のタイトルバーは使わない
+        * （`titleBar={false}` で消しているし、開閉の見た目を揃えたい）。
+        */}
+      <button
+        type="button"
+        className="stage__panel-toggle"
+        onClick={() => setPanelOpen((v) => !v)}
+        aria-expanded={panelOpen}
+        aria-label="パラメータ"
+      >
+        {panelOpen ? '✕' : '⚙'}
+      </button>
+
+      <div className={`stage__controls${panelOpen ? ' is-open' : ''}`}>
         <Leva fill flat titleBar={false} theme={levaTheme} />
       </div>
 

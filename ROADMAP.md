@@ -148,7 +148,7 @@ example で足りる。載せるなら次のどちらかを満たすこと。
 
 - [x] **サムネイル** — `npm run thumbs` で全 example を実機で撮り `src/assets/thumbs/` へ。Home は有るものだけ画像に差し替え、無ければ絵文字。撮り方は `meta.json` の `thumb`（wait / hover / scroll / variant）で上書きできる
 - [ ] **バンドル分割** — `react-three-fiber` チャンクが 890kB。`manualChunks` で three 本体を分離
-- [ ] **モバイル確認** — サイドバーのドロワー化と leva パネルの配置が未検証
+- [x] **モバイル確認** — `npm run audit:mobile` で全 example を iPhone 13 幅で開き、横溢れ・パネル占有率・キャンバス寸法・エラーを機械的に採る。leva は下からの引き出し、説明札は既定で畳む形に変更。40/40 で溢れ 0・エラー 0
 - [ ] **hover-gold-grid-v2 の扱い** — `ripple-simulation` と category が被る。Buttermax 再現として残すか、統合するか
 - [ ] **variant のディープリンク** — 現状 URL は example 単位。`?variant=` を持たせると共有しやすい
 - [ ] **カテゴリの過不足** — architecture / performance 系を作るなら `src/categories.js` の見直し
@@ -509,3 +509,11 @@ import fontUrl from './assets/Anton-Regular.ttf?url'
 64. **OrbitControls を入れたら、カメラは `lookAt` で向けても上書きされる。**
    操作を握っているのは controls なので、寄せたいときは注視点（`target`）
    ごと動かして `update()` を呼ぶ。
+
+65. **パネルの占有率は「箱の寸法」ではなく「画面と重なった面積」で測る。**
+   画面外へ逃がした引き出しも、箱の寸法で数えると「覆っている」と出る。
+   `display: none` / `visibility` / `opacity: 0` も見る。
+
+66. **狭い画面では、覆う物を同時に 2 枚出さない。** leva と説明札を両方出すと
+   実測で画面の 9 割が埋まり、シーンが左の細い帯になる。引き出しを開けている
+   間は札を退かす。
