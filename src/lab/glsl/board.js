@@ -112,10 +112,15 @@ export const boardFragmentShader = /* glsl */`
     col += uTint * 0.05 * uHover;
 
     // 撫でた所は薄くなる。流れが板を溶かす
-    // 撫でた所は少しだけ薄くなる。**消さない。** 消すと板に穴が開く
-    float alpha = edgeSoft * (1.0 - min(0.45, stir * 5.0));
+    /*
+     * 撫でた所は沈む。**透過ではなく明度で表現する。**
+     * 半透明にすると深度を書けず（書くと並び順で三角形が欠ける）、後段の
+     * 被写界深度が板を背景と誤認する。暗い背景の上なら、沈めるだけで
+     * 「溶けた」に見える。
+     */
+    col *= 1.0 - min(0.5, stir * 5.0);
 
-    gl_FragColor = vec4(col, alpha);
+    gl_FragColor = vec4(col, edgeSoft);
     #include <colorspace_fragment>
   }
 `

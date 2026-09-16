@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import Boards from '../lab/Boards'
 import Backdrop from '../lab/Backdrop'
 import Environment from '../lab/Environment'
+import Dof from '../lab/Dof'
 import { examples } from '../registry'
 import './lab.css'
 
@@ -93,6 +94,8 @@ export default function Lab() {
         <Backdrop tint="#0b0c10" />
         <Environment fog="#0b0c10" />
         <Boards boards={boards} focusRef={focusRef} onFocus={setFocus} />
+        {/* 最後に置く。場面を焼いてから後処理で出す */}
+        <Dof focus={5.6} range={3.0} maxBlur={0.016} />
       </Canvas>
 
       <header className="lab__head">

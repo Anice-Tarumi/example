@@ -61,9 +61,15 @@ function makeItem(board, index) {
     fragmentShader: boardFragmentShader,
     uniforms,
     side: THREE.DoubleSide,
-    // 撫でた所が薄くなるので透過が要る。深度は書かない（板は前後に重なる）
-    transparent: true,
-    depthWrite: false,
+    /*
+     * **深度を書く。** 書かないと深度バッファが空のまま（＝全部が最遠）に
+     * なり、後段の被写界深度が画面全体を最大でぼかす。
+     *
+     * そのために板は不透明で描く。半透明にすると並び順の問題で三角形が
+     * 欠ける。角の外だけ `discard` で落とす。
+     */
+    transparent: false,
+    depthWrite: true,
   })
   return { uniforms, material }
 }

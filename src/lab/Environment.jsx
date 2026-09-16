@@ -19,9 +19,9 @@ import * as THREE from 'three'
  *   3. **色を置かない。** 濃淡だけ。トーンを上げるのは密度で、彩度ではない
  */
 
-const GROUND = 56000
-const PILLARS = 26000
-const MOTES = 2200
+const GROUND = 22000
+const PILLARS = 14000
+const MOTES = 1600
 
 function hash(n) {
   const s = Math.sin(n) * 43758.5453
@@ -88,8 +88,12 @@ function buildCloud() {
      * 明るさは**起伏で決める**。一様だと地形ではなく砂嵐に見える。
      * 尾根だけ拾わせて、谷は沈める。
      */
-    const lit = Math.max(0, h - 1.1)
-    put(x, y, z, 0.16 + lit * 0.55 + rand() * 0.07, 0.8 + rand() * 0.7)
+    /*
+     * **数を減らして 1 粒を明るくする。** 細かい粒を大量に撒くと、ボケた
+     * ときに一様な霧になって奥行きが消える。粒が見えるほうが空間に見える。
+     */
+    const lit = Math.max(0, h - 1.0)
+    put(x, y, z, 0.55 + lit * 1.6 + rand() * 0.2, 1.1 + rand() * 1.1)
   }
 
   // 柱。垂直の塊がいくつかあるだけで、空間に骨格が入る
@@ -101,7 +105,7 @@ function buildCloud() {
     const a = rand() * Math.PI * 2
     const r = rad * (0.75 + rand() * 0.25)
     const y = -2.7 + rand() * tall
-    put(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r, 0.36 + rand() * 0.3, 0.8 + rand() * 0.7)
+    put(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r, 0.6 + rand() * 0.5, 0.9 + rand() * 0.8)
   }
 
   // 漂う粒。手前にも撒いて、空間に厚みを出す
@@ -170,7 +174,7 @@ export default function Environment({ fog = '#0b0c10' }) {
         if (d > 0.25) discard;
         float a = smoothstep(0.25, 0.0, d) * vDim;
         // 色は置かない。わずかに青を残すだけ
-        gl_FragColor = vec4(vec3(0.60, 0.65, 0.74) * a * 0.42, 1.0);
+        gl_FragColor = vec4(vec3(0.60, 0.65, 0.74) * a * 0.32, 1.0);
       }
     `,
   }), [fog])
