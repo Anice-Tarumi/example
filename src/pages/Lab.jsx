@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Boards from '../lab/Boards'
 import Backdrop from '../lab/Backdrop'
+import Environment from '../lab/Environment'
 import { examples } from '../registry'
 import './lab.css'
 
@@ -90,6 +91,7 @@ export default function Lab() {
       >
         <color attach="background" args={['#0b0c10']} />
         <Backdrop tint="#0b0c10" />
+        <Environment fog="#0b0c10" />
         <Boards boards={boards} focusRef={focusRef} onFocus={setFocus} />
       </Canvas>
 

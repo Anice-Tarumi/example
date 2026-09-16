@@ -218,7 +218,13 @@ export default function Boards({ boards, focusRef, onFocus }) {
     const tan = Math.tan((camera.fov * Math.PI) / 360)
     const aspect = size.width / size.height
     const need = Math.max(H / 2 / tan, W / 2 / (tan * aspect)) * 1.35
-    camera.position.set(0, 0, Math.max(4.4, need))
+    /*
+     * わずかに見下ろす。**水平のままだと地面が画面の外に落ちて、背景が
+     * ただの粒になる。** 少し上から見るだけで、点群が面として読める。
+     */
+    const dist = Math.max(4.4, need)
+    camera.position.set(0, 1.35, dist)
+    camera.lookAt(0, 0.05, 0)
     camera.updateProjectionMatrix()
   }, [camera, size.width, size.height])
 
