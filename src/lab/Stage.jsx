@@ -12,7 +12,7 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import Backdrop from './Backdrop'
 import Tube from './Tube'
 import Motes from './Motes'
-import Hero from './Hero'
+import Spine from './Spine'
 import Environment from './Environment'
 import Boards from './Boards'
 import Dof from './Dof'
@@ -190,7 +190,7 @@ export default function Stage({ boards, focusRef, onFocus }) {
           <Environment fog="#0b0c10" fluidRef={fluid.texRef} resolution={fluid.resolution} />
         </group>
         <Motes fluidRef={fluid.texRef} />
-        <Hero />
+        <Spine />
         <Boards
           boards={boards}
           focusRef={focusRef}
