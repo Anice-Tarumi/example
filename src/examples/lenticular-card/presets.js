@@ -9,17 +9,25 @@ const BASE = {
    * 0.42 で試したら、端の隠し絵以外はほぼ同じ絵に見えた。
    */
   parallax: 0.95,
-  hiddenAt: 0.66,
+  /*
+   * 明暗の振れ。**視差だけだと「同じ絵が少し動く」で終わる。**
+   * 片端で光が落ちて提灯だけが残ると、絵の状態が変わったと分かる。
+   */
+  lightSwing: 0.85,
 
   // レンズ
-  lenses: 96,        // カード横あたりの本数
+  lenses: 112,        // カード横あたりの本数
   focal: 0.92,
   bleed: 0.32,
   /*
    * 色収差。**虹にしない。** 0.55 だと帯が完全な虹になって玩具に見えた。
    * 切り替わり際に赤と青の縁が薄く出るくらいが実物。
    */
-  aberration: 0.30,
+  /*
+   * 色収差。**絵が細かいほど小さく。** 描き込んだイラストに強く掛けると、
+   * 細部がそのまま色ノイズになる。
+   */
+  aberration: 0.16,
   ridge: 0.35,
   sheen: 0.75,
   grain: 0.10,
@@ -33,8 +41,6 @@ const BASE = {
   showPrint: false,
   gyro: true,
   background: '#0d0f14',
-  tint: '#5f7fbe',
-  accent: '#7fd4ff',
 }
 
 export const PRESETS = {
@@ -53,7 +59,7 @@ export const PRESETS = {
    */
   flip: {
     label: 'Flip',
-    params: { ...BASE, views: 4, bleed: 0.16, parallax: 1.1, hiddenAt: 0.45, aberration: 0.7 },
+    params: { ...BASE, views: 4, bleed: 0.16, parallax: 1.1, aberration: 0.7 },
   },
   /*
    * レンズを外した状態。**これが下に刷ってある絵。**

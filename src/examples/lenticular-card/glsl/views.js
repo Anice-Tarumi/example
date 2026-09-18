@@ -4,10 +4,25 @@
  * レンチキュラーの肝は「**印刷された絵は動かない**」こと。動くのは
  * どのストリップが見えるかだけ。だから絵は先に N 枚焼いて固定する。
  * 毎フレーム角度に応じて描き直すと、それはただの視差エフェクトで、
- * レンチキュラー特有の**飛び（コマ落ち）とゴースト**が出ない。
+ * レンチキュラー特有の飛び（コマ落ち）とゴーストが出ない。
  *
- * ここでは層を重ねた絵を、視線角を変えて N 回描く。
- * 層ごとに奥行きを持たせ、`tan(θ) * depth` でずらす。
+ * 絵はレイヤー分けした 1 枚のイラスト。**別々に生成した 2 枚を切り替え
+ * ない。** 生成物は毎回構図が変わるので、切り替えたときに画が飛ぶ。
+ * 同じ絵を層で分けて、層ごとに違う速さでずらせば、構図ズレは原理的に
+ * 起きない。
+ *
+ *   A 背景（光条と塵）      … いちばん大きく動く
+ *   B クラゲ                … 中くらい
+ *   C チョウチンアンコウ    … ほとんど動かない（主役）
+ *   D 海藻と岩（手前）      … 逆向きに動く
+ *
+ * 手前を**逆に**動かすのが効く。全部が同じ向きだと、絵が丸ごと平行移動
+ * しているだけに見える。
+ *
+ * 角度で変わるのは視差だけではない。**光の状態**も一緒に振る。
+ * 片端は光条が差してクラゲが強く光る「明」、反対の端は光が落ちて
+ * アンコウの提灯だけが残る「暗」。同じ絵の中で意味が繋がるので、
+ * 無関係な隠し絵を出すより効く。
  */
 
 export const viewsVertexShader = /* glsl */`
@@ -21,13 +36,16 @@ export const viewsVertexShader = /* glsl */`
 export const viewsFragmentShader = /* glsl */`
   precision highp float;
 
+  uniform sampler2D tA;   // 背景
+  uniform sampler2D tB;   // クラゲ
+  uniform sampler2D tC;   // アンコウ
+  uniform sampler2D tD;   // 海藻
+
   uniform vec2  uGrid;        // アトラスの並び（列, 行）
   uniform float uViews;       // 総枚数
   uniform float uMaxAngle;    // 端の視線角（ラジアン）
   uniform float uParallax;    // 視差の強さ
-  uniform float uHiddenAt;    // 隠し絵が出始める位置（0..1）
-  uniform vec3  uTint;
-  uniform vec3  uAccent;
+  uniform float uLightSwing;  // 明暗の振れ幅
 
   varying vec2 vUv;
 
@@ -35,38 +53,41 @@ export const viewsFragmentShader = /* glsl */`
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
   }
 
-  float vnoise(vec2 st) {
-    vec2 i = floor(st);
-    vec2 f = fract(st);
-    float a = hash12(i);
-    float b = hash12(i + vec2(1.0, 0.0));
-    float c = hash12(i + vec2(0.0, 1.0));
-    float d = hash12(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  /**
+   * 層を 1 枚引く。
+   *
+   * **少し内側へ寄せてから引く。** ずらすと端が画の外を指すので、
+   * 縁が伸びた帯になる。あらかじめ寄せておけば、ずらしても中に収まる。
+   */
+  vec4 layer(sampler2D map, vec2 uv, float shift, float scale, vec2 offset, float soft) {
+    vec2 st = (uv - 0.5 - offset) / scale + 0.5;
+    st.x += shift / scale;
+    // 外は描かない。端の色が帯になって伸びるのを防ぐ
+    if (st.x < 0.0 || st.x > 1.0 || st.y < 0.0 || st.y > 1.0) return vec4(0.0);
+    /*
+     * **細かい層はぼかして引く。** レンズで横解像度が落ちるので、
+     * 触手のような細い線はそのまま階段状に割れる。
+     * ミップを 1 段落として引くと段が目立たなくなる。
+     */
+    return texture2D(map, st, soft);
   }
 
-  /** 円。r より内側が 1 */
-  float disc(vec2 p, float r, float soft) {
-    return smoothstep(r, r - soft, length(p));
+  /** 背景だけは全面を埋める。少し内側へ寄せてからずらす */
+  vec4 layerBg(sampler2D map, vec2 uv, float shift) {
+    vec2 st = (uv - 0.5) * 0.88 + 0.5;
+    st.x += shift;
+    return texture2D(map, clamp(st, 0.0, 1.0));
   }
 
-  vec2 rot(vec2 p, float a) {
-    float c = cos(a), si = sin(a);
-    return mat2(c, -si, si, c) * p;
-  }
-
-  /** 輪。太さ w */
-  float ring(vec2 p, float r, float w, float soft) {
-    float d = abs(length(p) - r);
-    return smoothstep(w, w - soft, d);
+  /** 上に重ねる */
+  vec3 over(vec3 base, vec4 src) {
+    return mix(base, src.rgb, clamp(src.a, 0.0, 1.0));
   }
 
   void main() {
     // どのコマか
     vec2 cell = floor(vUv * uGrid);
     float index = cell.y * uGrid.x + cell.x;
-    // コマ内の位置
     vec2 uv = fract(vUv * uGrid);
 
     /*
@@ -74,105 +95,65 @@ export const viewsFragmentShader = /* glsl */`
      * 手応えが左右で変わって気持ち悪い。
      */
     float t = uViews > 1.0 ? (index / (uViews - 1.0)) * 2.0 - 1.0 : 0.0;
-    float theta = t * uMaxAngle;
-    float shift = tan(theta) * uParallax;
-
-    vec2 p = uv - 0.5;
-    p.x *= 1.6;   // コマは横長
-
-    vec3 col = vec3(0.0);
+    float shift = tan(t * uMaxAngle) * uParallax;
 
     /*
-     * 奥の層。**一番大きくずれる。** ここが動かないと「窓の中に空間が
-     * ある」感じが出ない。
+     * --- 奥から重ねる ---
+     *
+     * **層ごとに大きさと位置を決める。** 生成された絵はどれも画面いっぱいに
+     * 描かれているので、そのまま重ねると巨大なクラゲと巨大な魚が重なった
+     * だけの絵になる（実際そうなった）。構図はここで作る。
      */
-    vec2 far = p + vec2(shift * 1.0, 0.0);
-    col += uTint * 0.10 * (1.0 - length(far) * 0.5);
-    // 星。粒が流れると奥行きが読める
-    /*
-     * 星。**細かく、暗く。** レンズは横方向の解像度をレンズの本数まで
-     * 落とすので、点のような要素はそのまま 1 本ぶんの太い塊になる。
-     * 実物のレンチキュラーで細かい柄を避けるのと同じ理由。
-     */
-    vec2 sg = far * 26.0;
-    float star = step(0.962, hash12(floor(sg)));
-    star *= disc(fract(sg) - 0.5, 0.11, 0.16);
-    col += vec3(0.62, 0.70, 0.86) * star * 0.30;
+    vec3 col = layerBg(tA, uv, shift * 1.00).rgb;
 
     /*
-     * 中景。**ずらすだけでなく回す。**
-     * 平行移動だけだと、コマ同士の差が小さくて「切り替わっている」と
-     * 分からない（実際、視差だけにしたら動いていないと言われた）。
-     * 角度で構造が変わると、1 コマ進んだのがはっきり見える。
+     * クラゲ。**小さく、暗く、ぼかす。** 大きく明るいまま置いたら、
+     * 主役のアンコウを完全に潰した。脇役は脇役の明るさにする。
      */
-    vec2 mid = rot(p, t * 0.42) + vec2(shift * 0.55, 0.0);
-    /*
-     * 色も角度で振る。**レンチキュラーは色が変わるとすぐ分かる。**
-     * 形の差だけだと、傾けても同じ絵に見えてしまう。
-     */
-    vec3 acc = mix(uAccent, vec3(1.0, 0.72, 0.42), clamp(t * 0.5 + 0.5, 0.0, 1.0));
-    col += acc * ring(mid, 0.34, 0.010, 0.006) * 0.85;
-    col += acc * ring(mid, 0.46, 0.004, 0.004) * 0.35;
-
-    // 中景の塊。少しだけ散らす
-    for (int i = 0; i < 5; i++) {
-      float fi = float(i);
-      float a = fi * 1.2566 + 0.4;
-      vec2 c = vec2(cos(a), sin(a)) * (0.30 + hash12(vec2(fi, 3.0)) * 0.16);
-      /*
-       * **明るい小さい塊を置かない。** レンズで横の解像度が落ちるので、
-       * 小さくて明るい物は角張った白い箱になる（実際なった）。
-       * 大きめ・柔らかめ・暗めにする。
-       */
-      float r = 0.042 + hash12(vec2(fi, 7.0)) * 0.040;
-      col += mix(acc, vec3(1.0), 0.25) * disc(mid - c, r, 0.040) * 0.42;
-    }
+    vec4 jelly = layer(tB, uv, shift * 0.55, 0.44, vec2(-0.14, 0.21), 1.4);
+    jelly.rgb *= 0.55;
+    jelly.a *= 0.85;
+    col = over(col, jelly);
 
     /*
-     * 手前の層。**ほとんどずれない。** 全部が同じだけ動くと、絵が
-     * 丸ごと平行移動しているだけに見える。近い物を止めるのが要点。
+     * 主役。中央よりやや下。**ほとんど動かさない。**
+     * 元絵が暗い紺なので、少し持ち上げないと背景に沈む。
      */
-    vec2 near = rot(p, t * -0.10) + vec2(shift * 0.12, 0.0);
-    float cross = 0.0;
-    cross += smoothstep(0.0022, 0.0, abs(near.y)) * smoothstep(0.30, 0.0, abs(near.x));
-    cross += smoothstep(0.0022, 0.0, abs(near.x)) * smoothstep(0.20, 0.0, abs(near.y));
-    col += vec3(0.85, 0.90, 1.0) * cross * 0.26;
-    // 目盛り
-    float ticks = smoothstep(0.0018, 0.0, abs(fract(near.x * 12.0) - 0.5) - 0.46);
-    ticks *= smoothstep(0.03, 0.0, abs(abs(near.y) - 0.24));
-    col += vec3(0.8, 0.86, 1.0) * ticks * 0.10;
+    vec4 fish = layer(tC, uv, shift * 0.15, 0.74, vec2(-0.05, -0.11), 0.4);
+    fish.rgb *= 1.55;
+    col = over(col, fish);
+
+    // 手前は逆向き。これで前後が強く出る
+    col = over(col, layer(tD, uv, shift * -0.30, 1.06, vec2(0.0, -0.05), 0.0));
 
     /*
-     * 隠し絵。**端まで倒したときだけ出す。**
-     * これが無いと「動く絵」で終わる。見つける物があると、人は端まで
-     * 倒してみる。レンチキュラーの土産物が面白いのはここ。
+     * 光の状態。**t が +1 で明、-1 で暗。**
+     * 明: 上からの光条が強く、クラゲがよく光る
+     * 暗: 全体が沈み、提灯の暖色だけが残る
      */
-    float hide = smoothstep(uHiddenAt, 1.0, abs(t));
-    if (hide > 0.001) {
-      vec2 h = p * 1.15;
-      // 縁を柔らかく。量子化で角が立つので、元から角を丸めておく
-      float mark = ring(h, 0.22, 0.045, 0.030);
-      // 輪の右下を欠けさせる。ただの輪より記号に見える
-      mark *= 1.0 - smoothstep(0.02, 0.0, max(h.x - 0.10, -h.y - 0.02));
-      mark += disc(h - vec2(0.0, -0.005), 0.075, 0.030);
-      vec3 hidCol = mix(vec3(1.0, 0.86, 0.55), vec3(1.0), 0.25);
-      // 出るときに元の絵を沈める。重なると読めない
-      col *= mix(1.0, 0.22, hide);
-      col += hidCol * mark * hide * 1.15;
-    }
+    float light = clamp(t * 0.5 + 0.5, 0.0, 1.0);
+    float swing = uLightSwing;
+
+    // 上ほど落とす。光が消えるのは上から
+    float fromTop = smoothstep(1.0, 0.15, uv.y);
+    col *= mix(1.0 - 0.72 * swing * fromTop, 1.0 + 0.16 * swing * fromTop, light);
 
     /*
-     * 印刷の粒。**綺麗すぎると画面に見える。**
-     * 紙に刷った物として扱うと、レンズの下に紙があると感じられる。
+     * 暗いときは色も抜く。**暗くするだけだと「暗い同じ絵」**で、
+     * 状態が変わったように見えない。青を残して彩度を落とす。
      */
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(mix(vec3(lum) * vec3(0.72, 0.84, 1.0), col, 0.35), col, light);
+
     /*
-     * 周辺を落とす。**中心に見る所を作る。** 一様だと、どこを見れば
-     * いいのか分からないまま柄が動くだけになる。
+     * 提灯だけは暗くしない。暖色の明るい所を拾って残す。
+     * **1 点でも光が残っていると、暗い側が「夜」に見える。**
      */
-    col *= smoothstep(1.15, 0.30, length(p));
+    float lure = smoothstep(0.30, 0.70, col.r - col.b * 0.6);
+    col += vec3(1.0, 0.72, 0.30) * lure * (1.0 - light) * swing * 1.2;
 
     // 印刷の粒。綺麗すぎると画面に見える
-    col *= 0.94 + vnoise(uv * 420.0) * 0.12;
+    col *= 0.95 + hash12(uv * 480.0) * 0.10;
 
     gl_FragColor = vec4(col, 1.0);
   }

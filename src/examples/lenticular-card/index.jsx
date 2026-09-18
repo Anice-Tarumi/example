@@ -11,6 +11,10 @@ import {
   edgeFragmentShader,
 } from './glsl/lenticular'
 import { PRESETS, PRESET_OPTIONS, DEFAULT_PRESET, DEFAULTS } from './presets'
+import bgUrl from './assets/layer-a-bg.jpg?url'
+import jellyUrl from './assets/layer-b-jelly.png?url'
+import fishUrl from './assets/layer-c-fish.png?url'
+import kelpUrl from './assets/layer-d-kelp.png?url'
 
 /**
  * レンチキュラーのカード。
@@ -36,6 +40,36 @@ const CARD_R = 0.13
 const GRID = new THREE.Vector2(6, 4)
 /** コマ 1 枚の解像度 */
 const TILE = 384
+
+/**
+ * 層の絵を読む。
+ *
+ * **色空間を明示する。** 既定のままだと線形として扱われて、
+ * 焼いた絵が沈む。絵は sRGB で描かれている。
+ */
+function useLayers() {
+  const [maps, setMaps] = useState(null)
+  useEffect(() => {
+    const loader = new THREE.TextureLoader()
+    let alive = true
+    Promise.all([bgUrl, jellyUrl, fishUrl, kelpUrl].map((u) => loader.loadAsync(u)))
+      .then((list) => {
+        if (!alive) return
+        for (const t of list) {
+          t.colorSpace = THREE.SRGBColorSpace
+          // ずらして引くので、外側は端の色で埋める
+          t.wrapS = THREE.ClampToEdgeWrapping
+          t.wrapT = THREE.ClampToEdgeWrapping
+          t.minFilter = THREE.LinearMipmapLinearFilter
+          t.generateMipmaps = true
+        }
+        setMaps(list)
+      })
+      .catch((e) => console.warn('[lenticular] 層の絵を読めなかった:', e))
+    return () => { alive = false }
+  }, [])
+  return maps
+}
 
 /** 角丸のカード。厚みを持たせる。板紙に見せるには側面が要る */
 function useCardGeometry() {
@@ -85,6 +119,7 @@ function useCardGeometry() {
 function Card({ params, tiltRef }) {
   const { gl } = useThree()
   const group = useRef(null)
+  const layers = useLayers()
   const geometry = useCardGeometry()
   useEffect(() => () => geometry.dispose(), [geometry])
 
@@ -100,13 +135,15 @@ function Card({ params, tiltRef }) {
   })
 
   const bakeUniforms = useMemo(() => ({
+    tA: { value: null },
+    tB: { value: null },
+    tC: { value: null },
+    tD: { value: null },
     uGrid: { value: GRID.clone() },
     uViews: { value: DEFAULTS.views },
     uMaxAngle: { value: THREE.MathUtils.degToRad(DEFAULTS.maxAngle) },
     uParallax: { value: DEFAULTS.parallax },
-    uHiddenAt: { value: DEFAULTS.hiddenAt },
-    uTint: { value: new THREE.Color(DEFAULTS.tint) },
-    uAccent: { value: new THREE.Color(DEFAULTS.accent) },
+    uLightSwing: { value: DEFAULTS.lightSwing },
   }), [])
 
   const bakeQuad = useMemo(() => new FullScreenQuad(new THREE.ShaderMaterial({
@@ -118,20 +155,26 @@ function Card({ params, tiltRef }) {
   })), [bakeUniforms])
   useEffect(() => () => bakeQuad.dispose(), [bakeQuad])
 
-  // 焼きの設定が変わったときだけ焼く
+  /*
+   * 焼きの設定が変わったときだけ焼く。**毎フレーム焼かない。**
+   * レンチキュラーは印刷物が動かないのが本質で、焼き直すとただの視差になる。
+   */
   useEffect(() => {
+    if (!layers) return
+    bakeUniforms.tA.value = layers[0]
+    bakeUniforms.tB.value = layers[1]
+    bakeUniforms.tC.value = layers[2]
+    bakeUniforms.tD.value = layers[3]
     bakeUniforms.uViews.value = Math.min(params.views, GRID.x * GRID.y)
     bakeUniforms.uMaxAngle.value = THREE.MathUtils.degToRad(params.maxAngle)
     bakeUniforms.uParallax.value = params.parallax
-    bakeUniforms.uHiddenAt.value = params.hiddenAt
-    bakeUniforms.uTint.value.set(params.tint)
-    bakeUniforms.uAccent.value.set(params.accent)
+    bakeUniforms.uLightSwing.value = params.lightSwing
     const prev = gl.getRenderTarget()
     gl.setRenderTarget(atlas)
     bakeQuad.render(gl)
     gl.setRenderTarget(prev)
-  }, [gl, atlas, bakeQuad, bakeUniforms, params.views, params.maxAngle, params.parallax,
-    params.hiddenAt, params.tint, params.accent])
+  }, [gl, atlas, bakeQuad, bakeUniforms, layers, params.views, params.maxAngle,
+    params.parallax, params.lightSwing])
 
   const uniforms = useMemo(() => ({
     tViews: { value: atlas.texture },
@@ -279,9 +322,7 @@ export default function LenticularCard() {
       views: { value: DEFAULTS.views, min: 2, max: 24, step: 1, label: 'sub images' },
       maxAngle: { value: DEFAULTS.maxAngle, min: 6, max: 45, step: 1, label: 'angle range' },
       parallax: { value: DEFAULTS.parallax, min: 0, max: 1.2, step: 0.02, label: 'parallax' },
-      hiddenAt: { value: DEFAULTS.hiddenAt, min: 0.2, max: 1, step: 0.02, label: 'hidden at' },
-      tint: { value: DEFAULTS.tint, label: 'tint' },
-      accent: { value: DEFAULTS.accent, label: 'accent' },
+      lightSwing: { value: DEFAULTS.lightSwing, min: 0, max: 1.5, step: 0.05, label: 'light swing' },
     }),
     Feel: folder({
       tilt: { value: DEFAULTS.tilt, min: 0, max: 2, step: 0.05, label: 'tilt' },
