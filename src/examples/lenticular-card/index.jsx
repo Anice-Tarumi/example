@@ -145,6 +145,7 @@ function Card({ params, tiltRef }) {
     uRidge: { value: DEFAULTS.ridge },
     uSheen: { value: DEFAULTS.sheen },
     uGrain: { value: DEFAULTS.grain },
+    uShowPrint: { value: 0 },
     uTime: { value: 0 },
   }), [atlas])
 
@@ -173,6 +174,7 @@ function Card({ params, tiltRef }) {
     uniforms.uRidge.value = params.ridge
     uniforms.uSheen.value = params.sheen
     uniforms.uGrain.value = params.grain
+    uniforms.uShowPrint.value = params.showPrint ? 1 : 0
     uniforms.uTime.value = state.clock.elapsedTime
 
     const g = group.current
@@ -206,11 +208,15 @@ function useTilt(enableGyro) {
   const [gyroReady, setGyroReady] = useState(false)
 
   useEffect(() => {
+    /*
+     * **キャンバスの矩形で測る。** 窓基準にすると、サイドバーのぶん
+     * 中心がずれて、正面を向いた状態にできない。
+     */
     const onMove = (e) => {
-      const w = window.innerWidth
-      const h = window.innerHeight
-      tilt.current.x = (e.clientX / w) * 2 - 1
-      tilt.current.y = (e.clientY / h) * 2 - 1
+      const el = document.querySelector('.stage__canvas canvas') || document.querySelector('canvas')
+      const r = el ? el.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+      tilt.current.x = ((e.clientX - r.left) / r.width) * 2 - 1
+      tilt.current.y = ((e.clientY - r.top) / r.height) * 2 - 1
     }
     window.addEventListener('pointermove', onMove)
     return () => window.removeEventListener('pointermove', onMove)
@@ -267,6 +273,7 @@ export default function LenticularCard() {
       ridge: { value: DEFAULTS.ridge, min: 0, max: 1, step: 0.02, label: 'ridge' },
       sheen: { value: DEFAULTS.sheen, min: 0, max: 2, step: 0.05, label: 'gloss' },
       grain: { value: DEFAULTS.grain, min: 0, max: 0.4, step: 0.01, label: 'grain' },
+      showPrint: { value: DEFAULTS.showPrint, label: 'lens off (print)' },
     }),
     Print: folder({
       views: { value: DEFAULTS.views, min: 2, max: 24, step: 1, label: 'sub images' },

@@ -63,6 +63,7 @@ export const lenticularFragmentShader = /* glsl */`
   uniform float uRidge;        // 稜線の暗さ
   uniform float uSheen;        // 表面の艶
   uniform float uGrain;
+  uniform float uShowPrint;  // 1 でレンズを外し、下の印刷を見せる
   uniform float uTime;
 
   varying vec2 vUv;
@@ -135,6 +136,24 @@ export const lenticularFragmentShader = /* glsl */`
      * ただのぼけた画像になってレンチキュラーに見えない。
      */
     vec2 quv = vec2((floor(lens) + 0.5) / uLenses, vUv.y);
+
+    /*
+     * レンズを外した状態。**下に何が刷ってあるか**を見せる。
+     * レンズ 1 本ぶんの幅に N 枚の短冊が並んでいる。ここを見せないと、
+     * 「角度で絵が変わる」が魔法のままで終わる。
+     *
+     * 以前は焦点距離を 0 にして代用していたが、それだと常に中央の
+     * 1 コマが出るだけで、印刷の姿になっていなかった。
+     */
+    if (uShowPrint > 0.5) {
+      float strip = floor(u * uViews);
+      vec3 print = sampleView(strip, vec2(vUv.x, vUv.y));
+      // 短冊の境目
+      float seam = smoothstep(0.5, 0.2, abs(fract(u * uViews) - 0.5));
+      print *= 0.75 + 0.25 * seam;
+      gl_FragColor = vec4(print, 1.0);
+      return;
+    }
 
     /*
      * 色収差。**チャンネルごとに屈折量を変える。**

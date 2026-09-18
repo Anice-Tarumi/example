@@ -51,6 +51,11 @@ export const viewsFragmentShader = /* glsl */`
     return smoothstep(r, r - soft, length(p));
   }
 
+  vec2 rot(vec2 p, float a) {
+    float c = cos(a), si = sin(a);
+    return mat2(c, -si, si, c) * p;
+  }
+
   /** 輪。太さ w */
   float ring(vec2 p, float r, float w, float soft) {
     float d = abs(length(p) - r);
@@ -94,10 +99,20 @@ export const viewsFragmentShader = /* glsl */`
     star *= disc(fract(sg) - 0.5, 0.11, 0.16);
     col += vec3(0.62, 0.70, 0.86) * star * 0.30;
 
-    // 中景。輪を 2 本。ずれは中くらい
-    vec2 mid = p + vec2(shift * 0.55, 0.0);
-    col += uAccent * ring(mid, 0.34, 0.010, 0.006) * 0.85;
-    col += uAccent * ring(mid, 0.46, 0.004, 0.004) * 0.35;
+    /*
+     * 中景。**ずらすだけでなく回す。**
+     * 平行移動だけだと、コマ同士の差が小さくて「切り替わっている」と
+     * 分からない（実際、視差だけにしたら動いていないと言われた）。
+     * 角度で構造が変わると、1 コマ進んだのがはっきり見える。
+     */
+    vec2 mid = rot(p, t * 0.42) + vec2(shift * 0.55, 0.0);
+    /*
+     * 色も角度で振る。**レンチキュラーは色が変わるとすぐ分かる。**
+     * 形の差だけだと、傾けても同じ絵に見えてしまう。
+     */
+    vec3 acc = mix(uAccent, vec3(1.0, 0.72, 0.42), clamp(t * 0.5 + 0.5, 0.0, 1.0));
+    col += acc * ring(mid, 0.34, 0.010, 0.006) * 0.85;
+    col += acc * ring(mid, 0.46, 0.004, 0.004) * 0.35;
 
     // 中景の塊。少しだけ散らす
     for (int i = 0; i < 5; i++) {
@@ -110,14 +125,14 @@ export const viewsFragmentShader = /* glsl */`
        * 大きめ・柔らかめ・暗めにする。
        */
       float r = 0.042 + hash12(vec2(fi, 7.0)) * 0.040;
-      col += mix(uAccent, vec3(1.0), 0.25) * disc(mid - c, r, 0.040) * 0.42;
+      col += mix(acc, vec3(1.0), 0.25) * disc(mid - c, r, 0.040) * 0.42;
     }
 
     /*
      * 手前の層。**ほとんどずれない。** 全部が同じだけ動くと、絵が
      * 丸ごと平行移動しているだけに見える。近い物を止めるのが要点。
      */
-    vec2 near = p + vec2(shift * 0.12, 0.0);
+    vec2 near = rot(p, t * -0.10) + vec2(shift * 0.12, 0.0);
     float cross = 0.0;
     cross += smoothstep(0.0022, 0.0, abs(near.y)) * smoothstep(0.30, 0.0, abs(near.x));
     cross += smoothstep(0.0022, 0.0, abs(near.x)) * smoothstep(0.20, 0.0, abs(near.y));

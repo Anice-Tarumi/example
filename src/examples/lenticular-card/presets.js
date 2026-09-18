@@ -2,16 +2,24 @@
 
 const BASE = {
   // 焼き
-  views: 24,
+  views: 20,
   maxAngle: 26,      // 度
-  parallax: 0.42,
-  hiddenAt: 0.74,
+  /*
+   * 視差。**小さいとコマ同士が似すぎて「切り替わらない」と感じる。**
+   * 0.42 で試したら、端の隠し絵以外はほぼ同じ絵に見えた。
+   */
+  parallax: 0.95,
+  hiddenAt: 0.66,
 
   // レンズ
   lenses: 96,        // カード横あたりの本数
   focal: 0.92,
-  bleed: 0.55,
-  aberration: 0.55,
+  bleed: 0.32,
+  /*
+   * 色収差。**虹にしない。** 0.55 だと帯が完全な虹になって玩具に見えた。
+   * 切り替わり際に赤と青の縁が薄く出るくらいが実物。
+   */
+  aberration: 0.30,
   ridge: 0.35,
   sheen: 0.75,
   grain: 0.10,
@@ -21,7 +29,8 @@ const BASE = {
    * ポインタでどれだけ傾くか。**大きすぎると画面から出る。**
    * 0.9（約 52 度）で試したら、端でカードが枠の外へ逃げた。
    */
-  tilt: 0.52,
+  tilt: 0.60,
+  showPrint: false,
   gyro: true,
   background: '#0d0f14',
   tint: '#5f7fbe',
@@ -44,15 +53,17 @@ export const PRESETS = {
    */
   flip: {
     label: 'Flip',
-    params: { ...BASE, views: 4, bleed: 0.18, parallax: 0.9, hiddenAt: 0.45, aberration: 0.7 },
+    params: { ...BASE, views: 4, bleed: 0.16, parallax: 1.1, hiddenAt: 0.45, aberration: 0.7 },
   },
   /*
    * レンズを外した状態。**これが下に刷ってある絵。**
-   * 短冊に切り刻まれているだけ、と分かると仕組みが腑に落ちる。
+   * レンズ 1 本ぶんの幅に N 枚の短冊が並んでいるのが見える。
+   * 以前は焦点距離を 0 にして代用していたが、それだと常に中央の 1 コマが
+   * 出るだけで、印刷の姿になっていなかった。
    */
   raw: {
     label: 'Print only',
-    params: { ...BASE, focal: 0.0, bleed: 0.0, aberration: 0.0, sheen: 0.0, ridge: 0.0 },
+    params: { ...BASE, showPrint: true, lenses: 16, views: 8, sheen: 0.0, ridge: 0.0, grain: 0.05 },
   },
 }
 
