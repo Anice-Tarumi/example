@@ -1,0 +1,17 @@
+{
+  "title": "Lenticular Card",
+  "description": "かまぼこ型レンズの下に短冊状に刷った N 枚の絵。見る角度でレンズが拾う短冊がずれ、絵が入れ替わる。式は s = u + tan(θ) · f / P の 1 行で、難しいのはその周り。隣のコマの滲み、チャンネルごとの屈折差（赤青の縁）、稜線の暗線、表面の艶。この 4 つが無いとクロスフェードにしか見えない。視線角は実際の視線から出すので、カードを傾けてもカメラを動かしても正しく効く。端まで倒すと隠し絵が出る。",
+  "emoji": "🪪",
+  "category": "materials",
+  "tags": ["shader", "optics", "interaction", "bake", "3d"],
+  "variants": [
+    { "id": "card", "label": "Card" },
+    { "id": "coarse", "label": "Coarse lens" },
+    { "id": "flip", "label": "Flip" },
+    { "id": "raw", "label": "Print only" }
+  ],
+  "source": "",
+  "sourceUrl": "",
+  "note": "絵は起動時に 1 回だけ焼く。毎フレーム描き直すとただの視差になり、レンチキュラー特有の飛びとゴーストが出ない",
+  "thumb": { "wait": 2600, "hover": [0.72, 0.42], "after": 500 }
+}
