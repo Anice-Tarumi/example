@@ -1,0 +1,17 @@
+{
+  "title": "Reaction Diffusion",
+  "description": "Gray–Scott 反応拡散。2 種類の物質が格子の上で広がって反応するだけの式で、feed と kill の 2 つの係数を変えると珊瑚・細胞分裂・迷路とまったく違う模様が育つ。ドラッグで種を置くと、そこから模様が生えてくる。濃度を色にせず高さとして光を当てるので、描かれた柄ではなく盛り上がった物質に見える。Parameter map では横に feed、縦に kill を振り、1 枚に全部の模様を並べる。",
+  "emoji": "🪸",
+  "category": "physics",
+  "tags": ["simulation", "ping-pong", "fbo", "shader", "mouse"],
+  "variants": [
+    { "id": "coral", "label": "Coral" },
+    { "id": "mitosis", "label": "Mitosis" },
+    { "id": "maze", "label": "Maze" },
+    { "id": "map", "label": "Parameter map" }
+  ],
+  "source": "Karl Sims — Reaction-Diffusion Tutorial / J. E. Pearson, Complex Patterns in a Simple System (1993)",
+  "sourceUrl": "https://www.karlsims.com/rd.html",
+  "note": "状態は浮動小数で持つ。8bit だと 1 回の変化量が丸めで消えて模様が育たない",
+  "thumb": { "wait": 5000, "after": 400 }
+}
